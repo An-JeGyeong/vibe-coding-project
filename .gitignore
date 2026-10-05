@@ -1,0 +1,11 @@
+.env*
+!.env.example
+node_modules/
+.next/
+out/
+.gradle/
+build/
+*.tsbuildinfo
+*.log
+.idea/
+.vscode/
