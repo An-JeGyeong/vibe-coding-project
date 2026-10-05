@@ -2,6 +2,13 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = { title: "망가브릿지 · 로컬 상태 확인" };
+
+const BOOTSTRAP_CSS = "https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css";
+const BOOTSTRAP_SRI = "sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB";
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="ko"><body>{children}</body></html>;
+  return <html lang="ko">
+    <head><link rel="stylesheet" href={BOOTSTRAP_CSS} integrity={BOOTSTRAP_SRI} crossOrigin="anonymous" /></head>
+    <body className="bg-body-tertiary">{children}</body>
+  </html>;
 }

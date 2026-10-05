@@ -48,27 +48,27 @@ export function LoginForm() {
 
   return <>
     <form onSubmit={onSubmit} noValidate aria-label="로그인">
-      <label>로그인 ID
-        <input name="loginId" type="text" value={loginId} autoComplete="username" autoCapitalize="none"
+      <label className="form-label w-100">로그인 ID
+        <input className="form-control mt-1" name="loginId" type="text" value={loginId} autoComplete="username" autoCapitalize="none"
           autoCorrect="off" spellCheck={false} aria-invalid={errors.loginId ? true : undefined}
           aria-describedby={errors.loginId ? "loginId-error" : undefined}
           onChange={(event) => setLoginId(event.target.value)} />
       </label>
-      {errors.loginId && <p id="loginId-error" className="field-error" role="alert">{errors.loginId}</p>}
-      <label>비밀번호
-        <input name="password" type="password" value={password} autoComplete="current-password"
+      {errors.loginId && <p id="loginId-error" className="text-danger small mt-1 mb-0" role="alert">{errors.loginId}</p>}
+      <label className="form-label w-100 mt-2">비밀번호
+        <input className="form-control mt-1" name="password" type="password" value={password} autoComplete="current-password"
           aria-invalid={errors.password ? true : undefined}
           aria-describedby={errors.password ? "password-error" : undefined}
           onChange={(event) => setPassword(event.target.value)} />
       </label>
-      {errors.password && <p id="password-error" className="field-error" role="alert">{errors.password}</p>}
-      {message && <p className="form-error" role="alert">{message}</p>}
-      <button type="submit" disabled={submitting || retryAt !== null}>{submitting ? "로그인 중…" : "로그인"}</button>
+      {errors.password && <p id="password-error" className="text-danger small mt-1 mb-0" role="alert">{errors.password}</p>}
+      {message && <p className="alert alert-danger mt-3 mb-0" role="alert">{message}</p>}
+      <button type="submit" className="btn btn-primary mt-3 w-100" disabled={submitting || retryAt !== null}>{submitting ? "로그인 중…" : "로그인"}</button>
     </form>
-    <section aria-label="데모 계정 안내">
-      <h2>데모 로그인 ID</h2>
+    <section aria-label="데모 계정 안내" className="mt-4 pt-3 border-top">
+      <h2 className="h5">데모 로그인 ID</h2>
       <p>비밀번호는 데모 운영자에게 별도로 전달받습니다.</p>
-      <ul>
+      <ul className="mb-0">
         {DEMO_ACCOUNTS.map((account) => <li key={account.loginId}>
           {ROLE_INFO[account.role].label}: <code>{account.loginId}</code>
         </li>)}
