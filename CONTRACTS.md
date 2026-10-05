@@ -1,7 +1,7 @@
 # CONTRACTS.md
 
-관리: Claude Code / Codex는 변경 제안만 가능
-범위: ProjectBootstrap (이 문서는 헬스 체크와 기반 설정만 다룬다)
+관리: ProjectBootstrap은 Claude Code, DemoAuth 공통 계약은 Codex / 최종 승인: 사용자
+범위: ProjectBootstrap과 승인된 DemoAuth. 아래 DemoAuth 절은 인증 제외·단일 API·빈 스키마 등 Bootstrap 단계 제한을 해당 기능에 한해 대체한다.
 근거: `DECISIONS.md` D-001~D-003, D-006~D-008, D-010, D-012~D-018 (D-011, D-004의 DB 엔진 부분은 D-018로 대체)
 DB 엔진: MySQL 8.4 LTS (D-018). 이전 PostgreSQL 기준 문구는 모두 대체되었다.
 미결정(계약 대상 아님): D-004 관리형 MySQL 제품, D-005 백엔드 호스팅 제품, D-009 인증 방식
@@ -284,3 +284,57 @@ MySQL 세부(collation, 시각, 타임아웃, TLS, 권한, healthcheck): D-019 A
 - 계약과 어긋나는 상황(예: 버전 호환 문제, 요구 변경)이 생기면 우회하지 말고 구현을 멈추고 변경 제안을 보고한다.
 
 **보고 형식**: 변경 파일 목록, 확정한 버전, **실제 적용한 타임아웃 설정(키·값·단위)**, Docker CLI/데몬 확인 결과, 8절 각 항목의 실행 결과(통과/실패/미검증과 실제 명령), 10절 테스트 결과, 계약 변경 제안 여부.
+
+## 12. DemoAuth — APPROVED (2026-10-05, 사용자 보완 A~E 포함)
+
+### 담당·범위
+- Codex: backend, 공통 문서, 최종 실제 연동 검증. Claude Code: frontend, 자체 테스트, 마지막 통합 리뷰 1회. 공통 파일은 Codex만 수정한다. 병렬이면 별도 worktree, 같은 작업 트리면 순차 작업한다.
+- 승인 계약은 별도 로컬 커밋으로 전달한다. push·배포·이력 재작성·기존 볼륨 삭제 금지. V1 수정 금지. Spring JDBC 유지, Controller → Service → DAO → MySQL.
+- 승인 추가 의존성은 spring-boot-starter-security, spring-security-test(Boot BOM)뿐이다. 신규 인프라 없음.
+- 네 역할 OPERATOR/TRANSLATOR/REVIEWER/READER, 계정당 단일 역할. 운영자는 원문·회차·배정·발행, 번역가는 배정된 번역 작성·제출, 감수자는 배정된 검수. 제작 참여자는 해당 버전 승인·반려 금지, 운영자가 다른 역할을 자동 상속하지 않는다. 공개본은 비로그인 열람 가능. 배정·공개본·자기 검수는 후속 업무 API 기준만 기록하며 이번에는 구현하지 않는다.
+- 실제 브라우저 역할별 403은 첫 업무 API까지 이월한다. 이번에는 테스트 소스에만 있는 보호 경로로 실제 MySQL 포함 백엔드 권한 검증. 역할별 업무 페이지·별도 데모 API 금지.
+
+### API·오류
+| API | 입력 | 성공 |
+|---|---|---|
+| POST /api/auth/login | JSON {"loginId":"demo.operator","password":"<입력값>"} | 200 {"user":{"id":"1","displayName":"데모 운영자","role":"OPERATOR"},"accessToken":"<토큰>","tokenType":"Bearer","expiresAt":"<UTC ISO-8601>"} |
+| GET /api/auth/me | Authorization: Bearer <token>, 본문 없음 | 200 {"user":{"id":"1","displayName":"데모 운영자","role":"OPERATOR"},"expiresAt":"<UTC ISO-8601>"} |
+| POST /api/auth/logout | 선택적 Bearer, 본문 없음 | 204, 본문 없음 |
+- 로그인 ID 정규식 ^[a-z0-9][a-z0-9._-]{2,63}$, trim·소문자 변환 없이 검증. 비밀번호 변환 없음, 비어 있으면 400, 최대 72 UTF-8 바이트. 미정의 필드(role/userId 등)는 400. 프런트 동일 규칙.
+- 사용자 ID는 문자열. 클라이언트 역할·사용자 ID를 신뢰하지 않으며 매 인증 요청 DB 계정 상태·역할을 확인한다. 인증 응답은 Cache-Control: no-store.
+- 인증 오류 JSON은 {"error":{"code":"<코드>","message":"<고정 안내>"}}. 400 INVALID_REQUEST, 실패 로그인 401 INVALID_CREDENTIALS(없는 계정·잘못된 비밀번호·비활성 동일), 보호 요청 401 AUTH_REQUIRED(없음·변조·만료·폐기 동일), 403 FORBIDDEN, 429 LOGIN_RATE_LIMITED + Retry-After(초), 503 AUTH_UNAVAILABLE, 500 INTERNAL_ERROR. 비밀·내부 예외·DB 식별 정보 제외. 없는 계정은 더미 BCrypt 검증.
+- 잘못된 Authorization 형식: 보호 API는 401, logout은 400 INVALID_REQUEST. 토큰 없음·유효 형식이나 미등록·만료·이미 폐기된 토큰 logout은 204. 유효 토큰 폐기 여부를 DB 장애로 확인하지 못하면 503. 인증 DB 장애는 접근 거부.
+- 기존 health 계약·405·비허용 Origin 403 동작은 유지. 인증 오류 형식은 새 인증 경로·보호 접근에 적용한다.
+
+### 토큰·CORS·배포
+- 32바이트 난수의 base64url 불투명 토큰, DB SHA-256 BINARY(32) 해시만 저장. 비밀번호 BCrypt. sessionStorage에 토큰 저장, 요청 Authorization 헤더 전달, credentials: omit. 토큰은 JS 접근 가능하므로 XSS 노출 제한이 있는 데모 선택이다.
+- 기본 절대 수명 3600초, AUTH_TOKEN_TTL_SECONDS(1~86400)로 테스트 조정 가능. 자동 연장·refresh token 없음. 여러 토큰 허용, 현재 토큰만 폐기. 재기동 뒤 DB의 미만료 토큰 유지. 만료 경계 now >= expiresAt는 401.
+- 쿠키·HTTP Basic·자동 Servlet 인증 세션 없음. 명시적 Bearer만 인증하므로 CSRF 토큰은 사용하지 않는다. 쿠키 인증 추가 시 재승인. Origin 없는 요청 허용, CORS는 인증·권한 대체 수단이 아니다.
+- CORS_ALLOWED_ORIGINS 명시 목록, credentials=false 유지. 허용 헤더 Content-Type/Authorization, 노출 헤더 Retry-After. 비허용 Origin 있는 교차 출처는 인증보다 먼저 403, preflight는 인증 없이 처리.
+- 로컬 http://localhost:3000 → http://localhost:8080. 배포 계획은 Vercel 기본 도메인 + 별도 HTTPS API. 실제 API 호스트·Origin과 프록시 IP 정책은 배포 승인 대상이며 배포 검증 완료로 기록하지 않는다.
+
+### 제한·정리·감사
+- 로그인 ID(존재 여부 무관)별 15분 창에서 5회 실패 시 그 실패 시점부터 15분 차단. 직접 접속 IP별 15분 창 30회 실패도 같은 방식. 차단 요청은 카운터·차단 시간을 늘리지 않는다. now >= blockedUntil이면 차단 해제와 새 창, now >= windowStart+15분이면 새 창. 성공은 ID 실패 카운터를 초기화하되 IP 누적 실패는 유지.
+- 제한 키는 SHA-256 이진 해시로 저장. MySQL 행 잠금과 트랜잭션으로 동시 카운터·차단·로그인 성공 판정을 원자 처리. IP 키 → ID 키 순으로 잠금. 실패 결과는 제한·감사 저장을 커밋한 뒤 응답한다.
+- AUTH_CLIENT_IP_MODE=DIRECT는 local만 허용, request remote address만 사용하고 Forwarded/X-Forwarded-For를 신뢰하지 않는다. demo/prod에서는 IP 안전 판별/미적용 보완책 승인이 먼저 필요하다. 미결정 프록시 설정으로 조용히 IP 제한을 끄거나 공용 프록시 IP를 사용자 IP로 사용하지 않으며 기동을 거부한다. 이번 검증은 local DIRECT만 수행한다.
+- 감사: LOGIN_SUCCESS/LOGIN_FAILURE/LOGIN_LIMITED/LOGOUT/ACCESS_DENIED. UTC 시각·알려진 사용자 ID·이벤트·고정 사유만 저장. 비밀번호·해시·토큰·헤더·원문 요청·실패 ID·원시 IP는 감사/로그에서 제외.
+- 로그인 성공 토큰 발급+감사, 실패 제한+감사, logout 폐기+감사는 각각 원자 처리. 실패 로그인 또는 권한 거부 감사 저장 실패도 503 AUTH_UNAVAILABLE; 허용하지 않는다. 이미 폐기·없는 토큰 logout은 감사 중복 저장 없이 204.
+- 토큰은 만료/폐기 뒤 24시간, 제한 데이터는 마지막 갱신 뒤 24시간(활성 차단 제외), 감사는 7일 보관. 명시적 수동 정리 실행 인자 --demo-auth-cleanup=true로 삭제하며 스케줄러 없음. 기존 계정·Flyway·컨테이너·볼륨은 정리하지 않는다.
+
+### 초기화·프런트 계약
+- 고정 ID demo.operator/demo.translator/demo.reviewer/demo.reader. 초기화 전용 --demo-auth-seed=true, DEMO_AUTH_SEED_ENABLED=true, local/demo 프로필만 허용. DEMO_OPERATOR_PASSWORD/DEMO_TRANSLATOR_PASSWORD/DEMO_REVIEWER_PASSWORD/DEMO_READER_PASSWORD를 셸 환경으로 주입한다. 값은 화면·소스·NEXT_PUBLIC·로그에 기록하지 않는다.
+- 기존 계정 비밀번호·역할을 덮어쓰지 않는다. 기존 ID의 역할/이름/활성 상태/주입 비밀번호가 다르면 원자적으로 실패. 초기화는 한 번 실행 후 프로세스 종료, prod 거부. demo 실행의 프록시 IP 미결정은 위 기동 규칙을 따른다.
+- 기존 DB/CORS/PORT 변수 유지, local 프로필, frontend NEXT_PUBLIC_API_BASE_URL=http://localhost:8080. PowerShell 5.1 셸 주입 절차 사용. Compose 변경 없음.
+- /login 로그인 화면, /demo 모든 인증 역할의 보호 화면. 성공 후 /demo. 로그인 화면에는 역할별 ID만 안내. /demo에 서버 확인 사용자·역할·권한 안내, 미구현 메뉴 비활성. 비밀번호 UI 안내·소스 저장 금지.
+- 저장 토큰이 있으면 초기 /me 완료 전 보호 내용 숨김. /me 및 API 401이면 토큰 제거. expiresAt 도달과 탭 재활성 때 만료 재확인, polling 없음. 서버 판정 최종. 403은 로그인 유지. 통신 장애·503은 재시도, 임의 logout 금지. logout 통신 실패는 서버 logout 미확인 표시. 인증 변경 전 시작한 /me 응답이 상태를 복원하지 않도록 세대 번호/요청 취소 처리.
+
+### 처리 함수·검증
+| 함수 | 입력 → 출력 | 실패·트랜잭션 | 필수 검사 |
+|---|---|---|---|
+| loginDemoAccount | loginId/password/remoteAddress → user/token/expiresAt | 400/401/429/503; 제한 행 잠금, 성공 token+audit 또는 실패 제한+audit 커밋 | 실패 동일 응답, 병렬 경계, 비밀 비저장, 성공 ID 초기화 |
+| getCurrentUser | token → user/expiresAt | 401/503; 읽기 | 만료·폐기·활성·서버 역할 |
+| logout | 선택적 token → 없음 | malformed 400/DB 503; revoke+audit 원자 | 반복·없는·만료 204, 다른 token 보존 |
+| 공통 인증/역할 검사 | 요청 → CurrentUser/허용 | 401/403/503; 인증 DB 읽기, 거부 감사 쓰기 | 역할 위조·쿠키 거부·감사 장애 거부 |
+- backend: 정상/실패 로그인, /me, 테스트 전용 보호 경로 401/403, 만료/logout, 역할 위조, 실제 MySQL 원자 제한·마이그레이션·통합 검사, CORS/CSRF 정책, 감사 장애·DB 장애, 비노출, 기존 회귀·빌드, PS5.1 절차.
+- frontend(Claude Code): /login-/demo, 초기/갱신/만료, 오류별 처리·이전 응답 무시·logout, sessionStorage, 타입/빌드/자체 테스트.
+- 최종 실제 연동(Codex): 통합 커밋 고정, 실제 frontend/API/MySQL에서 로그인·사용자역할·새로고침·만료/401·통신 장애·logout 확인. 브라우저 역할별 403은 첫 업무 API까지 이월. 결과·커밋을 Claude Code의 마지막 통합 리뷰에 전달한다.

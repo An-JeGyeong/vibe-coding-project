@@ -1,6 +1,6 @@
 # 망가브릿지 — ProjectBootstrap 로컬 실행
 
-이 단계는 `/api/health`와 로컬 기반 구성만 제공합니다. 인증·업무 도메인·AI·외부 배포는 포함하지 않습니다.
+ProjectBootstrap은 `/api/health`와 로컬 기반 구성을 제공합니다. 후속 DemoAuth 계약은 CONTRACTS.md 12절을 따릅니다. 업무 도메인·AI·외부 배포는 포함하지 않습니다.
 
 ## 준비
 
@@ -212,3 +212,36 @@ git diff --cached --check
 ```
 
 `.env*`는 `.env.example`만 제외하고 무시됩니다. 로컬 개발 전용 값 외의 실제 비밀값을 추적 파일이나 클라이언트 번들에 넣지 마세요. 로컬 커밋 전 파일 목록과 staged diff를 검사합니다. 빌드 산출물과 의존성 폴더는 추적하지 않습니다.
+
+## 7. DemoAuth 실행·검증 (승인 계약, 구현 후 실행)
+
+역할별 ID는 `demo.operator`, `demo.translator`, `demo.reviewer`, `demo.reader`입니다. 비밀번호는 화면·소스·NEXT_PUBLIC 변수에 포함하지 않습니다. local 직접 접속만 이번 검증 대상이며 Vercel/API 외부 배포와 프록시 IP 정책은 별도 승인 전 미검증입니다.
+
+2절처럼 DB·CORS 환경을 주입한 backend PowerShell 5.1 창에서 다음 초기화를 한 번 실행합니다. 기존 계정은 덮어쓰지 않으며 재실행은 같은 비밀번호를 입력해야 합니다. 실제 비밀번호를 셸 명령이나 Git에 기록하지 않습니다.
+
+```powershell
+$env:AUTH_CLIENT_IP_MODE = 'DIRECT'
+$env:DEMO_AUTH_SEED_ENABLED = 'true'
+try {
+  foreach ($name in @('DEMO_OPERATOR_PASSWORD','DEMO_TRANSLATOR_PASSWORD','DEMO_REVIEWER_PASSWORD','DEMO_READER_PASSWORD')) {
+    $secret = Read-Host $name -AsSecureString
+    $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secret)
+    try { [Environment]::SetEnvironmentVariable($name, [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer), 'Process') }
+    finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer) }
+  }
+  .\gradlew.bat bootRun --args='--demo-auth-seed=true --spring.main.web-application-type=none' --no-daemon
+  $seedExit = $LASTEXITCODE
+  if ($seedExit -ne 0) { throw "Demo account initialization failed (exit $seedExit)" }
+} finally {
+  foreach ($name in @('DEMO_OPERATOR_PASSWORD','DEMO_TRANSLATOR_PASSWORD','DEMO_REVIEWER_PASSWORD','DEMO_READER_PASSWORD','DEMO_AUTH_SEED_ENABLED')) {
+    [Environment]::SetEnvironmentVariable($name, $null, 'Process')
+  }
+}
+.\gradlew.bat bootRun --no-daemon
+```
+
+인증은 login/me/logout 3개 API만 제공합니다. 프런트 구현 후 /login → /demo를 확인하며 sessionStorage를 사용합니다. 인증 호출은 credentials: omit과 Authorization: Bearer를 사용합니다. 401은 인증 제거, 403은 유지, 503/통신 장애는 재시도, logout 통신 장애는 서버 logout 미확인으로 표시합니다. 실제 브라우저 403은 첫 업무 API까지 이월합니다.
+
+토큰 수명은 기본 3600초이며 테스트는 AUTH_TOKEN_TTL_SECONDS로 조정합니다. 서버 재기동에도 미만료 토큰은 유지합니다. 보관 기간이 지난 인증 데이터의 수동 정리는 2절 환경 주입 후 `gradlew.bat bootRun --args='--demo-auth-cleanup=true --spring.main.web-application-type=none' --no-daemon`으로 실행합니다. 계정·Flyway·기존 DB 볼륨은 정리하지 않습니다. 새 스케줄러는 없습니다.
+
+백엔드는 `gradlew.bat build integrationTest --no-daemon --rerun-tasks`로 기존 회귀·실제 MySQL·인증을 검증합니다. 프런트 테스트는 Claude Code가 수행하고, 통합 후 Codex가 실제 브라우저/API/MySQL 결과와 대상 커밋을 기록합니다. 실행 전에는 통과로 기록하지 않습니다.

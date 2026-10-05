@@ -1,6 +1,7 @@
 # DECISIONS.md
 
 관리: Claude Code / 최종 승인: 프로젝트 책임자
+DemoAuth 공통 문서 담당: Codex (사용자 승인, 2026-10-05)
 상태 표기: PROPOSED(승인 대기) · APPROVED · UNDECIDED(미결정 유지) · REJECTED
 
 ## ProjectBootstrap
@@ -39,7 +40,7 @@
 ### D-008 프런트엔드의 API 호출 — APPROVED
 - 브라우저가 `NEXT_PUBLIC_API_BASE_URL`을 이용해 Spring API를 직접 호출한다.
 
-### D-009 인증 방식 — UNDECIDED
+### D-009 인증 방식 — SUPERSEDED by D-020 (DemoAuth)
 - 미결정 유지. ProjectBootstrap에서는 인증 없이 `/api/health`만 공개한다.
 
 ### D-010 CORS — APPROVED
@@ -109,7 +110,31 @@
 
 미결정 유지: MySQL 8.4를 제공하지 않는 관리형 제품일 때 8.0 허용 여부(D-004와 함께 결정).
 
-## 이월 항목 (부트스트랩 이후 노드에서 결정, 모두 PROPOSED)
+## DemoAuth 승인 결정
+
+DemoAuth 승인 결정: D-020~D-024와 CONTRACTS.md 12절이 해당 인증 범위의 기존 미결정·Bootstrap 제한을 대체한다. D-104는 제작 참여자의 자기 검수 금지로 승인되었으며 업무 API에서 구현한다. D-107은 DemoAuth 로그인 ID에 한해 아래 규칙으로 승인되었고 다른 업무 식별자 정책은 이월한다.
+
+### D-020 DemoAuth 인증·배포 — APPROVED (2026-10-05)
+- DB 저장형 불투명 Bearer(32바이트 난수), SHA-256 BINARY(32) 해시, sessionStorage, 기본 60분 절대 만료, refresh 없음, 현재 토큰만 logout. 이유: Vercel 기본 도메인 + 별도 HTTPS API 계획에서 쿠키의 교차 사이트 제약을 피하고 기존 credentials=false를 유지한다. XSS 노출 제한을 인정한 데모 선택.
+- CORS Authorization 허용과 Retry-After 노출 승인. 쿠키/Basic 인증 없음, Bearer 전용 CSRF 정책. 실제 호스트·Origin·프록시 IP 정책과 배포 검증은 미완료이며 별도 승인.
+
+### D-021 역할·입력 — APPROVED
+- OPERATOR/TRANSLATOR/REVIEWER/READER 단일 역할. 배정 범위, 비로그인 공개본, 제작 참여자의 자기 검수 금지. 이유: 기존 흐름 보존 및 비공개 원고·승인 권한 분리. 업무 기능은 이번 범위 밖.
+- 로그인 ID ^[a-z0-9][a-z0-9._-]{2,63}$, ID/비밀번호 변환 없음, 형식 오류 400. 토큰 해시 BINARY(32), 로그인 ID 정확 비교. D-106/D-107 중 이번 인증에 필요한 부분만 확정.
+
+### D-022 제한·감사·장애 — APPROVED
+- ID별 5회/15분·15분 차단, local 직접 IP별 30회/15분. 전달 헤더 무조건 신뢰 금지. 프록시에서 안전한 IP 판별/미적용 보완책은 배포 때 승인, 미결정 demo/prod 기동 거부.
+- 카운터 원자성, 성공시 ID 초기화/IP 유지, 경계 now>=만료, 차단 중 연장 없음. 실패/거부 감사 실패도 503, 인증 DB 장애는 허용하지 않는다.
+- 수동 정리만 사용: 만료/폐기 token 24시간, 비활성 제한 24시간, 감사 7일. 이유: MVP 최소 보관과 새 스케줄러 회피. 상세는 CONTRACTS.md 12절.
+
+### D-023 데모 계정·프런트 — APPROVED
+- 명시적 local/demo seed와 환경변수 비밀번호, prod seed 금지, 기존 계정 덮어쓰기 금지. /login → /demo, ID 안내만, 서버 사용자/역할 안내, 업무 메뉴 비활성. 초기 /me·만료·탭 활성 확인, polling 없음, 이전 /me 응답 무시, 403 유지·503 재시도·logout 미확인 처리.
+
+### D-024 협업·검증 — APPROVED
+- Codex backend·공통 문서·실제 연동, Claude Code frontend·마지막 리뷰. 별도 계약 로컬 커밋 승인, push 금지. Security starter/test 의존성과 후속 Flyway 승인, V1 보존.
+- 실제 브라우저 역할별 403은 첫 업무 API로 이월. 운영 빌드에 없는 테스트 전용 경로로 backend 권한 검증, 별도 데모 API 금지.
+
+## 이월 항목 (업무 노드에서 결정, DemoAuth 확정 부분 제외)
 
 - D-106 토큰·해시의 비교 방식(`utf8mb4_bin` 확정 아님, `VARBINARY` 등 검토)
 - D-107 로그인 ID의 대소문자 정책
