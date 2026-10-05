@@ -1,7 +1,7 @@
 # CONTRACTS.md
 
 관리: ProjectBootstrap·EpisodeSource는 Claude Code, DemoAuth 공통 계약은 Codex / 최종 승인: 사용자
-범위: ProjectBootstrap, 승인된 DemoAuth, 13절 EpisodeSource(APPROVED 2026-10-05), 14절 전체 도메인 스키마(PROPOSED: 사용자 계약 승인 전 마이그레이션 금지). 아래 DemoAuth 절은 인증 제외·단일 API·빈 스키마 등 Bootstrap 단계 제한을 해당 기능에 한해 대체한다.
+범위: ProjectBootstrap, 승인된 DemoAuth, 13절 EpisodeSource(APPROVED 2026-10-05), 14절 전체 도메인 스키마(APPROVED 2026-10-06). 아래 DemoAuth 절은 인증 제외·단일 API·빈 스키마 등 Bootstrap 단계 제한을 해당 기능에 한해 대체한다.
 근거: `DECISIONS.md` D-001~D-003, D-006~D-008, D-010, D-012~D-018 (D-011, D-004의 DB 엔진 부분은 D-018로 대체)
 DB 엔진: MySQL 8.4 LTS (D-018). 이전 PostgreSQL 기준 문구는 모두 대체되었다.
 미결정(계약 대상 아님): D-004 관리형 MySQL 제품, D-005 백엔드 호스팅 제품, D-009 인증 방식
@@ -419,9 +419,9 @@ MySQL 세부(collation, 시각, 타임아웃, TLS, 권한, healthcheck): D-019 A
 - frontend: 목록·생성, 편집·검증, 충돌(409), 401·403·503·통신 오류, 중복 제출, 비운영자 접근 안내, 기존 회귀, 타입·빌드. 모킹 테스트 통과는 실제 연동 성공이 아니다.
 - 최종 실제 연동(Codex): 실제 frontend/API/MySQL에서 운영자 로그인 → 회차 생성 → 원문 저장 → 수정(버전 증가) → 과거 버전 조회 → 새로고침 후 유지 → 충돌 시나리오. 브라우저 역할별 403은 이번에 첫 업무 API가 생겼으므로 실제 브라우저에서 비운영자 역할의 403을 함께 확인한다(12절에서 이월된 항목).
 
-## 14. 전체 도메인 스키마 — 번역·감수·발행·독자 열람 (PROPOSED, 사용자 계약 승인 후 마이그레이션 적용)
+## 14. 전체 도메인 스키마 — 번역·감수·발행·독자 열람 — APPROVED (2026-10-06, 사용자 승인)
 
-작성: Claude Code. 근거: DECISIONS.md D-031~D-037(승인), D-038(이 계약 승인 시 함께 승인). 이 절은 **스키마와 규칙만** 확정한다. API·화면은 노드별로 이후에 계약한다(14.7). 적용은 Codex가 한 번에 수행하고 제약을 실제 MySQL로 검증한다. 기존 V1~V9는 수정하지 않는다.
+작성: Claude Code. 근거: DECISIONS.md D-031~D-037(승인), D-038(계약과 함께 2026-10-06 승인). 이 절은 **스키마와 규칙만** 확정한다. API·화면은 노드별로 이후에 계약한다(14.7). 적용은 Codex가 한 번에 수행하고 제약을 실제 MySQL로 검증한다. 기존 V1~V9는 수정하지 않는다.
 
 ### 14.1 개념도 (기존 테이블은 굵게)
 ```
