@@ -186,6 +186,12 @@ DemoAuth 승인 결정: D-020~D-024와 CONTRACTS.md 12절이 해당 인증 범�
 ### D-036 감사 — APPROVED
 - `domain_audit`에 번역 버전 ID 컬럼 추가. 새 이벤트: ASSIGNED, TRANSLATION_CREATED, TRANSLATION_SUBMITTED, REVIEW_APPROVED, REVIEW_REJECTED, APPROVAL_INVALIDATED, PUBLISHED. 본문·사유 전문은 저장하지 않는다.
 
+### D-038 스키마 계약 세부 — PROPOSED (CONTRACTS 14절 승인 시 함께 승인)
+- DB가 막을 수 있는 규칙은 DB가 막는다: 배정 역할 일치(복합 FK `demo_account(id, role)`), 열린 번역 버전 하나(생성 컬럼+UNIQUE), 번역 블록은 자기 원문 버전의 블록에만 연결(복합 FK), 공개 포인터는 같은 회차의 버전만(복합 FK), 반려 사유·상태·결정 CHECK. 나머지(발행 조건, 작성자≠감수자, 제출 후 불변 등)는 서비스와 실제 MySQL 테스트.
+- 배정되지 않은 회차에 번역가·감수자가 접근하면 404(존재 노출 방지), 역할이 없으면 403. 독자 공개 API는 `/api/public/**`(로그인 불필요)이며 번역 텍스트와 페이지·순서만 반환하고 원문·초안·내부 ID는 반환하지 않는다.
+- 새 번역 버전은 최신 원문 기준으로 직전 버전을 `source_seq`가 같은 블록끼리 복사해 시작한다. 발행 이력의 중복 발행 방지 UNIQUE는 두지 않는다(발행 보류·재발행 선택 기능의 여지). 번역 블록 불변성은 DB 트리거 없이 서비스·테스트로 보장한다.
+- 마이그레이션은 V10~V19(파일당 DDL 하나)로 Codex가 일괄 적용하고, 이후 노드는 서비스·API·화면만 구현한다(D-037).
+
 ## 이월 항목 (업무 노드에서 결정, DemoAuth 확정 부분 제외)
 
 - (갱신 2026-10-06) D-101·D-103은 D-032~D-034로, D-104는 D-035로 구체화되어 승인되었다.

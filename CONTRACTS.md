@@ -1,7 +1,7 @@
 # CONTRACTS.md
 
 관리: ProjectBootstrap·EpisodeSource는 Claude Code, DemoAuth 공통 계약은 Codex / 최종 승인: 사용자
-범위: ProjectBootstrap, 승인된 DemoAuth, 13절 EpisodeSource(APPROVED 2026-10-05). 아래 DemoAuth 절은 인증 제외·단일 API·빈 스키마 등 Bootstrap 단계 제한을 해당 기능에 한해 대체한다.
+범위: ProjectBootstrap, 승인된 DemoAuth, 13절 EpisodeSource(APPROVED 2026-10-05), 14절 전체 도메인 스키마(PROPOSED: 사용자 계약 승인 전 마이그레이션 금지). 아래 DemoAuth 절은 인증 제외·단일 API·빈 스키마 등 Bootstrap 단계 제한을 해당 기능에 한해 대체한다.
 근거: `DECISIONS.md` D-001~D-003, D-006~D-008, D-010, D-012~D-018 (D-011, D-004의 DB 엔진 부분은 D-018로 대체)
 DB 엔진: MySQL 8.4 LTS (D-018). 이전 PostgreSQL 기준 문구는 모두 대체되었다.
 미결정(계약 대상 아님): D-004 관리형 MySQL 제품, D-005 백엔드 호스팅 제품, D-009 인증 방식
@@ -418,3 +418,74 @@ MySQL 세부(collation, 시각, 타임아웃, TLS, 권한, healthcheck): D-019 A
 - backend: 위 처리 함수 테스트, 4개 역할×6개 API 401/403/성공 매트릭스(역할 위조 포함), 실제 MySQL 마이그레이션(V6~V9)·제약·동시 저장·불변성, 오류 비노출·비JSON 400, 기존 회귀·빌드, 통합 테스트가 개발 DB에 행을 남기지 않음(생성한 회차·버전·블록·감사를 정리하되 데모 계정·기존 데이터는 보존).
 - frontend: 목록·생성, 편집·검증, 충돌(409), 401·403·503·통신 오류, 중복 제출, 비운영자 접근 안내, 기존 회귀, 타입·빌드. 모킹 테스트 통과는 실제 연동 성공이 아니다.
 - 최종 실제 연동(Codex): 실제 frontend/API/MySQL에서 운영자 로그인 → 회차 생성 → 원문 저장 → 수정(버전 증가) → 과거 버전 조회 → 새로고침 후 유지 → 충돌 시나리오. 브라우저 역할별 403은 이번에 첫 업무 API가 생겼으므로 실제 브라우저에서 비운영자 역할의 403을 함께 확인한다(12절에서 이월된 항목).
+
+## 14. 전체 도메인 스키마 — 번역·감수·발행·독자 열람 (PROPOSED, 사용자 계약 승인 후 마이그레이션 적용)
+
+작성: Claude Code. 근거: DECISIONS.md D-031~D-037(승인), D-038(이 계약 승인 시 함께 승인). 이 절은 **스키마와 규칙만** 확정한다. API·화면은 노드별로 이후에 계약한다(14.7). 적용은 Codex가 한 번에 수행하고 제약을 실제 MySQL로 검증한다. 기존 V1~V9는 수정하지 않는다.
+
+### 14.1 개념도 (기존 테이블은 굵게)
+```
+demo_account ─┬─< episode_assignment >─ episode            (번역가·감수자 각 1명)
+              │
+ episode ─< episode_source_version ─< source_block                     (기존, 불변)
+    │            ▲  (episode_id, source_version_no)
+    │            │
+    ├─< translation_version ─< translation_block ──> source_block      (블록 단위 연결)
+    │        │  1:0..1
+    │        └── review_decision                                        (승인·반려 1건)
+    ├─< publication ──> translation_version                            (발행 이력)
+    └── published_translation_version_id ──> translation_version        (공개 중인 버전 포인터)
+ domain_audit (기존 + translation_version_id)
+```
+
+### 14.2 마이그레이션 (V10~V19, 파일당 DDL 하나, InnoDB·utf8mb4·UTC DATETIME(6), 열거값은 ascii_bin VARCHAR + CHECK)
+| 파일 | 변경 | 핵심 제약 |
+|---|---|---|
+| V10 | demo_account에 `UNIQUE(id, role)` 추가 | 역할 일치 외래키의 기반. 배정된 계정의 역할 변경을 막는다 |
+| V11 | episode_assignment | PK(episode_id, assignee_role) → 회차당 역할별 1명. FK(episode_id)→episode, **FK(account_id, assignee_role)→demo_account(id, role)**(번역가 칸에는 TRANSLATOR 계정만), assigned_by FK, CHECK(assignee_role IN ('TRANSLATOR','REVIEWER')) |
+| V12 | translation_version | id PK, episode_id, version_no, source_version_no, status, created_by, created_at, submitted_at NULL, 생성 컬럼 `open_slot`(status가 DRAFT·REVIEW_PENDING이면 1, 아니면 NULL). UNIQUE(episode_id, version_no), **UNIQUE(episode_id, open_slot)**(열린 버전 하나), UNIQUE(episode_id, id), UNIQUE(id, episode_id, source_version_no). **FK(episode_id, source_version_no)→episode_source_version**, created_by FK. CHECK(status IN ('DRAFT','REVIEW_PENDING','REJECTED','APPROVED','PUBLISHED','INVALIDATED','ON_HOLD')), CHECK(version_no>=1) |
+| V13 | translation_block | PK(translation_version_id, source_seq), body VARCHAR(4000) NOT NULL. **FK(translation_version_id, episode_id, source_version_no)→translation_version(id, episode_id, source_version_no)**, **FK(episode_id, source_version_no, source_seq)→source_block** → 번역 블록은 자기 번역 버전의 원문 버전에 실제로 있는 블록에만 붙는다. CHECK(CHAR_LENGTH(body)>=1) |
+| V14 | review_decision | id PK, translation_version_id **UNIQUE**, decision, reason VARCHAR(500) NULL, reviewer_id FK, source_version_no, decided_at, invalidated_at NULL. FK→translation_version, CHECK(decision IN ('APPROVED','REJECTED')), **CHECK(반려면 reason이 1~500자, 승인이면 reason NULL)**, CHECK(invalidated_at IS NULL OR decision='APPROVED') |
+| V15 | episode에 latest_translation_version INT NOT NULL DEFAULT 0 | 번역 버전 번호 발급용(원문의 latest_source_version과 같은 방식) |
+| V16 | episode에 published_translation_version_id BIGINT NULL | 공개 중인 번역 버전 포인터 |
+| V17 | episode에 FK(id, published_translation_version_id)→translation_version(episode_id, id) | 포인터는 **같은 회차의 번역 버전만** 가리킨다(NULL 허용) |
+| V18 | publication | id PK, episode_id, translation_version_id, source_version_no, published_by FK, published_at. FK(episode_id, translation_version_id)→translation_version(episode_id, id), FK(episode_id, source_version_no)→episode_source_version |
+| V19 | domain_audit에 translation_version_id BIGINT NULL 추가 | 번역·감수·발행 이벤트 연결 |
+- 순서·유일성은 시각이 아니라 `version_no`와 UNIQUE로 보장한다(D-028). 모든 FK는 ON DELETE/UPDATE RESTRICT(삭제 기능 없음).
+- 기존 데이터(회차·원문·계정·토큰·감사)는 보존한다. 새 테이블은 비어 있다.
+
+### 14.3 상태 전이 (서비스가 강제, 모든 전이는 episode 행 `FOR UPDATE` 후 기대 상태 확인, 불일치 409)
+| 전이 | 행위자 | 조건 | 부가 효과 |
+|---|---|---|---|
+| (없음) → DRAFT | 배정된 TRANSLATOR | 원문 있음, 열린 버전 없음. 새 버전은 최신 원문 기준으로 직전 버전 내용을 source_seq가 같은 블록끼리 복사 | latest_translation_version+1, TRANSLATION_CREATED |
+| DRAFT 편집 | 배정된 TRANSLATOR | DRAFT인 동안만 | 제출 후에는 수정·삭제 불가(불변) |
+| DRAFT → REVIEW_PENDING | 배정된 TRANSLATOR | 모든 원문 블록에 번역(공백만 불가), 원문 버전이 최신 | submitted_at, TRANSLATION_SUBMITTED |
+| REVIEW_PENDING → APPROVED | 배정된 REVIEWER | 작성자가 아님, 원문 버전이 최신 | review_decision 1건, REVIEW_APPROVED |
+| REVIEW_PENDING → REJECTED | 배정된 REVIEWER | 사유 1~500자, 작성자가 아님 | review_decision 1건, REVIEW_REJECTED. 이후 번역가가 새 DRAFT를 만든다(REJECTED→DRAFT의 구현) |
+| APPROVED → PUBLISHED | OPERATOR | 요청의 번역 버전이 승인된 바로 그 버전, 승인이 무효화되지 않음, 원문 버전이 최신 | 포인터 갱신, publication 1건, PUBLISHED 감사 |
+| DRAFT·REVIEW_PENDING·APPROVED → INVALIDATED | 시스템(원문 저장 트랜잭션) | 원문이 새 버전으로 저장됨 | 승인이 있었으면 invalidated_at 설정+APPROVAL_INVALIDATED. **기존 saveSourceVersion 트랜잭션에 포함**(번역 노드에서 구현). 공개본·포인터는 그대로 |
+| PUBLISHED ↔ ON_HOLD | OPERATOR | **예약만**(선택 기능, 구현 안 함) | — |
+- REJECTED·INVALIDATED는 종결 상태이고 새 DRAFT 생성으로만 이어진다. 이전에 PUBLISHED였던 버전은 다른 버전이 발행되어도 PUBLISHED로 남고 현재 공개본은 포인터가 정한다.
+- 서버가 매번 DB에서 역할·배정·작성자를 확인한다. 클라이언트가 보낸 역할·ID·상태를 신뢰하지 않는다.
+
+### 14.4 접근 범위 (D-038)
+| 대상 | OPERATOR | 배정된 TRANSLATOR | 배정된 REVIEWER | READER·비로그인 |
+|---|---|---|---|---|
+| 회차·원문 | 전체 | 배정된 회차의 원문 읽기 | 배정된 회차의 원문 읽기 | 불가 |
+| 번역 버전·블록 | 읽기 전체 | 배정된 회차의 모든 번역 버전, DRAFT 편집·제출 | REVIEW_PENDING·APPROVED·REJECTED 버전 읽기, 승인·반려 | 불가 |
+| 발행 | 실행 | 불가 | 불가 | — |
+| 공개본(포인터가 가리키는 번역 버전) | 읽기 | 읽기 | 읽기 | 읽기(로그인 불필요) |
+- 역할은 서로 상속하지 않는다(운영자가 번역·감수 권한을 갖지 않는다). 배정되지 않은 회차에 번역가·감수자가 접근하면 **404 NOT_FOUND**(존재 노출 방지), 역할 자체가 없으면 403 FORBIDDEN, 비로그인은 보호 API 401.
+- 독자 공개 API는 `/api/public/**`(permitAll)에서 **번역 텍스트와 페이지·순서만** 반환하고 원문 텍스트·초안·비공개 회차·내부 ID(작성자 등)는 반환하지 않는다.
+
+### 14.5 DB로 표현하지 않는 규칙 (서비스와 테스트로 막는다)
+승인된 정확한 번역 버전만 발행 / 무효화된 승인은 발행 근거가 아님 / 감수자는 작성자가 아님 / 제출 후 번역 블록 불변 / 모든 원문 블록 번역 완료 후 제출 / 배정된 담당자만 행위 / 열린 버전 외의 상태 전이 순서. 이 규칙마다 서비스 테스트(실제 MySQL)가 있어야 하며, 마이그레이션 노드는 DB가 막는 항목(14.2의 굵은 제약, UNIQUE, CHECK, 복합 FK)만 검증한다.
+
+### 14.6 마이그레이션 노드(Codex) 완료 조건·테스트
+- V10~V19가 **빈 DB**와 **V1~V9가 적용된 기존 DB(데이터 있음)** 모두에서 적용되고, 기존 행 수·내용이 변하지 않으며, V1~V9 체크섬이 그대로이고 Flyway validate가 통과한다.
+- 제약별 실제 MySQL 테스트(위반 시 거부, 정상 시 허용): 배정 역할 불일치 FK, 역할당 1명 PK, 열린 버전 둘째 DRAFT·REVIEW_PENDING 거부와 REJECTED·INVALIDATED 다수 허용, 번역 버전의 원문 버전 FK, 번역 블록의 원문 블록 FK와 복합 FK 불일치 거부, 상태 CHECK, 반려 사유 CHECK(없음·501자 거부), 번역 버전당 결정 1건, 발행 이력과 포인터의 회차 불일치 거부, domain_audit 컬럼 추가.
+- 테스트는 만든 행만 정확히 정리하고 데모 계정·기존 데이터·제한 행을 늘리거나 지우지 않는다. 연속 2회 통과·전후 행 수 비교를 보고한다. 이 노드에서 API·서비스 코드는 만들지 않는다.
+- 변경 가능: backend/src/main/resources/db/migration(V10~V19 신규), backend/src/test, README 검증 기록. 변경 금지: V1~V9, 기존 서비스·API, frontend/, 문서 3종.
+
+### 14.7 이후 노드 (각각 별도 계약, 스키마 변경이 필요하면 구현을 멈추고 14절 변경을 제안)
+1. 배정 — 운영자의 배정·조회, 번역가·감수자의 배정 회차 목록. 2. 번역 — 버전 생성(복사)·편집·제출, 원문 변경 시 무효화(saveSourceVersion 수정 포함). 3. 감수 — 대기 목록·원문 대조 조회·승인·반려. 4. 발행 — 승인본 발행과 공개본 고정. 5. 독자 열람 — 공개 목록·상세. 각 노드는 CONTRACTS 계약 → 사용자 승인 → Codex 백엔드 / Claude Code 프런트 → 실제 연동 검증 → 리뷰 순서를 따른다.
