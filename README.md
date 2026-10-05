@@ -10,7 +10,7 @@
 - 버전: Spring Boot 3.5.16, Gradle Wrapper 8.14.3, Next.js 16.3.8, React 19.3.0, MySQL 이미지 `mysql:8.4.11`
 - Connector/J `9.7.0`, Flyway core/mysql `11.7.2`는 Spring Boot BOM으로 관리하며 `gradlew.bat dependencies --configuration runtimeClasspath`로 확인합니다.
 
-모든 명령은 Windows PowerShell 기준입니다. 저장소 루트에서 시작합니다.
+모든 명령은 Windows PowerShell 5.1 기준입니다. 저장소 루트에서 시작합니다. Docker에 전달할 셸 스크립트는 단일 인용 here-string으로 작성하고 `docker compose exec -T mysql sh -s`의 stdin으로 보냅니다. `-T`는 TTY를 비활성화하고 stdin은 열어 둡니다. 따옴표가 포함된 스크립트를 `sh -c`의 명령 인자로 전달하지 않습니다. PowerShell 5.1 파이프가 덧붙이는 CRLF의 CR을 셸 구문으로 해석하지 않도록 각 단일 행 스크립트 끝에 ` #` 주석을 붙입니다. 네이티브 명령 직후 `$LASTEXITCODE`를 저장한 다음 판정합니다.
 
 ```powershell
 Set-Location C:\Project_File\vibe-coding-project
@@ -36,7 +36,13 @@ Compose는 **루트 `.env`**를 자체 변수 치환에 사용합니다. 이 파
 docker compose config --quiet
 docker compose up -d mysql
 docker compose ps
-docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --protocol=TCP --host=127.0.0.1 --user="$MYSQL_USER" --database="$MYSQL_DATABASE" --connect-timeout=2 --batch --skip-column-names --execute="SELECT 1"'
+$selectOne = @'
+MYSQL_PWD="$MYSQL_PASSWORD" mysql --protocol=TCP --host=127.0.0.1 --user="$MYSQL_USER" --database="$MYSQL_DATABASE" --connect-timeout=2 --batch --skip-column-names --execute="SELECT 1" #
+'@
+$selectOne | docker compose exec -T mysql sh -s
+$selectOneExit = $LASTEXITCODE
+if ($selectOneExit -ne 0) { throw "SELECT 1 failed (exit $selectOneExit)" }
+Write-Output "SELECT 1 exit: $selectOneExit"
 ```
 
 DB는 localhost에만 바인딩되며 named volume에 저장됩니다. 로컬 개발용 자격증명은 실제 운영 비밀값으로 사용하지 마세요. 기존 MySQL 볼륨에 DB가 생성된 뒤 Compose 비밀번호를 바꾸어도 기존 계정 비밀번호는 자동 변경되지 않습니다.
@@ -47,16 +53,46 @@ healthcheck는 앱 계정으로 TCP `SELECT 1`을 실행합니다. 비밀번호�
 
 ```powershell
 $mysqlId = docker compose ps -q mysql
+$mysqlIdExit = $LASTEXITCODE
+if ($mysqlIdExit -ne 0 -or -not $mysqlId) { throw 'MySQL container lookup failed' }
 docker inspect --format '{{.State.Health.Status}}' $mysqlId
-$probe = docker inspect --format '{{json .Config.Healthcheck.Test}}' $mysqlId | ConvertFrom-Json
+$healthExit = $LASTEXITCODE
+if ($healthExit -ne 0) { throw 'Health status lookup failed' }
+$probeJson = docker inspect --format '{{json .Config.Healthcheck.Test}}' $mysqlId
+$probeExit = $LASTEXITCODE
+if ($probeExit -ne 0) { throw 'Healthcheck lookup failed' }
+$probe = $probeJson | ConvertFrom-Json
 # 프로브의 변수 참조만 확인하며 전체 컨테이너 환경변수는 출력하지 않습니다.
 $probe
 # 실제 healthcheck 명령에 잘못된 비밀번호를 주입한 일회성 실행: 종료 코드가 0이 아니어야 합니다.
-docker compose exec -T mysql sh -c ('MYSQL_PASSWORD="invalid-$MYSQL_PASSWORD"; ' + $probe[1])
-$LASTEXITCODE
+$invalidProbe = 'MYSQL_PASSWORD="invalid-${MYSQL_PASSWORD}"; ' + $probe[1] + ' #'
+$invalidProbe | docker compose exec -T mysql sh -s
+$invalidProbeExit = $LASTEXITCODE
+if ($invalidProbeExit -eq 0) { throw 'Invalid credentials unexpectedly succeeded' }
+Write-Output "Invalid healthcheck exit: $invalidProbeExit"
+
+# 프로브는 오류 출력을 버리므로, 같은 TCP 대상에 별도 일회성 클라이언트를 호출해 원인을 판별합니다.
+# 오류 원문(접속 계정 포함)은 출력하지 않고 인증 오류 코드만 확인합니다.
+$invalidSelect = @'
+MYSQL_PWD="invalid-${MYSQL_PASSWORD}" mysql --protocol=TCP --host=127.0.0.1 --user="$MYSQL_USER" --database="$MYSQL_DATABASE" --connect-timeout=2 --batch --skip-column-names --execute="SELECT 1" 2>&1 #
+'@
+$authOutput = $invalidSelect | docker compose exec -T mysql sh -s
+$authExit = $LASTEXITCODE
+$isAuthenticationError = ($authOutput | Out-String) -match 'ERROR 1045 \(28000\)'
+if ($authExit -eq 0 -or -not $isAuthenticationError) { throw 'Negative control did not produce MySQL authentication error 1045 (28000)' }
+Write-Output "Authentication error 1045 (28000) confirmed; exit: $authExit"
+Remove-Variable authOutput
+
+# 정상 자격증명으로 재확인: 1절의 $selectOne을 그대로 사용합니다.
+$selectOne | docker compose exec -T mysql sh -s
+$recheckExit = $LASTEXITCODE
+if ($recheckExit -ne 0) { throw "Normal credential recheck failed (exit $recheckExit)" }
+Write-Output "Normal credential recheck exit: $recheckExit"
 ```
 
 위 일회성 검사는 실제 프로브의 인증 실패 종료 코드를 검증합니다. 기존 컨테이너 환경이나 계정을 바꾸지 않으므로 이 명령만으로 컨테이너 상태가 `unhealthy`로 변한 것으로 보고하지 않습니다. 실제 unhealthy 상태와 복구는 별도의 실행 관찰이 필요합니다.
+
+실행 증빙(2026-10-05, Windows PowerShell `5.1.26100.9444`, 정상 응답 중인 `mysql:8.4.11`): 위 stdin 명령을 그대로 실행해 정상 `SELECT 1`은 `1`과 종료 코드 0, 잘못된 비밀번호의 실제 프로브는 종료 코드 1, 별도 원인 확인 호출은 인증 오류 `1045 (28000)`과 종료 코드 1, 이후 정상 재접속은 `1`과 종료 코드 0을 확인했습니다. 5절의 DB 상세 조회와 재확인용 `SELECT 1`도 정상 DB에서 종료 코드 0으로 실행했습니다. 이 검증 중 서비스 중단·재기동이나 계정·설정 변경은 수행하지 않았으며, 오류 원문과 비밀번호는 출력하지 않았습니다.
 
 ## 2. Spring 프로세스에 환경변수 주입
 
@@ -133,11 +169,22 @@ curl.exe -i -H "Origin: http://localhost:3000" http://localhost:8080/api/health
 curl.exe -i -H "Origin: https://unapproved.example" http://localhost:8080/api/health
 curl.exe -i -X OPTIONS -H "Origin: http://localhost:3000" -H "Access-Control-Request-Method: GET" -H "Access-Control-Request-Headers: Content-Type" http://localhost:8080/api/health
 curl.exe -i -X POST http://localhost:8080/api/health
-docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --protocol=TCP --host=127.0.0.1 --user="$MYSQL_USER" --database="$MYSQL_DATABASE" --batch --execute="SELECT version, script, success FROM flyway_schema_history; SELECT @@character_set_server, @@collation_server, @@session.time_zone, @@default_storage_engine;"'
+$dbDetails = @'
+MYSQL_PWD="$MYSQL_PASSWORD" mysql --protocol=TCP --host=127.0.0.1 --user="$MYSQL_USER" --database="$MYSQL_DATABASE" --connect-timeout=2 --batch --execute="SELECT version, script, success FROM flyway_schema_history; SELECT @@character_set_server, @@collation_server, @@session.time_zone, @@default_storage_engine;" #
+'@
+$dbDetails | docker compose exec -T mysql sh -s
+$dbDetailsExit = $LASTEXITCODE
+if ($dbDetailsExit -ne 0) { throw "DB details query failed (exit $dbDetailsExit)" }
 docker compose stop mysql
 curl.exe -i --max-time 15 http://localhost:8080/api/health
 docker compose start mysql
-docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --protocol=TCP --host=127.0.0.1 --user="$MYSQL_USER" --database="$MYSQL_DATABASE" --connect-timeout=2 --batch --skip-column-names --execute="SELECT 1"'
+$selectOne = @'
+MYSQL_PWD="$MYSQL_PASSWORD" mysql --protocol=TCP --host=127.0.0.1 --user="$MYSQL_USER" --database="$MYSQL_DATABASE" --connect-timeout=2 --batch --skip-column-names --execute="SELECT 1" #
+'@
+$selectOne | docker compose exec -T mysql sh -s
+$recoveryExit = $LASTEXITCODE
+if ($recoveryExit -ne 0) { throw "SELECT 1 after recovery failed (exit $recoveryExit)" }
+Write-Output "SELECT 1 after recovery exit: $recoveryExit"
 curl.exe -i --max-time 15 http://localhost:8080/api/health
 ```
 
