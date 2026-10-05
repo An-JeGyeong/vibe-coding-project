@@ -2,8 +2,10 @@
 
 관리: Claude Code / Codex는 변경 제안만 가능
 범위: ProjectBootstrap (이 문서는 헬스 체크와 기반 설정만 다룬다)
-근거: `DECISIONS.md` D-001~D-003, D-006~D-008, D-010~D-012
-미결정(계약 대상 아님): D-004 관리형 DB 제품, D-005 백엔드 호스팅 제품, D-009 인증 방식
+근거: `DECISIONS.md` D-001~D-003, D-006~D-008, D-010, D-012~D-018 (D-011, D-004의 DB 엔진 부분은 D-018로 대체)
+DB 엔진: MySQL 8.4 LTS (D-018). 이전 PostgreSQL 기준 문구는 모두 대체되었다.
+미결정(계약 대상 아님): D-004 관리형 MySQL 제품, D-005 백엔드 호스팅 제품, D-009 인증 방식
+MySQL 세부(collation, 시각, 타임아웃, TLS, 권한, healthcheck): D-019 APPROVED
 
 ## 1. API 이름과 책임
 
@@ -51,10 +53,13 @@
 ## 4. 실패 조건과 비노출 규칙
 
 - DB 확인이 실패하는 경우: 연결 거부, 인증 실패, 쿼리 예외, 연결 획득 타임아웃 초과, 쿼리 타임아웃 초과. 모두 503 `db:"DOWN"`으로 응답한다. 예외를 던져 500으로 내보내지 않는다.
-- **타임아웃 설정** (개별 한도이며, 전체 HTTP 응답 시간이 엄밀하게 2초 이내임을 보장하지 않는다):
-  - Hikari 연결 획득 타임아웃(`connectionTimeout`): 2초(2000 ms)
+- **타임아웃 설정** (D-019 승인값. 개별 한도이며, 타임아웃이 발생하는 순서와 전체 HTTP 응답 시간은 보장하지 않는다):
+  - Hikari 연결 획득 타임아웃(`connectionTimeout`): 2000 ms
   - `SELECT 1` 쿼리 타임아웃: 2초
-  - PostgreSQL JDBC 네트워크 관련 타임아웃(`connectTimeout`, `socketTimeout` 등)도 무한대가 아닌 유한한 값으로 설정한다.
+  - Connector/J `connectTimeout`: 2000 ms
+  - Connector/J `socketTimeout`: 3000 ms
+  - Connector/J의 두 값은 **밀리초 단위**이며 `0`(무한)은 금지한다. (이전 PostgreSQL 드라이버는 초 단위였으므로 값을 그대로 복사하지 않는다.)
+  - **위험 기록**: Connector/J의 `socketTimeout`은 같은 데이터소스를 쓰는 Flyway 마이그레이션에도 적용된다. 마이그레이션이 이 값 때문에 실패하면 **임의로 값을 늘리거나 설정을 분리하지 말고** 실패 내용과 함께 변경 제안을 보고한다.
   - 구현 후 실제 적용한 설정 키, 값, 단위를 보고한다.
 - 어떤 응답(정상·오류 모두)에도 다음을 넣지 않는다: 연결 문자열, DB 호스트명·사용자명, 예외 메시지와 스택트레이스, Spring·Java·Next.js 등 프레임워크 버전.
   - 다음 Spring 설정을 적용한다:
@@ -76,8 +81,8 @@
 
 | 변수 | 필수 | 비밀 | 설명 |
 |---|---|---|---|
-| `DB_URL` | ✔ | ✔ | JDBC URL. 로컬 예: `jdbc:postgresql://localhost:5432/mangabridge`. 배포 시 SSL 필수 |
-| `DB_USERNAME` | ✔ | ✔ | |
+| `DB_URL` | ✔ | ✔ | MySQL JDBC URL(`jdbc:mysql://...`). 로컬 예: `jdbc:mysql://localhost:3306/mangabridge`. 로컬·운영 옵션은 아래 "데이터베이스 계약" 참고 |
+| `DB_USERNAME` | ✔ | ✔ | 앱 전용 DB 계정. `root` 금지 |
 | `DB_PASSWORD` | ✔ | ✔ | |
 | `CORS_ALLOWED_ORIGINS` | ✔ | | 쉼표 구분 출처 목록. 비어 있거나 `*` 포함 시 기동 실패 |
 | `SPRING_PROFILES_ACTIVE` | | | `local` / `prod` |
@@ -88,6 +93,54 @@
 | 변수 | 필수 | 비밀 | 설명 |
 |---|---|---|---|
 | `NEXT_PUBLIC_API_BASE_URL` | ✔ | ✘ | Spring API 기본 URL(끝 슬래시 없음). 브라우저에 노출되므로 비밀 금지 |
+
+### 데이터베이스 계약 (D-018, D-019)
+
+**엔진·드라이버**
+- MySQL 8.4 LTS, 스토리지 엔진 InnoDB, 문자셋 `utf8mb4`.
+- Docker 이미지는 `mysql:8.4.x` 형태로 **구현 시 정확한 패치 버전을 확인해 고정**한다. `latest`, `8`, `8.4` 같은 유동 태그는 금지한다.
+- 데이터 접근은 Spring JDBC 유지(JPA 없음), 마이그레이션은 Flyway 유지.
+- 드라이버: `com.mysql:mysql-connector-j`. Flyway: `flyway-core` + `flyway-mysql`. 버전은 Spring Boot 3.5.x BOM이 관리하는 Flyway 버전과 호환되는 것을 쓰고 확정한 버전을 보고한다.
+- 제거 대상: `org.postgresql:postgresql`, `flyway-database-postgresql`, PostgreSQL 전용 URL·옵션·진단 명령(`pg_isready`, `psql` 등).
+
+**계정**
+- 앱은 `MYSQL_USER`로 만든 **전용 DB 계정**으로만 접속한다. `root`로 접속하지 않으며, `root` 자격증명을 `.env.example`·README·앱 설정에 넣지 않는다.
+- 컨테이너의 root 비밀번호는 `MYSQL_RANDOM_ROOT_PASSWORD=yes`로 무작위 생성해 사용하지 않는다.
+- 로컬 전용 앱 계정은 해당 스키마(`MYSQL_DATABASE`) 한정 전체 권한을 가진다(Flyway DDL 포함, D-019 승인). 전역 권한은 부여하지 않는다.
+- 운영의 마이그레이션 계정과 앱 계정 분리는 **미결정**이다(D-004 확정 후 결정).
+
+**문자셋·collation (명시 필수)**
+- 서버(Docker `command` 옵션): `--character-set-server=utf8mb4`, `--collation-server=utf8mb4_0900_ai_ci`.
+- 스키마·테이블 생성 시에도 문자셋과 collation을 명시한다. JDBC 연결에도 `characterEncoding`과 `connectionCollation`을 명시한다.
+- 기본 collation: `utf8mb4_0900_ai_ci` (D-019 승인).
+- **도메인 단계로 미루는 사항(확정하지 않음)**: 토큰·해시의 정확한 비교 방식. `utf8mb4_bin`을 무조건 쓴다고 확정하지 않으며, `VARBINARY` 등 적절한 이진 비교 방식도 검토 대상이다. 로그인 ID의 대소문자 정책도 이번 단계에서는 확정하지 않는다.
+
+**시각 저장·조회 정책 (UTC 기준)**
+- 시각 컬럼 타입은 `DATETIME(6)`에 UTC로 저장한다(D-019 승인). 도메인 스키마 노드에서 적용하며 이 단계에는 시각 컬럼이 없다.
+- `DATETIME` 자체는 시간대 변환이나 UTC를 강제하지 않는다. 따라서 **애플리케이션과 연결 설정에서 UTC를 보장**한다.
+  - 서버 `--default-time-zone=+00:00`
+  - JDBC `connectionTimeZone=UTC`, `forceConnectionTimeZoneToSession=true`
+  - 애플리케이션은 `Instant`/UTC로 읽고 쓴다.
+- API 응답 시각은 UTC ISO-8601(`Z`).
+- 시각만으로 버전 순서나 유일성을 보장하지 않는다. 버전 순서와 유일성은 도메인 단계에서 별도 컬럼(버전 번호)과 제약조건으로 정한다.
+
+**연결 URL 옵션 (로컬과 운영을 구분)**
+- PostgreSQL의 `sslmode` 등 전용 옵션을 복사하지 않는다.
+- **로컬 개발(localhost Docker 한정)**: TLS 없이 접속한다. MySQL 8.4의 기본 인증(`caching_sha2_password`) 때문에 `allowPublicKeyRetrieval=true`가 필요할 수 있으며 **이 옵션은 로컬 개발에서만 허용**한다. `mysql_native_password`로 되돌리는 설정은 하지 않는다(8.4 기본 비활성).
+- **운영(관리형 MySQL, D-004 확정 후)**: TLS 필수, 기본 `sslMode=VERIFY_IDENTITY`. 인증서 신뢰 구성(CA 신뢰 저장소)과 호스트명 검증을 요구한다. `allowPublicKeyRetrieval` 사용 금지. 운영 환경에서 완화(`VERIFY_CA` 등)가 필요하면 **별도 승인**을 받는다.
+- 운영 TLS 값을 로컬 설정에, 로컬 옵션을 운영 설정에 넣지 않는다. 프로필이나 환경변수로 분리한다.
+
+**Docker 구성**
+- 서비스명 `mysql`, 포트 `127.0.0.1:3306:3306`(localhost 바인딩), 이름 있는 볼륨 `mysql_data`.
+- 환경변수: `MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD`(로컬 개발 전용 값), `MYSQL_RANDOM_ROOT_PASSWORD=yes`.
+- **healthcheck**: `mysqladmin ping`만으로는 인증 성공을 검증하지 못하므로 쓰지 않는다. **앱 전용 계정으로 대상 DB에 TCP로 접속해 `SELECT 1`을 실행**하고, 실패하면 비정상 종료 코드를 반환해야 한다. 비밀번호를 명령 인자나 출력에 노출하지 않는다(컨테이너 내부 환경변수 또는 설정 파일 방식 중 구현 시 선택하고 사용한 방식을 보고한다).
+- **기존 자산 보존**: 기존 PostgreSQL 컨테이너·볼륨(`postgres_data`)·커밋을 보존한다. `docker compose down -v`, `docker volume rm`, `docker system prune`을 실행하지 않는다. 기존 PostgreSQL 컨테이너 중지 여부는 보고만 하고 삭제는 책임자가 결정한다. 전환 대상 소스와 설정의 수정은 허용하며, 테스트 파일 이름 변경이 필요하면 `git mv`를 사용할 수 있다. 사용자의 기존 작업을 임의로 덮어쓰지 않는다.
+- 기존 PostgreSQL DB에는 도메인 데이터가 없고 Flyway 기준선(V1, 빈 파일)뿐이므로 데이터 이전은 하지 않는다. MySQL은 새 스키마에서 시작한다.
+
+**마이그레이션 유의사항**
+- MySQL의 DDL은 트랜잭션으로 롤백되지 않는다(암묵적 커밋). 마이그레이션 파일은 한 파일에 DDL 하나로 작게 나누는 것을 원칙으로 하고, 도메인 노드의 마이그레이션 작성 시 적용한다.
+- `V1__baseline.sql`은 빈 기준선(주석만)을 유지하되, Flyway가 MySQL에서 이를 정상 적용하는지 확인한다.
+- 이 단계의 SQL은 `SELECT 1`뿐이며 MySQL에서도 동일하게 동작한다.
 
 ### 공통 규칙
 - 값은 환경변수로만 주입한다. 코드와 `application.yml`에 실제 비밀값을 넣지 않는다.
@@ -117,7 +170,7 @@
 - `frontend/**`
 - `backend/**` (Gradle Wrapper, 소스, `application*.yml`, `db/migration/**`, 테스트)
 - 루트 `.gitignore`
-- 루트 `docker-compose.yml` (로컬 PostgreSQL)
+- 루트 `docker-compose.yml` (로컬 MySQL)
 - `frontend/.env.example`, `backend/.env.example`
 - 루트 `README.md` (로컬 실행·테스트 방법만)
 - Git: 로컬 `git init`과 로컬 커밋(Codex 담당)
@@ -136,7 +189,7 @@
 
 전제: JDK 17, Node 24가 설치되어 있다. Docker는 Codex가 다음을 확인한다: Docker CLI 설치 여부, 데몬 실행 상태. Docker가 없거나 데몬이 실행 중이 아니면 **자동 설치하지 않고** 구현 가능한 부분까지만 진행한 뒤 해당 항목을 "미검증"으로 보고한다.
 
-1. `docker compose up -d`로 로컬 PostgreSQL이 기동한다.
+1. `docker compose up -d`로 로컬 MySQL 8.4(고정 패치 버전)가 기동하고 healthcheck가 통과한다. 앱은 root가 아닌 전용 계정으로 접속한다.
 2. 셸 환경변수를 주입한 뒤 `backend`에서 `gradlew.bat bootRun`으로 기동하고, DB 정상 상태에서 Flyway가 `V1__baseline.sql`을 적용한다.
 3. DB 정상 상태에서 `GET /api/health`가 200과 계약된 본문을 반환한다.
 4. **정상 기동 후** DB 컨테이너를 중지하면 `GET /api/health`가 503 `db:"DOWN"`을 반환하고, 서버는 종료되지 않으며, DB 재기동 후 다시 200이 된다. (시작 시 DB 불가 상태에서의 기동은 요구하지 않는다.)
@@ -148,18 +201,18 @@
 
 ## 9. 배포 완료 조건 (D-004, D-005 확정 후에만 진행)
 
-선행: D-004(관리형 PostgreSQL 제품), D-005(백엔드 호스팅 제품) 확정. 그 전에는 이 절의 작업을 시작하지 않는다.
+선행: D-004(관리형 MySQL 제품, **MySQL 8.4 LTS 제공 여부 확인 포함**), D-005(백엔드 호스팅 제품) 확정. 그 전에는 이 절의 작업을 시작하지 않는다.
 
 백엔드 호스팅이 만족해야 할 요구 조건:
 - 상시 Java 17 프로세스 실행, HTTPS 공개 URL
 - `PORT`와 5절 환경변수 주입
 - 헬스 체크 경로로 `/api/health` 지정 가능
-- 관리형 PostgreSQL로의 아웃바운드 접속
+- 관리형 MySQL로의 아웃바운드 접속(TLS, 3306 또는 제품이 지정한 포트)
 - 로컬 파일을 영속 저장소로 사용하지 않음
 - 무료 티어 슬립 정책 확인 및 시연 전 워밍업 절차 정의
 
 완료 조건:
-1. 관리형 PostgreSQL에 Flyway 마이그레이션이 적용된다(풀러 사용 시 direct 연결로 실행).
+1. 관리형 MySQL에 Flyway 마이그레이션이 적용된다. 앱 전용 계정을 쓰고, TLS(`sslMode=VERIFY_IDENTITY`, 인증서 신뢰 구성과 호스트명 검증 포함)로 접속하며, 문자셋·collation·시간대(UTC)가 계약과 일치하는지 확인한다.
 2. 배포된 Spring의 `GET /api/health`가 HTTPS로 200을 반환한다.
 3. Vercel(Root Directory `frontend`, Node 24)에 프런트가 배포되고 `NEXT_PUBLIC_API_BASE_URL`이 배포된 Spring URL을 가리킨다.
 4. 배포된 프런트 화면에서 헬스 UP이 표시된다(브라우저 CORS 통과).
@@ -170,7 +223,7 @@
 ## 10. 필수 테스트
 
 백엔드(자동):
-1. **헬스 200**: 테스트용 PostgreSQL(Testcontainers 또는 로컬 Docker DB)에서 200과 본문 필드 3개, `status=UP`, `db=UP`, `time`이 UTC ISO-8601인지 확인.
+1. **헬스 200**: 테스트용 MySQL 8.4(Testcontainers 또는 로컬 Docker DB, 실제 DB 필수·모의 DB로 대체 금지)에서 200과 본문 필드 3개, `status=UP`, `db=UP`, `time`이 UTC ISO-8601인지 확인.
 2. **헬스 503**: DB 불가 상태에서 503, `db=DOWN`, `status=UP` 확인.
 3. **타임아웃**: Hikari 연결 획득(2초)·쿼리(2초)·JDBC 네트워크 타임아웃이 유한한 값으로 설정되어 있는지 확인하고, DB 접속 불가 또는 지연 시 요청이 무한 대기하지 않고 유한한 시간 안에 503을 반환하는지 확인(전체 응답 시간이 2초 이내라는 단정은 하지 않는다).
 4. **비노출**: 정상·실패 응답 본문에 `jdbc:`, DB 호스트명, 사용자명, `Exception`, 프레임워크 버전 문자열이 없는지 검사.
@@ -179,6 +232,9 @@
 7. **CORS 설정 검증**: `CORS_ALLOWED_ORIGINS`가 비었거나 `*`를 포함하면 기동 실패.
 8. **Flyway**: 빈 DB에서 `V1__baseline.sql` 적용 후 기동 성공. (시작 시 DB 불가로 기동이 실패하는 것은 허용되며 테스트 대상이 아니다.)
 8-1. **HEAD/메서드**: `HEAD /api/health`는 본문 없이 `GET`과 같은 상태 코드, `POST`/`PUT`/`PATCH`/`DELETE`는 405(허용 `Origin` 또는 `Origin` 없음 기준), 비허용 `Origin`의 요청은 403.
+8-3. **MySQL 구성 검증(통합 테스트)**: 실제 연결에서 `@@character_set_server`, `@@collation_server`, 세션 시간대 UTC, 접속 계정이 `root`가 아님(`SELECT CURRENT_USER()`)을 확인한다. **엔진은 `default_storage_engine`이 InnoDB이고 InnoDB가 사용 가능(`information_schema.ENGINES`)한지만 확인**한다. 도메인 테이블이 없는 단계이므로 검증 때문에 영구 테이블을 만들지 않으며, 실제 테이블의 엔진 검증은 테이블 생성 단계에서 수행한다. 로컬 URL 옵션(`allowPublicKeyRetrieval`)이 운영 설정에 없는지, 운영 설정의 `sslMode`가 `VERIFY_IDENTITY`인지 설정 파일을 검사한다. `connectTimeout=2000`·`socketTimeout=3000`(ms)이 적용되었는지 확인한다.
+8-4. **Docker healthcheck**: 앱 전용 계정으로 `SELECT 1`이 실행되는지, 잘못된 비밀번호나 DB 중지 시 unhealthy가 되는지 확인하고, 비밀번호가 `docker inspect`의 healthcheck 명령과 출력에 노출되지 않는지 확인한다.
+8-5. **Flyway와 소켓 타임아웃**: Flyway 적용이 `socketTimeout=3000`에서 성공하는지 확인한다. 실패하면 값을 임의로 늘리지 말고 변경 제안을 보고한다.
 8-2. **오류 설정**: `server.error.include-*` 4개 설정이 적용되어 있고 오류 응답에 메시지·스택트레이스가 없다.
 
 프런트(자동/수동):
@@ -199,12 +255,12 @@
 
 **지시**
 1. 루트에 `frontend/`와 `backend/`를 만든다. 모노레포 도구는 쓰지 않는다.
-2. `backend`: Java 17, Spring Boot 3.5.x 최신 안정 패치(구현 시 확인 후 고정), Gradle Wrapper. 의존성은 `spring-boot-starter-web`, `spring-boot-starter-jdbc`, PostgreSQL 드라이버, `flyway-core`와 `flyway-database-postgresql`, 테스트 의존성. JPA와 actuator는 넣지 않는다.
+2. `backend`: Java 17, Spring Boot 3.5.x 최신 안정 패치(구현 시 확인 후 고정), Gradle Wrapper. 의존성은 `spring-boot-starter-web`, `spring-boot-starter-jdbc`, `com.mysql:mysql-connector-j`, `flyway-core`와 `flyway-mysql`, 테스트 의존성. PostgreSQL 드라이버와 `flyway-database-postgresql`은 제거한다. JPA와 actuator는 넣지 않는다.
 3. `HealthController`로 `GET /api/health`를 2절~4절대로 구현한다(`GET`, `OPTIONS`, 기본 `HEAD`는 본문 없음, 변경 메서드는 405). DB 확인은 `SELECT 1`이며 Hikari 연결 획득 타임아웃 2초, 쿼리 타임아웃 2초, JDBC 네트워크 타임아웃은 유한한 값으로 설정한다. 정상 기동 후 DB 실패 시 예외를 밖으로 내지 않고 503을 반환한다. 시작 시 DB 불가로 인한 기동 실패는 허용되며 이를 우회하는 코드를 추가하지 않는다. 전체 응답 시간이 2초 이내라고 단정하지 않는다.
 4. 6절대로 CORS를 구성한다. `CORS_ALLOWED_ORIGINS` 검증(빈 값·`*` 거부)을 포함한다.
 5. 5절의 환경변수를 `application.yml`에서 읽는다. 기본값에 비밀값을 넣지 않는다. 4절의 `server.error.include-*` 설정 4개를 적용한다. Spring Boot가 `.env`를 자동으로 읽는다고 가정하지 않는다.
 6. `db/migration/V1__baseline.sql`은 빈 기준선으로 둔다(도메인 테이블 금지). `ddl-auto` 등 자동 스키마 생성은 사용하지 않는다.
-7. 루트 `docker-compose.yml`로 로컬 PostgreSQL을 제공하고, `.env.example`에는 로컬 개발용 값만 둔다. 작업 시작 시 Docker CLI 설치 여부와 데몬 실행 상태를 확인한다. 없거나 실행 중이 아니면 자동 설치하지 말고 보고한다.
+7. 루트 `docker-compose.yml`로 로컬 MySQL 8.4를 제공하고(이미지 패치 버전 정확히 고정, "데이터베이스 계약" 준수), `.env.example`에는 로컬 개발용 값만 둔다. 작업 시작 시 Docker CLI 설치 여부와 데몬 실행 상태를 확인한다. 없거나 실행 중이 아니면 자동 설치하지 말고 보고한다.
 7-1. 루트에서 `git init`을 수행하고(Codex 담당) 작은 단위로 로컬 커밋한다. 원격 저장소 생성·연결, `git push`, `git reset`, 기존 파일 삭제는 하지 않는다.
 7-2. `README.md`에 Windows PowerShell 기준으로 (a) Docker Compose의 `.env` 처리와 (b) Spring 실행용 환경변수 주입(`$env:...` 후 `gradlew.bat bootRun`)을 구분해 재현 가능한 절차로 쓴다.
 8. `frontend`: Next.js 안정 버전, App Router, TypeScript, Node 24. 의존성은 `next`, `react`, `react-dom`과 TS 타입 패키지만. `src/lib/api.ts`에 `NEXT_PUBLIC_API_BASE_URL` 기반 호출 래퍼를 두고, 첫 화면에서 헬스 상태(UP/DOWN/오류)를 표시한다.
@@ -212,9 +268,19 @@
 10. `.gitignore`에 `.env*`(`.env.example` 제외), 빌드 산출물, `node_modules`, Gradle 산출물을 포함한다.
 11. `README.md`에는 로컬 실행·테스트 방법만 쓴다.
 
+**기존 구현 전환 (D-018)**: 저장소에는 이미 PostgreSQL 기준 구현이 커밋되어 있다(`backend/build.gradle`, `application.yml`, `docker-compose.yml`, `*.env.example`, `README.md`, `PostgresIntegrationTest` 등). 새로 만들지 말고 다음 순서로 **전환**한다.
+1. 작업 전 `git status`로 작업 트리를 확인하고, 현재 Docker 컨테이너·볼륨 상태를 확인만 한다(삭제 금지).
+2. 의존성을 MySQL로 교체하고, `application.yml`의 URL·타임아웃(`connectTimeout=2000`, `socketTimeout=3000` ms, Hikari `connectionTimeout=2000` ms, 쿼리 2초)을 계약대로 바꾼다. Flyway가 소켓 타임아웃 때문에 실패하면 값을 늘리지 말고 보고한다. 기존 사용자 작업을 덮어쓰지 않으며, 테스트 파일 이름 변경은 `git mv`로 한다.
+3. `docker-compose.yml`을 MySQL 서비스(`mysql`, `mysql_data`, 3306)로 교체한다. 기존 `postgres_data` 볼륨은 건드리지 않는다.
+4. `PostgresIntegrationTest`와 Gradle `integrationTest` 설정을 MySQL 기준으로 바꾼다(실제 DB 필수, 성공/건너뛰기로 처리하지 않음).
+5. `.env.example`과 `README.md`에서 PostgreSQL 명령(`pg_isready`, `psql`)·포트·이미지·용어를 MySQL 기준으로 교체한다(MySQL 확인 명령은 `mysql` 클라이언트 사용, 비밀번호를 명령줄에 노출하지 않는 방식).
+6. 8절·10절을 MySQL로 다시 실행해 결과를 보고한다. 이전 PostgreSQL 검증 결과는 무효다.
+7. 작은 단위로 로컬 커밋한다(push 금지).
+
 **금지**
 - 문서 3종 수정, 도메인 테이블·API·인증 코드 추가, 와일드카드 CORS, 비밀값 커밋, UI·스타일 라이브러리 추가, 배포 작업(Vercel·호스팅·관리형 DB 접속).
 - 기존 파일 삭제, `git reset`, 원격 저장소 생성·연결, `git push`, Docker 자동 설치.
+- Docker 볼륨·컨테이너 삭제(`down -v`, `volume rm`, `system prune` 등), root 계정으로의 앱 접속, PostgreSQL 전용 옵션의 MySQL URL 복사.
 - 계약과 어긋나는 상황(예: 버전 호환 문제, 요구 변경)이 생기면 우회하지 말고 구현을 멈추고 변경 제안을 보고한다.
 
 **보고 형식**: 변경 파일 목록, 확정한 버전, **실제 적용한 타임아웃 설정(키·값·단위)**, Docker CLI/데몬 확인 결과, 8절 각 항목의 실행 결과(통과/실패/미검증과 실제 명령), 10절 테스트 결과, 계약 변경 제안 여부.

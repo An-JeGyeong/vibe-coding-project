@@ -23,7 +23,9 @@
 - 프런트엔드: Next.js
 - 프런트엔드 배포: Vercel
 - 백엔드: Spring Boot REST API
-- 데이터베이스: 관리형 PostgreSQL
+- 데이터베이스: 관리형 MySQL 8.4 LTS (InnoDB, utf8mb4, 시각은 UTC 기준)
+- 로컬 개발 DB: Docker MySQL
+- 데이터 접근: Spring JDBC, 마이그레이션: Flyway (DB 변경 이력은 `DECISIONS.md` D-018)
 - 이미지 파일: 객체 스토리지
 - AI 호출: Spring 서버를 통해 수행
 - 워크플로: 일반 Spring 서비스로 구현
@@ -219,7 +221,7 @@ AI의 역할:
 
 - 승인된 계약에 따른 구현
 - Spring Controller, Service, Repository 구현
-- PostgreSQL 마이그레이션 작성
+- MySQL 마이그레이션 작성
 - Next.js 화면과 API 연동 구현
 - 단위 및 통합 테스트 작성
 - 빌드, 배포, CORS, 환경변수 문제 해결
