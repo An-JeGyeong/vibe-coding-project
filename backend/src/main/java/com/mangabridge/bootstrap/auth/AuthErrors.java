@@ -7,10 +7,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
+import com.mangabridge.bootstrap.episode.EpisodeController;
+import com.mangabridge.bootstrap.episode.EpisodeFailure;
+import java.util.Map;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import static com.mangabridge.bootstrap.auth.AuthModels.*;
 
-@RestControllerAdvice(assignableTypes=AuthController.class)
+@RestControllerAdvice(assignableTypes={AuthController.class,EpisodeController.class})
 public class AuthErrors {
     static ErrorResponse body(String code) {
         String message=switch(code) {
@@ -20,6 +23,9 @@ public class AuthErrors {
             case "FORBIDDEN" -> "접근 권한이 없습니다.";
             case "LOGIN_RATE_LIMITED" -> "잠시 후 다시 시도하세요.";
             case "AUTH_UNAVAILABLE" -> "인증 서비스를 사용할 수 없습니다. 다시 시도하세요.";
+            case "NOT_FOUND" -> "요청한 회차 또는 원문 버전을 찾을 수 없습니다.";
+            case "VERSION_CONFLICT" -> "원문이 변경되었습니다. 최신 버전을 확인하세요.";
+            case "SERVICE_UNAVAILABLE" -> "서비스를 사용할 수 없습니다. 다시 시도하세요.";
             default -> "요청을 처리하지 못했습니다.";
         };
         return new ErrorResponse(new ErrorDetail(code,message));
@@ -31,6 +37,12 @@ public class AuthErrors {
     }
     @ExceptionHandler({HttpMessageNotReadableException.class, HttpMediaTypeNotSupportedException.class})
     ResponseEntity<ErrorResponse> invalid() { return failure(AuthFailure.invalid()); }
+    @ExceptionHandler(EpisodeFailure.class) ResponseEntity<?> episodeFailure(EpisodeFailure failure) {
+        ErrorResponse response=body(failure.code);
+        Object payload=failure.latestVersion==null?response:Map.of("error",Map.of(
+                "code",response.error().code(),"message",response.error().message(),"latestVersion",failure.latestVersion));
+        return ResponseEntity.status(failure.status).header("Cache-Control","no-store").body(payload);
+    }
     @ExceptionHandler(Exception.class) ResponseEntity<ErrorResponse> internal() {
         return ResponseEntity.internalServerError().header("Cache-Control","no-store").body(body("INTERNAL_ERROR"));
     }
