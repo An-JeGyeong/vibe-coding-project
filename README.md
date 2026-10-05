@@ -340,3 +340,21 @@ $env:CORS_ALLOWED_ORIGINS = 'http://localhost:3000'
 | domain_audit | 미존재 | 0 | 0 |
 
 남은 미검증: EpisodeSource 프런트 구현 후의 실제 브라우저 전체 흐름(생성·저장·수정·과거 버전·새로고침·충돌·비운영자 403). 이는 Claude Code의 프런트 통합 후 Codex가 실행합니다. 외부 배포/Vercel·프록시 IP 정책도 계속 미검증입니다. PROJECT_CONTEXT.md의 기존 줄바꿈 M은 수정·stage·restore하지 않았습니다. push·이력 재작성·기존 컨테이너/볼륨 삭제는 수행하지 않았습니다.
+
+### EpisodeSource 실제 연동 검증 준비 기록 (2026-10-06 KST)
+
+대상은 frontend `81cc7bb`, backend `1464e8d`, 승인 계약 `582b5d0`입니다. Codex가 직접 실행한 준비 검증만 기록합니다. 시작 HEAD는 `81cc7bb5d00585c8341aead66a7f616a076ea972`이며 PROJECT_CONTEXT.md의 기존 줄바꿈 M 외 변경은 없었습니다. 아래 기록은 실제 연동 완료를 의미하지 않습니다.
+
+| 실행 명령·검사 | 결과 |
+|---|---|
+| `docker info`, 이미지 inspect | 통과. Docker Server 29.5.3, Linux. mysql:8.4.11의 digest는 `mysql@sha256:6ea90827b1100f8f2ae306a539f86d2c264a26ed435a2a9f75551dd5c3aeb242` |
+| `docker run -d --rm --name mangabridge-episode-live-81cc7bb --publish 127.0.0.1:3308:3306 --tmpfs /var/lib/mysql:rw --env MYSQL_DATABASE --env MYSQL_USER --env MYSQL_PASSWORD --env MYSQL_RANDOM_ROOT_PASSWORD mysql:8.4.11 --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci --default-time-zone=+00:00` | 통과. 프로세스 환경으로 자격증명을 전달했고 값은 인자·기록에 넣지 않음. inspect에서 AutoRemove=true와 tmpfs 확인 |
+| 격리 MySQL 앱 계정의 stdin 스크립트 `SELECT 1` 및 서버 설정 조회 | 통과, 종료 0, 07:06:55 KST. 실제 8.4.11, utf8mb4, utf8mb4_0900_ai_ci, +00:00 확인. 아직 시드·Flyway·API 기동 검증은 아님 |
+| 추적 frontend 파일의 ignored 격리 사본에서 `npm run build` | 실패. node_modules junction이 Turbopack의 파일시스템 루트 밖을 가리키는 준비 환경 오류. 원본 frontend나 코드를 수정하지 않음 |
+| 같은 사본에서 Windows PowerShell 5.1로 `NEXT_PUBLIC_API_BASE_URL=http://localhost:8085` 주입 후 `npm run build -- --webpack` | 통과, 종료 0. PowerShell 5.1.26100.9444, 07:09:52 KST. 원본 frontend/.next는 변경하지 않음 |
+| README 7절 Read-Host 시드·Spring 기동, 프런트 기동 | 미실행. 사용자가 네 비밀번호를 나중에 직접 입력할 수 있다고 회신하여 입력 대기. 검증용 API 8085와 프런트 3004를 사용할 스크립트만 준비 |
+| 실제 브라우저 시나리오 1~10 및 비운영자 UI/서버 403·ACCESS_DENIED 조회 | 전부 미검증. 로그인·원문 저장·충돌·실제 preflight·401·장애 복구를 아직 실행하지 않았으며 이전 백엔드 테스트 결과로 대체하지 않음 |
+| 이번 임시 컨테이너 ID를 대조한 뒤 `docker stop --time 10 <이번 컨테이너 ID>` | 통과, 종료 0. --rm 컨테이너는 자동 정리됨. 이번에 띄운 API·프런트 서버는 없으며 기존 컨테이너·볼륨·서버는 보존 |
+| 개발 DB 읽기 전용 집계, stdin → `docker compose exec -T mysql sh -s` | 준비 전후 차이 0. auth_login_limit 88, demo_account 4, auth_token 8, auth_audit 130, 도메인 네 테이블 각각 0 유지. 인증 네 테이블의 전체 행 정렬 집계 해시도 동일 |
+
+기존 3000/3306/8080/8081/8084 리스너 PID는 유지됐습니다. frontend·backend/src·승인 문서의 내용은 기준 커밋과 동일하며 PROJECT_CONTEXT.md는 수정·stage·restore하지 않았습니다. 비밀번호 입력이 가능해지면 격리 DB를 다시 생성하고 README 7절 시드부터 재개해야 합니다. 코드 결함 판단은 실제 시나리오 실행 전까지 보류하며, 외부 배포/Vercel·프록시 IP 정책은 계속 미검증입니다.
