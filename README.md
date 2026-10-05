@@ -213,7 +213,7 @@ git diff --cached --check
 
 `.env*`는 `.env.example`만 제외하고 무시됩니다. 로컬 개발 전용 값 외의 실제 비밀값을 추적 파일이나 클라이언트 번들에 넣지 마세요. 로컬 커밋 전 파일 목록과 staged diff를 검사합니다. 빌드 산출물과 의존성 폴더는 추적하지 않습니다.
 
-## 7. DemoAuth 실행·검증 (승인 계약, 구현 후 실행)
+## 7. DemoAuth 실행·검증
 
 역할별 ID는 `demo.operator`, `demo.translator`, `demo.reviewer`, `demo.reader`입니다. 비밀번호는 화면·소스·NEXT_PUBLIC 변수에 포함하지 않습니다. local 직접 접속만 이번 검증 대상이며 Vercel/API 외부 배포와 프록시 IP 정책은 별도 승인 전 미검증입니다.
 
@@ -245,3 +245,5 @@ try {
 토큰 수명은 기본 3600초이며 테스트는 AUTH_TOKEN_TTL_SECONDS로 조정합니다. 서버 재기동에도 미만료 토큰은 유지합니다. 보관 기간이 지난 인증 데이터의 수동 정리는 2절 환경 주입 후 `gradlew.bat bootRun --args='--demo-auth-cleanup=true --spring.main.web-application-type=none' --no-daemon`으로 실행합니다. 계정·Flyway·기존 DB 볼륨은 정리하지 않습니다. 새 스케줄러는 없습니다.
 
 백엔드는 `gradlew.bat build integrationTest --no-daemon --rerun-tasks`로 기존 회귀·실제 MySQL·인증을 검증합니다. 프런트 테스트는 Claude Code가 수행하고, 통합 후 Codex가 실제 브라우저/API/MySQL 결과와 대상 커밋을 기록합니다. 실행 전에는 통과로 기록하지 않습니다.
+
+백엔드 검증 기록(2026-10-05): 실제 MySQL에서 V2~V5 적용, 로그인/me/logout·만료·4개 역할 권한·위조 거부·동시 실패 제한·IP 제한 경계를 통합 테스트로 확인했습니다. 감사 저장 실패의 503/롤백과 계정 초기화 생성/재실행/덮어쓰기 금지는 단위 테스트로 확인했습니다. 운영 JAR에 테스트 전용 경로가 포함되지 않았습니다. PowerShell 5.1.26100.9444로 환경을 주입한 별도 8081 검증 서버에서 health 200, 미인증 me 401, 실패 login 401, 형식 오류 400, token 없는 logout 204, 잘못된 헤더 logout 400, Authorization preflight 200, 비허용 Origin 403을 확인했습니다. 기존 8080 서버는 변경하지 않았으므로 프런트 통합 때 새 백엔드를 사용할 포트를 맞춰야 합니다. 실제 데모 계정의 비밀번호는 사용자가 위 초기화 절차로 설정합니다. 프런트 구현·브라우저 통합·배포는 아직 검증하지 않았습니다.

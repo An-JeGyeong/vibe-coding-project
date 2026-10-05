@@ -69,7 +69,7 @@ class HealthContractTest {
                 .header("Access-Control-Request-Method", "GET")).andExpect(status().isForbidden());
         mvc.perform(options("/api/health").header("Origin", "http://localhost:3000")
                 .header("Access-Control-Request-Method", "GET").header("Access-Control-Request-Headers", "Authorization"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk()).andExpect(header().string("Access-Control-Allow-Headers", "Authorization"));
         mvc.perform(get("/api/health")).andExpect(status().isOk())
                 .andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
     }

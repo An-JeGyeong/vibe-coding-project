@@ -25,7 +25,9 @@ import static org.mockito.Mockito.when;
         properties = "app.cors-allowed-origins=http://localhost:3000")
 class HttpTransportTest {
     @Configuration
-    @EnableAutoConfiguration(exclude = {DataSourceAutoConfiguration.class, FlywayAutoConfiguration.class})
+    @EnableAutoConfiguration(exclude = {DataSourceAutoConfiguration.class, FlywayAutoConfiguration.class,
+            org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration.class,
+            org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration.class})
     @Import({HealthController.class, HealthService.class, CorsConfig.class})
     static class TestApplication { }
 
