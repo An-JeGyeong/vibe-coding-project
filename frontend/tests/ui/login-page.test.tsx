@@ -1,8 +1,9 @@
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import LoginPage from "@/app/(auth)/login/page";
+import { useAuth } from "@/lib/auth/AuthProvider";
 import { formatRetryTime } from "@/lib/auth/messages";
-import { deferred, errorBody, json, loginBody, meBody, mockFetch, NEW_TOKEN, renderWithAuth, storedToken, storeToken } from "./helpers";
+import { deferred, errorBody, json, loginBody, meBody, mockFetch, noContent, NEW_TOKEN, renderWithAuth, storedToken, storeToken } from "./helpers";
 
 const replace = vi.hoisted(() => vi.fn());
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace }) }));
@@ -157,5 +158,43 @@ describe("login page states", () => {
     expect(await screen.findByText("인증이 만료되었거나 유효하지 않습니다. 다시 로그인하세요.")).toBeTruthy();
     expect(screen.getByRole("form", { name: "로그인" })).toBeTruthy();
     expect(storedToken()).toBeNull();
+  });
+});
+
+// D-025 B: after a logout the server did not confirm, the login screen must say that the server token
+// may stay valid until it expires. A confirmed logout must not show that warning.
+describe("logout notice on the login screen", () => {
+  function LogoutAndLogin() {
+    const auth = useAuth();
+    return <>
+      <button type="button" onClick={() => void auth.logout()}>test-logout</button>
+      <LoginPage />
+    </>;
+  }
+
+  async function logoutWith(logoutResponse: () => Response) {
+    storeToken();
+    mockFetch((call) => (call.path === "/api/auth/me" ? json(200, meBody()) : logoutResponse()));
+    renderWithAuth(<LogoutAndLogin />);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/demo"));
+    fireEvent.click(screen.getByRole("button", { name: "test-logout" }));
+    await screen.findByRole("form", { name: "로그인" });
+  }
+
+  test.each([
+    ["network failure", () => { throw new TypeError("offline"); }],
+    ["503", () => json(503, errorBody("AUTH_UNAVAILABLE"))],
+  ])("an unconfirmed logout (%s) warns that the server token may stay valid until expiry", async (_name, failLogout) => {
+    await logoutWith(failLogout);
+    const notice = screen.getByRole("status");
+    expect(notice.textContent).toContain("서버 로그아웃을 확인하지 못했습니다");
+    expect(notice.textContent).toContain("토큰은 만료 시각까지 서버에서 유효할 수 있습니다");
+    expect(storedToken()).toBeNull();
+  });
+
+  test("a confirmed logout shows a plain notice without the server-validity warning", async () => {
+    await logoutWith(noContent);
+    expect(screen.getByText("로그아웃되었습니다.")).toBeTruthy();
+    expect(document.body.textContent).not.toContain("서버에서 유효할 수 있습니다");
   });
 });
