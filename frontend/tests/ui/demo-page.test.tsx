@@ -36,11 +36,17 @@ describe("protected /demo screen", () => {
     expect(screen.getByText(info.summary)).toBeTruthy();
     expect(screen.getByText(/운영자는 다른 역할의 권한을 자동으로 갖지 않습니다/)).toBeTruthy();
     const menu = within(screen.getByRole("region", { name: "업무 메뉴" }));
+    // Only the operator has an implemented menu (episodes); every other menu stays disabled.
+    const implemented = role === "OPERATOR" ? ["회차·원문 관리"] : [];
     for (const label of info.menus) {
-      const button = menu.getByRole("button", { name: label }) as HTMLButtonElement;
-      expect(button.disabled).toBe(true);
+      if (implemented.includes(label)) {
+        expect(menu.getByRole("link", { name: label }).getAttribute("href")).toBe("/episodes");
+      } else {
+        expect((menu.getByRole("button", { name: label }) as HTMLButtonElement).disabled).toBe(true);
+      }
     }
-    expect(menu.getAllByRole("button")).toHaveLength(info.menus.length);
+    expect(menu.getAllByRole("button")).toHaveLength(info.menus.length - implemented.length);
+    expect(menu.queryAllByRole("link")).toHaveLength(implemented.length);
     expect(screen.getByText(/후속 단계에서 제공됩니다/)).toBeTruthy();
     expect(screen.getByText(/접근 권한은 서버가 판단합니다/)).toBeTruthy();
   });

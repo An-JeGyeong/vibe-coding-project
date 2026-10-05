@@ -4,10 +4,10 @@ import { TOKEN_PATTERN } from "./storage";
 const REQUEST_TIMEOUT_MS = 10_000;
 const MAX_RETRY_AFTER_SECONDS = 86_400;
 
-type Sent = { kind: "response"; status: number; retryAfter: string | null; text: string } | { kind: "failure"; failure: ApiFailure };
+export type Sent = { kind: "response"; status: number; retryAfter: string | null; text: string } | { kind: "failure"; failure: ApiFailure };
 
 // Credentials are never sent as cookies (credentials: "omit"); the bearer token is the only credential.
-async function send(path: string, init: { method: string; token?: string; body?: unknown; signal?: AbortSignal }): Promise<Sent> {
+export async function send(path: string, init: { method: string; token?: string; body?: unknown; signal?: AbortSignal }): Promise<Sent> {
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
   if (!baseUrl) return { kind: "failure", failure: { kind: "misconfigured" } };
   if (init.signal?.aborted) return { kind: "failure", failure: { kind: "aborted" } };
@@ -40,15 +40,15 @@ async function send(path: string, init: { method: string; token?: string; body?:
   }
 }
 
-function parseJson(text: string): unknown {
+export function parseJson(text: string): unknown {
   try { return JSON.parse(text); } catch { return null; }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function errorCode(body: unknown): string | null {
+export function errorCode(body: unknown): string | null {
   if (!isRecord(body) || !isRecord(body.error)) return null;
   return typeof body.error.code === "string" ? body.error.code : null;
 }
@@ -58,7 +58,7 @@ function parseRetryAfter(value: string | null): number | null {
   return Math.min(Number(value.trim()), MAX_RETRY_AFTER_SECONDS);
 }
 
-function failureForStatus(sent: Extract<Sent, { kind: "response" }>): ApiFailure {
+export function failureForStatus(sent: Extract<Sent, { kind: "response" }>): ApiFailure {
   const code = errorCode(parseJson(sent.text));
   switch (sent.status) {
     case 400: return { kind: "invalid_request" };

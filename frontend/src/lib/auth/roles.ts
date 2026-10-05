@@ -30,3 +30,6 @@ export const DEMO_ACCOUNTS: ReadonlyArray<{ role: Role; loginId: string }> = [
   { role: "REVIEWER", loginId: "demo.reviewer" },
   { role: "READER", loginId: "demo.reader" },
 ];
+
+// Implemented menus. Display-only: a link is shown for a server-confirmed OPERATOR, the server still enforces access.
+export const OPERATOR_MENU_LINKS: Readonly<Record<string, string>> = { "회차·원문 관리": "/episodes" };

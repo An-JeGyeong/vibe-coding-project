@@ -35,12 +35,13 @@ export function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-export type FetchCall = { path: string; method: string; headers: Record<string, string>; body: string | undefined; init: RequestInit };
+export type FetchCall = { url: string; path: string; method: string; headers: Record<string, string>; body: string | undefined; init: RequestInit };
 
 export function mockFetch(handler: (call: FetchCall) => Response | Promise<Response>) {
   const calls: FetchCall[] = [];
   const fn = vi.fn(async (url: unknown, init?: RequestInit) => {
     const call: FetchCall = {
+      url: String(url),
       path: new URL(String(url)).pathname,
       method: init?.method ?? "GET",
       headers: { ...(init?.headers as Record<string, string> | undefined) },

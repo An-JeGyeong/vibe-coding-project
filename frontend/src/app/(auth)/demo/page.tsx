@@ -1,10 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { failureMessage } from "@/lib/auth/messages";
-import { ROLE_INFO } from "@/lib/auth/roles";
+import { OPERATOR_MENU_LINKS, ROLE_INFO } from "@/lib/auth/roles";
 
 export default function DemoPage() {
   const auth = useAuth();
@@ -43,9 +44,14 @@ export default function DemoPage() {
     <section aria-label="업무 메뉴" className="card card-body shadow-sm mt-3">
       <h2 className="h5">업무 메뉴</h2>
       <ul className="list-unstyled d-flex flex-wrap gap-2">
-        {info.menus.map((menu) => <li key={menu}><button type="button" className="btn btn-outline-secondary" disabled aria-disabled="true">{menu}</button></li>)}
+        {info.menus.map((menu) => {
+          const href = user.role === "OPERATOR" ? OPERATOR_MENU_LINKS[menu] : undefined;
+          return <li key={menu}>{href
+            ? <Link href={href} className="btn btn-primary">{menu}</Link>
+            : <button type="button" className="btn btn-outline-secondary" disabled aria-disabled="true">{menu}</button>}</li>;
+        })}
       </ul>
-      <p className="text-secondary small">업무 기능은 후속 단계에서 제공됩니다. 화면의 안내는 편의 기능이며 접근 권한은 서버가 판단합니다.</p>
+      <p className="text-secondary small">나머지 업무 기능은 후속 단계에서 제공됩니다. 화면의 안내는 편의 기능이며 접근 권한은 서버가 판단합니다.</p>
     </section>
     <button type="button" className="btn btn-outline-danger mt-3" onClick={() => void auth.logout()} disabled={auth.loggingOut}>
       {auth.loggingOut ? "로그아웃 중…" : "로그아웃"}
