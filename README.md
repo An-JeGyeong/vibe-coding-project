@@ -269,3 +269,22 @@ Claude Code의 전달된 직접 검증 보고(Codex 재실행 결과 아님): �
 미검증 유지: 역할별 실제 브라우저 403(첫 업무 API로 이월), 외부 배포/Vercel, 프록시 IP 정책. PS5.1 서버의 브라우저 스모크(login → /demo → 새로고침 사용자·역할 복원 → logout)은 사용자가 직접 수행하고 같은 날 검증 완료를 회신했습니다. 도구 연결 탭이 사용자 인증 세션과 달라 Codex 직접 브라우저 관찰은 미검증입니다. 변경된 검증 설정은 새 프로세스 환경에만 주입했으며, 검증 후 이번 3002/8083 서버와 비밀번호 입력 창만 종료했습니다. 기존 8080/8081/3000 리스너의 프로세스 ID 유지와 검증 포트 해제를 확인했습니다. 추적 설정·기존 Docker 컨테이너·볼륨은 변경하거나 삭제하지 않았고 초기화한 데모 계정은 보존합니다.
 
 Git 메모: 시작 HEAD는 위 기준과 일치. PROJECT_CONTEXT.md는 i/lf w/crlf, core.autocrlf=true이며 정규화 파일 해시가 HEAD와 같고 내용 diff는 없습니다. 요청에 따라 파일은 수정하거나 stage하지 않았습니다. 필요하면 사용자가 `git update-index --refresh -- PROJECT_CONTEXT.md`로 인덱스 메타데이터만 갱신하는 방법을 검토할 수 있으며, 내용 덮어쓰기/전체 restore/reset은 필요하지 않습니다.
+
+### DemoAuth 선택 개선 1·2 검증 기록
+
+시작 기준 `3479f9c24b9b354fccfd4735417a35541f89686b`, 코드 커밋 `7040d2ee6173445d8f2826714cc885c72066c133`. 2026-10-05 KST에 Codex가 직접 실행했습니다. frontend 및 승인 문서 3종은 수정하지 않았습니다.
+
+- 비JSON 로그인: HttpMediaTypeNotSupportedException을 기존 INVALID_REQUEST 처리에 포함했습니다. text/plain·application/x-www-form-urlencoded 모두 400, 고정 오류 JSON만 반환, Cache-Control: no-store. 실제 HTTP/MySQL 테스트에서 각 요청 전후 ID·IP 실패 카운터가 1로 유지됨을 확인했습니다. GET /api/auth/login의 405와 무토큰 POST /api/auth/me의 401도 통과했습니다.
+- 제한 행 정리는 (a) 정확한 키 삭제를 선택했습니다. src/test의 등록 필터만 서버 측 request.getRemoteAddr를 매 테스트의 fixture.UUID 주소로 치환합니다. HTTP는 실제 임의 포트 서버를 호출하고 JDBC는 실제 MySQL을 사용합니다. 공유 127.0.0.1 키는 사용하거나 삭제하지 않으며 클라이언트 전달 헤더도 사용하지 않습니다. 직접 Service 호출의 fixture 주소·존재하지 않는 테스트 ID·생성 계정 ID도 추적해 @AfterEach에서 각 SHA-256 키만 삭제하고 0행을 확인합니다. 운영 JAR의 FixtureAddress/OperatorFixture/DemoAuthIntegrationTest 클래스는 0개였습니다. 환경·Compose·스키마·생산 IP 정책 변경은 없습니다.
+- README 2절처럼 backend/.env.example의 DB/CORS/profile/PORT 환경을 주입하고 AUTH_CLIENT_IP_MODE=DIRECT로 실행했습니다. 비밀번호 값은 명령 인자나 기록에 넣지 않았습니다.
+
+| 실제 실행 명령 | 실행 시각(KST) | 결과 |
+|---|---|---|
+| `gradlew.bat build integrationTest --no-daemon --rerun-tasks` 1회차 | 2026-10-05 23:07:29 시작 | 통과, 종료 0, BUILD SUCCESSFUL in 39s, 기본 20개 + 실제 MySQL 통합 14개(인증 9 + 기존 DB 5), 실패/오류/건너뛰기 0 |
+| 같은 명령 2회차, 코드 변경 없이 연속 재실행 | 2026-10-05 23:08:57~23:09:37 | 통과, 종료 0, BUILD SUCCESSFUL in 39s, 같은 34개 전부 통과 |
+| 읽기 전용 앱 계정 DB 집계: stdin 스크립트 → `docker compose exec -T mysql sh -s` | 실행 전·각 실행 후 | auth_login_limit 88 → 88 → 88, 데모 계정 4 → 4 → 4, 데모 토큰 8 → 8 → 8. 행 전체의 정렬 집계 SHA-256도 모두 동일 |
+| 수집한 Gradle 로그·JUnit XML 비밀값 검사 | 두 실행 후 | DB 비밀번호·전체 JDBC URL·Bearer 토큰·root 비밀번호/비밀키 패턴 0건 |
+
+DB 집계는 컨테이너 앱 계정의 MYSQL_PWD 환경으로 실행했으며 비밀번호를 명령 인자에 넣지 않았습니다. 집계 해시의 GROUP_CONCAT은 해당 조회 세션에만 group_concat_max_len=1048576을 적용했습니다. 첫 실행 뒤 조회 스크립트를 파일에서 읽으며 붙은 빈 CRLF로 sh 오류가 발생했으나 Gradle은 종료 0이었습니다. 스크립트의 TrimEnd() 적용 후 읽기 전용 조회를 재실행해 정상 종료와 동일 집계를 확인했습니다. 두 Gradle 실행 모두 실제 DB 검증을 수행했으며 건너뛰기나 모의 DB 대체는 없습니다.
+
+기존 제한 행 88개는 이번 실행의 생성물로 식별할 수 없으므로 보존했습니다. PROJECT_CONTEXT.md의 기존 줄바꿈 M도 수정·stage·restore하지 않았습니다. 기존 컨테이너·볼륨·서비스는 중단하거나 삭제하지 않았고 push는 수행하지 않았습니다. 이번 범위에 미검증 항목은 없으며, 앞서 이월한 실제 브라우저 역할별 403·외부 배포/Vercel·프록시 IP 정책은 계속 미검증입니다.
