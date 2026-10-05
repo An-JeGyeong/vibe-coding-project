@@ -1,7 +1,7 @@
 # CONTRACTS.md
 
-관리: ProjectBootstrap은 Claude Code, DemoAuth 공통 계약은 Codex / 최종 승인: 사용자
-범위: ProjectBootstrap과 승인된 DemoAuth. 아래 DemoAuth 절은 인증 제외·단일 API·빈 스키마 등 Bootstrap 단계 제한을 해당 기능에 한해 대체한다.
+관리: ProjectBootstrap·EpisodeSource는 Claude Code, DemoAuth 공통 계약은 Codex / 최종 승인: 사용자
+범위: ProjectBootstrap, 승인된 DemoAuth, 13절 EpisodeSource(PROPOSED: 사용자 계약 승인 전 구현 금지). 아래 DemoAuth 절은 인증 제외·단일 API·빈 스키마 등 Bootstrap 단계 제한을 해당 기능에 한해 대체한다.
 근거: `DECISIONS.md` D-001~D-003, D-006~D-008, D-010, D-012~D-018 (D-011, D-004의 DB 엔진 부분은 D-018로 대체)
 DB 엔진: MySQL 8.4 LTS (D-018). 이전 PostgreSQL 기준 문구는 모두 대체되었다.
 미결정(계약 대상 아님): D-004 관리형 MySQL 제품, D-005 백엔드 호스팅 제품, D-009 인증 방식
@@ -343,3 +343,78 @@ MySQL 세부(collation, 시각, 타임아웃, TLS, 권한, healthcheck): D-019 A
 - backend: 정상/실패 로그인, /me, 테스트 전용 보호 경로 401/403, 만료/logout, 역할 위조, 실제 MySQL 원자 제한·마이그레이션·통합 검사, CORS/CSRF 정책, 감사 장애·DB 장애, 비노출, 기존 회귀·빌드, PS5.1 절차.
 - frontend(Claude Code): /login-/demo, 초기/갱신/만료, 오류별 처리·이전 응답 무시·logout, sessionStorage, 타입/빌드/자체 테스트.
 - 최종 실제 연동(Codex): 통합 커밋 고정, 실제 frontend/API/MySQL에서 로그인·사용자역할·새로고침·만료/401·통신 장애·logout 확인. 브라우저 역할별 403은 첫 업무 API까지 이월. 결과·커밋을 Claude Code의 마지막 통합 리뷰에 전달한다.
+
+## 13. EpisodeSource — 회차·원문 관리 (PROPOSED, 사용자 계약 승인 후 구현)
+
+작성: Claude Code(계약). 구현: backend=Codex, frontend=Claude Code. 이 절의 확정 근거는 DECISIONS.md D-026~D-029(승인)와 D-030(세부, 이 계약 승인 시 함께 승인). 인증·역할·오류 형식·CORS·Bearer 규칙은 12절을 그대로 따른다. 이 절은 12절의 "업무 API 금지" 제한을 이 기능에 한해 대체한다.
+
+### 범위
+- 포함: 회차 생성·목록·상세, 원문 블록 저장(= 새 원문 버전 생성), 버전 이력·버전 조회, 낙관적 충돌 방지, 감사 기록. 운영자(OPERATOR) 전용.
+- 제외: 번역, 감수, 발행, 독자 열람, 배정, 이미지, AI, 승인·무효화 구현(연결 기반만 13.6), 회차 삭제·제목 수정, 번역가·감수자 조회(배정 노드에서 추가).
+
+### 13.1 데이터 모델 (Flyway V6~V9, 파일당 DDL 하나, V1~V5 수정 금지, InnoDB·utf8mb4·UTC DATETIME(6))
+| 파일 | 테이블 | 컬럼·제약 |
+|---|---|---|
+| V6 | episode | id BIGINT AI PK, title VARCHAR(100), latest_source_version INT NOT NULL DEFAULT 0, created_by BIGINT FK demo_account, created_at·updated_at DATETIME(6) |
+| V7 | episode_source_version | PK(episode_id, version_no), FK episode, created_by FK demo_account, created_at, block_count INT |
+| V8 | source_block | PK(episode_id, version_no, seq), FK(episode_id, version_no)→version, page_no INT NULL, body VARCHAR(2000), CHECK(seq>=1), CHECK(page_no IS NULL OR page_no BETWEEN 1 AND 9999) |
+| V9 | domain_audit | id BIGINT AI PK, occurred_at, actor_account_id BIGINT NOT NULL FK, event VARCHAR(32) ascii_bin, episode_id BIGINT NULL, source_version INT NULL, INDEX(occurred_at) |
+- 원문 버전과 블록 행은 INSERT만 한다. UPDATE·DELETE 금지(버전 불변). `latest_source_version`은 episode 행에서만 갱신한다.
+- 순서·유일성은 시각이 아니라 `version_no`와 `UNIQUE(episode_id, version_no)`로 보장한다(D-028).
+
+### 13.2 API (모두 OPERATOR 전용, `Cache-Control: no-store`, JSON UTF-8, ID는 문자열, 시각은 UTC ISO-8601 `Z`)
+| API | 요청 | 성공 응답 |
+|---|---|---|
+| POST /api/episodes | {"title":"…"} | 201 {"id":"1","title":"…","latestSourceVersion":0,"createdAt":"…"} |
+| GET /api/episodes?limit=&offset= | limit 1~100(기본 50), offset ≥0(기본 0) | 200 {"items":[{"id","title","latestSourceVersion","updatedAt"}],"total":n} (id 내림차순) |
+| GET /api/episodes/{id} | — | 200 {"id","title","latestSourceVersion","createdAt","updatedAt","source":null 또는 {"version","savedAt","savedBy":{"id","displayName"},"blocks":[{"seq","pageNo","text"}]}} |
+| PUT /api/episodes/{id}/source | {"expectedVersion":0,"blocks":[{"pageNo":1,"text":"…"}]} | 새 버전이면 201 {"version":n,"changed":true,"savedAt"}, 내용이 최신과 같으면 200 {"version":n,"changed":false} |
+| GET /api/episodes/{id}/source/versions | — | 200 {"items":[{"version","savedAt","savedBy":{"id","displayName"},"blockCount"}]} (version 내림차순) |
+| GET /api/episodes/{id}/source/versions/{version} | — | 200 {"version","savedAt","savedBy":{…},"blocks":[…]} |
+- 경로의 id·version이 `^[1-9][0-9]{0,17}$`가 아니거나 없으면 404 NOT_FOUND.
+- 미정의 필드(role·userId·seq 등), 깨진 JSON, 비JSON Content-Type은 400 INVALID_REQUEST. 서버는 클라이언트의 역할·사용자 ID를 신뢰하지 않고 작성자는 인증된 사용자로 정한다.
+
+### 13.3 입력 규칙 (변환 없음: trim·정규화·대소문자 변환 금지, 프런트 동일 검증)
+- title: 1~100 코드포인트, 공백만으로 구성 금지, 제어문자 금지.
+- blocks: 1~200개. 배열 순서가 seq(1..n)이며 클라이언트가 seq를 보낼 수 없다.
+- text: 1~2000 코드포인트, 공백만으로 구성 금지, 제어문자는 탭·개행(\t \n \r)만 허용.
+- pageNo: 생략·null 또는 1~9999 정수. expectedVersion: 0 이상 정수.
+
+### 13.4 저장 동작 (PUT source, 하나의 트랜잭션)
+1. episode 행을 `SELECT … FOR UPDATE`로 잠근다. 없으면 404.
+2. `expectedVersion != latest_source_version`이면 409 VERSION_CONFLICT(error 객체에 `latestVersion` 포함). 아무것도 쓰지 않는다.
+3. 최신 버전과 블록 목록(pageNo·text 순서까지)이 같으면 200 changed:false. 새 버전·감사를 만들지 않는다.
+4. 다르면 version_no=latest+1로 버전·블록을 INSERT하고 episode.latest_source_version·updated_at을 갱신하며 SOURCE_SAVED를 감사에 기록한다. 감사 저장이 실패하면 전체 롤백하고 503이다.
+- 동시에 같은 expectedVersion으로 저장하면 정확히 하나만 201, 나머지는 409이다.
+- POST /api/episodes도 episode INSERT와 EPISODE_CREATED 감사를 한 트랜잭션으로 처리한다.
+
+### 13.5 오류 (12절 형식 {"error":{"code","message"}}, 비밀·내부 예외 비노출)
+400 INVALID_REQUEST / 401 AUTH_REQUIRED / 403 FORBIDDEN(OPERATOR 아님, ACCESS_DENIED 감사) / 404 NOT_FOUND / 409 VERSION_CONFLICT / 503 SERVICE_UNAVAILABLE(DB 장애, 접근 허용 아님) / 500 INTERNAL_ERROR. 비JSON Content-Type은 500이 아니라 400이다.
+
+### 13.6 감사와 승인 무효화 기반 (D-029)
+- domain_audit 이벤트: EPISODE_CREATED, SOURCE_SAVED(episode_id, source_version, 행위자 ID, UTC 시각). 원문 본문·제목·토큰·IP는 저장하지 않는다. 이번 노드는 보관 기간 정리를 만들지 않는다.
+- 번역·승인 노드의 제약: 번역 버전과 승인은 `source_version`(어느 원문 버전에 대한 것인지)을 반드시 기록하고, 현재 `latest_source_version`과 다르면 발행 근거로 쓸 수 없다. 이번에는 구현하지 않는다.
+
+### 13.7 처리 함수
+| 이름 | 입력 → 출력 | 권한 | 상태 변경 | 실패 | 필수 테스트 |
+|---|---|---|---|---|---|
+| createEpisode | title, actor → episode | OPERATOR | episode+감사 INSERT | 400/401/403/503 | 정상, 제목 경계, 감사 장애 롤백, 역할 매트릭스 |
+| listEpisodes | limit, offset → items,total | OPERATOR | 없음 | 400/401/403/503 | 정렬, 페이지 경계 |
+| getEpisode | id → episode+현재 원문 | OPERATOR | 없음 | 404/401/403/503 | 원문 없음 null, 존재하지 않는 id |
+| saveSourceVersion | id, expectedVersion, blocks, actor → version | OPERATOR | version·blocks INSERT, episode 갱신, 감사 | 400/404/409/503 | 정상, 충돌, 동일 내용 200, 동시 저장, 불변성, 롤백 |
+| listSourceVersions / getSourceVersion | id(,version) → 이력/내용 | OPERATOR | 없음 | 404/401/403/503 | 이력 순서, 과거 버전이 변하지 않음 |
+
+### 13.8 프런트 계약 (Claude Code)
+- 경로 /episodes(목록·생성), /episodes/{id}(상세·편집·버전 이력). 기존 (auth) 그룹과 인증 상태를 재사용하고 /demo의 "회차·원문 관리" 메뉴를 OPERATOR에게만 링크로 활성화한다(다른 역할은 비활성 유지). 역할 표시는 편의 기능이며 서버가 강제한다.
+- 서버 역할이 OPERATOR가 아니면 접근 안내를 보이고 API는 호출하지 않는다. API가 401이면 12절의 인증 정리, 403이면 로그인 유지와 권한 안내, 409면 충돌 안내와 "최신 버전 불러오기", 503·통신 장애는 재시도.
+- 편집기: 블록 추가·삭제·위/아래 이동, pageNo 입력, 클라이언트 검증은 13.3과 동일. 중복 제출 방지. 초안은 서버 저장 전까지 메모리에만 두고 localStorage 등에 저장하지 않는다. 입력은 변환하지 않는다.
+
+### 13.9 파일 소유권
+- Codex 변경: backend/src/main(신규 `episode` 패키지, 보안 규칙에 /api/episodes/** OPERATOR 전용 추가, 공통 오류 형식 재사용), db/migration V6~V9, backend/src/test, README 실행·검증 기록.
+- Claude Code 변경: frontend/src, frontend/tests/ui.
+- 변경 금지: V1~V5, 기존 인증 동작·계약, 기존 health·auth API, PROJECT_CONTEXT.md, 서로의 영역. 계약 변경이 필요하면 구현을 멈추고 제안한다.
+
+### 13.10 필수 테스트·완료 조건
+- backend: 위 처리 함수 테스트, 4개 역할×6개 API 401/403/성공 매트릭스(역할 위조 포함), 실제 MySQL 마이그레이션(V6~V9)·제약·동시 저장·불변성, 오류 비노출·비JSON 400, 기존 회귀·빌드, 통합 테스트가 개발 DB에 행을 남기지 않음(생성한 회차·버전·블록·감사를 정리하되 데모 계정·기존 데이터는 보존).
+- frontend: 목록·생성, 편집·검증, 충돌(409), 401·403·503·통신 오류, 중복 제출, 비운영자 접근 안내, 기존 회귀, 타입·빌드. 모킹 테스트 통과는 실제 연동 성공이 아니다.
+- 최종 실제 연동(Codex): 실제 frontend/API/MySQL에서 운영자 로그인 → 회차 생성 → 원문 저장 → 수정(버전 증가) → 과거 버전 조회 → 새로고침 후 유지 → 충돌 시나리오. 브라우저 역할별 403은 이번에 첫 업무 API가 생겼으므로 실제 브라우저에서 비운영자 역할의 403을 함께 확인한다(12절에서 이월된 항목).
