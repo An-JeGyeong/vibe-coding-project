@@ -141,6 +141,8 @@ npm run typecheck
 npm run build
 ```
 
+`npm test`는 기존 `node:test` 4개(`npm run test:node`)와 Vitest 컴포넌트·인증 상태 테스트(`npm run test:ui`)를 차례로 실행합니다. 테스트 전용 devDependency는 `vitest`, `jsdom`, `@testing-library/react`, `@testing-library/dom`이며 런타임 의존성은 늘지 않습니다. 이 테스트는 계약에 맞춘 API 모킹이므로 통과해도 실제 백엔드 연동 성공을 의미하지 않습니다. 실제 연동은 아래 절차로 별도 검증합니다.
+
 백엔드 기본 테스트와 빌드(실제 DB 없이 실행 가능):
 
 ```powershell
