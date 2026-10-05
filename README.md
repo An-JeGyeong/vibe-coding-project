@@ -358,3 +358,33 @@ $env:CORS_ALLOWED_ORIGINS = 'http://localhost:3000'
 | 개발 DB 읽기 전용 집계, stdin → `docker compose exec -T mysql sh -s` | 준비 전후 차이 0. auth_login_limit 88, demo_account 4, auth_token 8, auth_audit 130, 도메인 네 테이블 각각 0 유지. 인증 네 테이블의 전체 행 정렬 집계 해시도 동일 |
 
 기존 3000/3306/8080/8081/8084 리스너 PID는 유지됐습니다. frontend·backend/src·승인 문서의 내용은 기준 커밋과 동일하며 PROJECT_CONTEXT.md는 수정·stage·restore하지 않았습니다. 비밀번호 입력이 가능해지면 격리 DB를 다시 생성하고 README 7절 시드부터 재개해야 합니다. 코드 결함 판단은 실제 시나리오 실행 전까지 보류하며, 외부 배포/Vercel·프록시 IP 정책은 계속 미검증입니다.
+
+### EpisodeSource 실제 연동 재개 결과 (2026-10-06 07:54~08:08 KST)
+
+검증 기준은 frontend `81cc7bb`, backend `1464e8d`, 승인 계약 `582b5d0`입니다. 재개 HEAD `c9ef909`는 위 준비 기록만 추가한 문서 커밋입니다. 코드는 변경하지 않았습니다. 사용자는 네 비밀번호 입력과 역할별 로그인만 직접 수행했고, 아래 화면·저장·새로고침·로그아웃 확인은 Codex가 앱 내 브라우저에서 직접 수행했습니다. 앞선 Claude Code 보고나 백엔드 테스트를 이번 실제 브라우저 결과로 합산하지 않습니다.
+
+격리 MySQL은 위와 같은 mysql:8.4.11 digest, --rm/tmpfs, localhost:3308의 episode_verify입니다. README 2절 환경 주입과 7절 Read-Host/시드 명령을 포함한 PowerShell 5.1 스크립트를 실행했습니다. DB_URL/PORT/CORS만 격리 DB·8085·http://localhost:3004로 지정했습니다. 비밀번호는 사용자 입력 후 프로세스 환경에서 지웠으며 값은 기록하지 않았습니다. seed 종료 0, PowerShell 5.1.26100.9444, 07:54:56 KST. `gradlew.bat bootRun --no-daemon`으로 기동한 API의 `GET /api/health`는 실제 200/UP/db UP입니다. 앱 계정의 읽기 전용 조회에서 Flyway V1~V9 각 success=1, 역할별 계정 각 1개를 확인했습니다. 격리 프런트 사본은 `npm run start -- --port 3004`로 실행했습니다.
+
+| 요청 시나리오 | 직접 실행 결과 |
+|---|---|
+| 1. 운영자 로그인 → /demo → 회차 관리 링크 | 통과. 사용자 OPERATOR 로그인 후 Codex가 사용자·역할 표시와 링크 이동 확인 |
+| 2. 공백 포함 제목 생성·원문 없음·빈 블록 1개 | 통과. 검증 회차 id=2, 제목 `  Codex 실제 연동 2026-10-06  `. 상세의 원문 없음과 빈 블록 1개 확인. DB에서 제목 길이 26 및 앞뒤 두 공백 보존 확인 |
+| 3. 세 블록, 일부 페이지 없음, v1 | 통과. 페이지 1/null/3, v1 저장 안내·이력 1건·블록 수 3 확인 |
+| 4. 수정 후 v2·과거 v1 불변 | 통과. 두 번째 블록 수정 후 v2·이력 2건. v1 보기의 원문은 이전 내용 유지 |
+| 5. 동일 내용 저장 | 통과. 변경 사항이 없어 새 버전을 만들지 않았다는 안내, 최신 v2·이력 2건 유지 |
+| 6. 상세·목록 새로고침 | 통과. 인증·최신 v2 원문·이력·목록 회차 유지 |
+| 7. 같은 토큰 직접 PUT 후 화면 저장 409·초안·최신 불러오기 | 미검증. Windows 브라우저 제어의 창 소유자 오류가 재시도에도 발생했고, 앱 내 브라우저 도구는 콘솔 실행 기능을 제공하지 않음. 다른 방식의 DB 수정이나 이전 모킹 테스트로 대체하지 않음 |
+| 8. 실제 브라우저 PUT preflight 네트워크 기록 | 미검증. 앱 내 브라우저 도구에 네트워크 기록 조회 기능 없음. 실제 화면 PUT 저장은 성공했으나 요구한 OPTIONS/Authorization 전달 기록은 확보하지 못함 |
+| 9. 토큰 폐기 후 새로고침 401 | 통과. 격리 DB의 유효 운영자 토큰 1개만 revoked_at 설정 후 /episodes/2 새로고침. /login 이동 및 인증 만료/유효하지 않음 안내 확인. 토큰 값 출력 없음 |
+| 10. 서버 중지 저장·초안 유지·복구 후 저장 | 통과. 이번 8085 Java PID만 대조 후 Stop-Process. 저장 통신 오류 및 입력 초안 유지. 같은 PS5.1 환경의 bootRun으로 복구, health 200 후 재저장 v3 성공 |
+| 비운영자 세 역할의 직접 경로 안내·로그인 유지 | 통과한 부분: TRANSLATOR/REVIEWER/READER 각각 /episodes와 /episodes/2에 운영자 전용 안내, /demo 복귀 후 동일 역할 인증 유지. 회차 API 요청 미발생의 네트워크 기록은 미검증 |
+| 비운영자 /demo 메뉴 비활성 표시 | 실패(프런트 계약 차이). 세 역할 모두 회차 관리 링크는 없지만, 비활성 회차·원문 관리 항목도 없음. 계약 13.8은 다른 역할에 비활성 유지 요구. 각 계정으로 /demo 로그인하면 재현. 코드 미수정, Claude Code 확인 필요 |
+| 비운영자 콘솔 GET/POST/PUT 403·브라우저 응답 읽기·감사 | 미검증. 콘솔 실행 도구 없음. 읽기 전용 조회의 ACCESS_DENIED는 0이며 이를 서버 권한 통과로 해석하지 않음 |
+
+보조 CORS 검사(브라우저 기록과 구분): PowerShell의 `Invoke-WebRequest -Method Options`로 /api/episodes/2/source에 Origin=http://localhost:3004, Access-Control-Request-Method=PUT, Access-Control-Request-Headers=authorization,content-type을 전달했습니다. 응답 200, Allow-Origin 정확히 http://localhost:3004, Allow-Methods에 PUT, Allow-Headers에 authorization/content-type, Allow-Credentials 없음. 이는 시나리오 8의 브라우저 기록 검증을 대체하지 않습니다.
+
+격리 DB 최종 읽기 전용 집계: 회차 id=1은 사용자가 로그인 후 직접 만든 회차(v1), id=2는 Codex 검증 회차(v3)입니다. EPISODE_CREATED=2, SOURCE_SAVED=4. 개발 DB(3306)에는 검증 회차를 생성하지 않았습니다. 개발 DB 검증 전후 auth_login_limit=88, demo_account=4, auth_token=8, auth_audit=130, episode/episode_source_version/source_block/domain_audit 각각 0으로 동일하며 인증 네 테이블의 전체 행 정렬 집계 해시도 동일했습니다.
+
+정리: 마지막 독자 로그아웃 확인 후 이번 브라우저 탭을 닫았습니다. 검증용 8085/3004 PID와 스크립트 소유 런처만 종료하고 컨테이너 ID 대조 후 `docker stop --time 10 <이번 ID>` 실행(--rm 자동 정리). 기존 3000/3306/8080/8081/8084 PID 유지 및 기존 MySQL healthy 확인. 원본 frontend/.next·코드·승인 문서 내용 변경 없음. 수집한 API/프런트 로그·시드 결과의 Bearer/비밀번호 대입/root 비밀번호 패턴 0건, 실제 .env 추적 0개. 입력한 비밀번호 값을 보관하지 않았으므로 값 자체의 전체 로그 대조 검사는 미실행입니다. PROJECT_CONTEXT.md의 기존 M은 그대로 보존했습니다.
+
+전체 실제 연동 완료는 아직 미충족입니다. 시나리오 7·8, 비운영자 서버 403/네트워크 증빙을 실제 브라우저 DevTools 사용 가능 환경에서 재검증하고, 비활성 메뉴 차이를 Claude Code에 전달해야 합니다. 외부 배포/Vercel·프록시 IP 정책도 미검증입니다. 코드 수정·push·이력 재작성·기존 컨테이너/볼륨 삭제는 하지 않았습니다.
