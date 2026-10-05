@@ -6,8 +6,9 @@
 
 - Node 24, npm, JDK 17 (`JAVA_HOME`과 PATH 확인)
 - Docker CLI / Docker Compose와 실행 중인 Docker Desktop Linux 데몬
-- 포트 5432(DB), 8080(API), 3000(프런트엔드)
-- 버전: Spring Boot 3.5.16, Gradle Wrapper 8.14.3, Next.js 16.3.8, React 19.3.0, PostgreSQL 이미지 17.6
+- 포트 3306(DB), 8080(API), 3000(프런트엔드)
+- 버전: Spring Boot 3.5.16, Gradle Wrapper 8.14.3, Next.js 16.3.8, React 19.3.0, MySQL 이미지 `mysql:8.4.11`
+- Connector/J `9.7.0`, Flyway core/mysql `11.7.2`는 Spring Boot BOM으로 관리하며 `gradlew.bat dependencies --configuration runtimeClasspath`로 확인합니다.
 
 모든 명령은 Windows PowerShell 기준입니다. 저장소 루트에서 시작합니다.
 
@@ -21,7 +22,9 @@ docker compose version
 docker info
 ```
 
-Docker 데몬이 없으면 사용자가 Docker Desktop을 실행하고 Linux 엔진이 준비될 때까지 기다린 뒤 `docker info`를 다시 확인하세요. 설치되지 않았다면 사용자가 Docker를 설치해야 합니다. Docker 없이 프런트엔드 빌드와 백엔드 기본 자동 테스트는 실행할 수 있지만 실제 PostgreSQL 검증은 할 수 없습니다.
+Docker 데몬이 없으면 사용자가 Docker Desktop을 실행하고 Linux 엔진이 준비될 때까지 기다린 뒤 `docker info`를 다시 확인하세요. 설치되지 않았다면 사용자가 Docker를 설치해야 합니다. Docker 없이 프런트엔드 빌드와 백엔드 기본 자동 테스트는 실행할 수 있지만 실제 MySQL 검증은 할 수 없습니다.
+
+기존 PostgreSQL 커밋·컨테이너·`postgres_data` 볼륨은 보존합니다. MySQL은 별도 `mysql_data` 볼륨에서 시작하며 데이터 이전은 하지 않습니다. 컨테이너·볼륨 삭제나 정리 명령을 실행하지 마세요. 기존 PostgreSQL 상태는 `docker ps -a`와 `docker volume ls`로 확인만 합니다. 아래 Compose 실행에는 `--remove-orphans`를 붙이지 않습니다.
 
 ## 1. Docker Compose의 환경변수와 DB
 
@@ -31,19 +34,36 @@ Compose는 **루트 `.env`**를 자체 변수 치환에 사용합니다. 이 파
 # 선택: Compose 기본값을 바꾸려는 경우만 실행 (Git에서 제외됨)
 # Copy-Item backend/.env.example .env
 docker compose config --quiet
-docker compose up -d
+docker compose up -d mysql
 docker compose ps
-docker compose exec -T postgres pg_isready -U mangabridge -d mangabridge
+docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --protocol=TCP --host=127.0.0.1 --user="$MYSQL_USER" --database="$MYSQL_DATABASE" --connect-timeout=2 --batch --skip-column-names --execute="SELECT 1"'
 ```
 
-DB는 localhost에만 바인딩되며 named volume에 저장됩니다. 로컬 개발용 자격증명은 실제 운영 비밀값으로 사용하지 마세요. 기존 볼륨에 DB가 생성된 뒤 Compose 비밀번호를 바꾸어도 기존 PostgreSQL 계정 비밀번호는 자동 변경되지 않습니다.
+DB는 localhost에만 바인딩되며 named volume에 저장됩니다. 로컬 개발용 자격증명은 실제 운영 비밀값으로 사용하지 마세요. 기존 MySQL 볼륨에 DB가 생성된 뒤 Compose 비밀번호를 바꾸어도 기존 계정 비밀번호는 자동 변경되지 않습니다.
+
+서버는 InnoDB, `utf8mb4`, `utf8mb4_0900_ai_ci`, UTC(`+00:00`)를 명시합니다. 최초 볼륨 초기화 시 `backend/docker/mysql/01-schema-options.sql`이 현재 스키마의 문자셋·collation을 명시적으로 설정합니다. 앱 계정은 해당 스키마 한정 전체 권한을 가지며 Flyway도 같은 계정을 사용합니다. root 비밀번호는 무작위 생성하지만 앱이나 진단 명령에서 사용하지 않습니다. 전체 Docker 로그에는 이 무작위 비밀번호가 들어갈 수 있으므로 출력하거나 보고문에 붙이지 마세요.
+
+healthcheck는 앱 계정으로 TCP `SELECT 1`을 실행합니다. 비밀번호는 컨테이너 내부 `MYSQL_PWD` 환경변수로 전달하고 명령 인자에는 넣지 않습니다. healthcheck의 stdout/stderr는 버리며 실패 종료 코드를 유지합니다. `docker inspect`도 전체 출력 대신 필요한 필드만 조회합니다.
+
+```powershell
+$mysqlId = docker compose ps -q mysql
+docker inspect --format '{{.State.Health.Status}}' $mysqlId
+$probe = docker inspect --format '{{json .Config.Healthcheck.Test}}' $mysqlId | ConvertFrom-Json
+# 프로브의 변수 참조만 확인하며 전체 컨테이너 환경변수는 출력하지 않습니다.
+$probe
+# 실제 healthcheck 명령에 잘못된 비밀번호를 주입한 일회성 실행: 종료 코드가 0이 아니어야 합니다.
+docker compose exec -T mysql sh -c ('MYSQL_PASSWORD="invalid-$MYSQL_PASSWORD"; ' + $probe[1])
+$LASTEXITCODE
+```
+
+위 일회성 검사는 실제 프로브의 인증 실패 종료 코드를 검증합니다. 기존 컨테이너 환경이나 계정을 바꾸지 않으므로 이 명령만으로 컨테이너 상태가 `unhealthy`로 변한 것으로 보고하지 않습니다. 실제 unhealthy 상태와 복구는 별도의 실행 관찰이 필요합니다.
 
 ## 2. Spring 프로세스에 환경변수 주입
 
 Spring Boot는 `.env`나 `backend/.env.example`을 자동으로 읽지 않습니다. **백엔드를 실행하는 같은 PowerShell 창**에서 다음 환경변수를 주입합니다. 아래는 로컬 개발용 값입니다.
 
 ```powershell
-$env:DB_URL = "jdbc:postgresql://localhost:5432/mangabridge"
+$env:DB_URL = "jdbc:mysql://localhost:3306/mangabridge"
 $env:DB_USERNAME = "mangabridge"
 $env:DB_PASSWORD = "mangabridge_local_only"
 $env:CORS_ALLOWED_ORIGINS = "http://localhost:3000"
@@ -53,7 +73,9 @@ Set-Location backend
 .\gradlew.bat bootRun
 ```
 
-필수 환경변수가 없거나 공백이면 변수 이름을 포함한 오류와 함께 종료합니다. CORS 값이 비었거나 `*`를 포함해도 종료합니다. 시작 시 DB 연결이나 Flyway가 실패하면 기동 실패가 정상입니다. 정상 기동 후에는 DB 장애가 생겨도 서버가 유지되며 헬스 API가 503을 반환합니다.
+필수 환경변수가 없거나 공백이면 변수 이름을 포함한 오류와 함께 종료합니다. CORS 값이 비었거나 `*`를 포함해도 종료합니다. `DB_USERNAME=root`는 금지하며 기동 전에 거부합니다. 시작 시 DB 연결이나 Flyway가 실패하면 기동 실패가 정상입니다. 정상 기동 후에는 DB 장애가 생겨도 서버가 유지되며 헬스 API가 503을 반환합니다.
+
+공통 JDBC 설정은 `characterEncoding=UTF-8`, `connectionCollation=utf8mb4_0900_ai_ci`, `connectionTimeZone=UTC`, `forceConnectionTimeZoneToSession=true`입니다. `local` 프로필은 localhost Docker에 한해 `sslMode=DISABLED`, `allowPublicKeyRetrieval=true`를 사용합니다. `prod` 및 공통 기본값은 `sslMode=VERIFY_IDENTITY`이며 운영 프로필에는 공개 키 검색 옵션이 없습니다. 운영 접속·배포는 이번 작업 범위 밖입니다. 로컬 옵션을 운영 DB URL에 복사하지 마세요. `mysql_native_password`로 변경하지 않습니다.
 
 Flyway는 빈 기준선 `V1__baseline.sql`과 자체 이력 테이블만 적용합니다. 도메인 테이블과 자동 스키마 생성은 없습니다. Hikari/Flyway/Spring의 내부 예외와 Tomcat 버전 로그를 제한하고, 헬스 실패 로그에는 연결 문자열·자격증명·예외 문자열 없이 연결/쿼리 실패 사실만 남깁니다.
 
@@ -90,15 +112,15 @@ Set-Location C:\Project_File\vibe-coding-project\backend
 .\gradlew.bat build --no-daemon
 ```
 
-기본 테스트는 HTTP 계약·모의 DB 상태·실제 TCP 지연 시 유한한 503 응답·환경변수·CORS·실제 YAML 설정 바인딩을 확인합니다. 이 테스트 성공이 실제 PostgreSQL 연결·마이그레이션 성공을 의미하지는 않습니다. 결과는 `backend/build/reports/tests/test/index.html`에 있습니다.
+기본 테스트는 HTTP 계약·모의 DB 상태·실제 TCP 지연 시 유한한 503 응답·환경변수·CORS·실제 YAML 설정 바인딩·TLS 프로필 분리·Compose 프로브 구성을 확인합니다. 이 테스트 성공이 실제 MySQL 연결·마이그레이션 성공을 의미하지는 않습니다. 결과는 `backend/build/reports/tests/test/index.html`에 있습니다.
 
-실제 PostgreSQL 통합 테스트는 별도로 실행합니다. Docker DB를 기동한 뒤 2절 환경변수를 **이 테스트를 실행하는 창에도** 주입합니다. DB가 없으면 성공/건너뛰기로 처리하지 않고 실패합니다.
+실제 MySQL 통합 테스트는 별도로 실행합니다. Docker DB를 기동한 뒤 2절 환경변수를 **이 테스트를 실행하는 창에도** 주입합니다. DB가 없으면 성공/건너뛰기로 처리하지 않고 실패합니다. 이전 DB 엔진의 결과를 재사용하지 않으려면 `--rerun-tasks`를 지정합니다.
 
 ```powershell
-.\gradlew.bat integrationTest --no-daemon
+.\gradlew.bat integrationTest --no-daemon --rerun-tasks
 ```
 
-결과는 `backend/build/reports/tests/integrationTest/index.html`에 있습니다. 최초 DB에서는 Flyway 기준선 적용, 실제 200, 실제 JDBC 연결 실패 503, 프레임워크 오류 본문을 검증합니다.
+결과는 `backend/build/reports/tests/integrationTest/index.html`에 있습니다. 최초 DB에서는 Flyway 기준선 적용, 실제 200, 실제 JDBC 연결 실패 503, 프레임워크 오류 본문, 문자셋·collation·UTC·비root 계정·InnoDB 기본 엔진과 사용 가능 여부를 검증합니다. 검증 때문에 영구 도메인 테이블을 만들지 않습니다. 테스트 연결도 승인된 `socketTimeout=3000` ms를 사용하며, 이 값으로 Flyway가 실패하면 값을 늘리거나 별도 데이터소스로 우회하지 않고 변경 제안을 보고합니다.
 
 ## 5. 수동 헬스·CORS·DB 장애 복구 검증
 
@@ -111,15 +133,15 @@ curl.exe -i -H "Origin: http://localhost:3000" http://localhost:8080/api/health
 curl.exe -i -H "Origin: https://unapproved.example" http://localhost:8080/api/health
 curl.exe -i -X OPTIONS -H "Origin: http://localhost:3000" -H "Access-Control-Request-Method: GET" -H "Access-Control-Request-Headers: Content-Type" http://localhost:8080/api/health
 curl.exe -i -X POST http://localhost:8080/api/health
-docker compose exec -T postgres psql -U mangabridge -d mangabridge -c 'SELECT version, script, success FROM flyway_schema_history;'
-docker compose stop postgres
+docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --protocol=TCP --host=127.0.0.1 --user="$MYSQL_USER" --database="$MYSQL_DATABASE" --batch --execute="SELECT version, script, success FROM flyway_schema_history; SELECT @@character_set_server, @@collation_server, @@session.time_zone, @@default_storage_engine;"'
+docker compose stop mysql
 curl.exe -i --max-time 15 http://localhost:8080/api/health
-docker compose start postgres
-docker compose exec -T postgres pg_isready -U mangabridge -d mangabridge
+docker compose start mysql
+docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --protocol=TCP --host=127.0.0.1 --user="$MYSQL_USER" --database="$MYSQL_DATABASE" --connect-timeout=2 --batch --skip-column-names --execute="SELECT 1"'
 curl.exe -i --max-time 15 http://localhost:8080/api/health
 ```
 
-DB 정상 시 200 `{status:"UP",db:"UP",time:"UTC ISO-8601"}`, 정상 기동 후 DB 중지 시 503 `db:"DOWN"`, 재기동 후 다시 200이어야 합니다. 모든 헬스 응답에 `Cache-Control: no-store`가 있어야 합니다. HEAD는 본문이 없어야 하고 변경 메서드는 405, 비허용 Origin은 403이어야 합니다. 브라우저의 **다시 확인** 버튼으로 동일한 DB 중지·재기동 흐름과 화면 상태를 확인하세요. 네트워크 오류 화면은 API 프로세스를 종료한 뒤 버튼을 눌러 확인합니다.
+DB 정상 시 200 `{status:"UP",db:"UP",time:"UTC ISO-8601"}`, 정상 기동 후 DB 중지 시 503 `db:"DOWN"`, 재기동 후 다시 200이어야 합니다. 중지된 컨테이너에서는 healthcheck가 실행되지 않으므로 `stopped`를 `unhealthy` 검증으로 대체하지 않습니다. 모든 헬스 응답에 `Cache-Control: no-store`가 있어야 합니다. HEAD는 본문이 없어야 하고 변경 메서드는 405, 비허용 Origin은 403이어야 합니다. 브라우저의 **다시 확인** 버튼으로 동일한 DB 중지·재기동 흐름과 화면 상태를 확인하세요. 네트워크 오류 화면은 API 프로세스를 종료한 뒤 버튼을 눌러 확인합니다.
 
 ## 6. 타임아웃과 비밀값 검사
 
@@ -128,8 +150,8 @@ DB 정상 시 200 `{status:"UP",db:"UP",time:"UTC ISO-8601"}`, 정상 기동 후
 | `spring.datasource.hikari.connection-timeout` | 2000 | ms |
 | `spring.datasource.hikari.validation-timeout` | 1000 | ms |
 | `spring.jdbc.template.query-timeout` | 2s | 초 (`JdbcTemplate`에는 2초로 바인딩) |
-| `spring.datasource.hikari.data-source-properties.connectTimeout` | 2 | 초 (PostgreSQL JDBC) |
-| `spring.datasource.hikari.data-source-properties.socketTimeout` | 2 | 초 (PostgreSQL JDBC) |
+| `spring.datasource.hikari.data-source-properties.connectTimeout` | 2000 | ms (MySQL Connector/J) |
+| `spring.datasource.hikari.data-source-properties.socketTimeout` | 3000 | ms (MySQL Connector/J, Flyway에도 적용) |
 | 프런트엔드 `AbortSignal.timeout` | 10000 | ms |
 
 각 DB 타임아웃은 개별 한도입니다. 전체 HTTP 응답이 엄밀하게 2초 이내라는 보장은 하지 않습니다.
