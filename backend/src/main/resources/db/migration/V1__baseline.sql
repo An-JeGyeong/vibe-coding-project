@@ -1,0 +1,1 @@
+-- Intentionally empty baseline. No domain tables in ProjectBootstrap.
