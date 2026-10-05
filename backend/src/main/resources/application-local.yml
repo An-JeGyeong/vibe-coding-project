@@ -1,0 +1,7 @@
+# Only for localhost Docker development. Never activate this profile in production.
+spring:
+  datasource:
+    hikari:
+      data-source-properties:
+        sslMode: DISABLED
+        allowPublicKeyRetrieval: true

@@ -19,7 +19,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-// Real HTTP transport, mocked DB only; never counts as a real PostgreSQL test.
+// Real HTTP transport, mocked DB only; never counts as a real MySQL test.
 @SpringBootTest(classes = HttpTransportTest.TestApplication.class,
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = "app.cors-allowed-origins=http://localhost:3000")

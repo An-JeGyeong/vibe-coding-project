@@ -45,7 +45,7 @@ class HealthContractTest {
 
     @Test void failureIs503AndEveryCallChecksDatabase() throws Exception {
         when(jdbc.queryForObject("SELECT 1", Integer.class)).thenReturn(1)
-                .thenThrow(new DataAccessResourceFailureException("jdbc:postgresql://private-db:5432 secret_user Exception"))
+                .thenThrow(new DataAccessResourceFailureException("jdbc:mysql://private-db:3306 secret_user Exception"))
                 .thenReturn(1);
         mvc.perform(get("/api/health")).andExpect(status().isOk());
         String body = mvc.perform(get("/api/health")).andExpect(status().isServiceUnavailable())

@@ -13,6 +13,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.env.MockEnvironment;
 import static org.assertj.core.api.Assertions.*;
@@ -42,14 +43,20 @@ class ConfigurationTest {
         new ApplicationContextRunner()
                 .withInitializer(context -> context.getEnvironment().getPropertySources().addLast(yaml))
                 .withConfiguration(AutoConfigurations.of(DataSourceAutoConfiguration.class, JdbcTemplateAutoConfiguration.class))
-                .withPropertyValues("DB_URL=jdbc:postgresql://localhost:1/test", "DB_USERNAME=test", "DB_PASSWORD=test")
+                .withPropertyValues("DB_URL=jdbc:mysql://localhost:1/test", "DB_USERNAME=test", "DB_PASSWORD=test")
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     HikariDataSource source = context.getBean(HikariDataSource.class);
                     assertThat(source.getConnectionTimeout()).isEqualTo(2000);
                     assertThat(source.getValidationTimeout()).isEqualTo(1000);
-                    assertThat(source.getDataSourceProperties().getProperty("connectTimeout")).isEqualTo("2");
-                    assertThat(source.getDataSourceProperties().getProperty("socketTimeout")).isEqualTo("2");
+                    assertThat(source.getDataSourceProperties().getProperty("connectTimeout")).isEqualTo("2000");
+                    assertThat(source.getDataSourceProperties().getProperty("socketTimeout")).isEqualTo("3000");
+                    assertThat(source.getDataSourceProperties().getProperty("characterEncoding")).isEqualTo("UTF-8");
+                    assertThat(source.getDataSourceProperties().getProperty("connectionCollation")).isEqualTo("utf8mb4_0900_ai_ci");
+                    assertThat(source.getDataSourceProperties().getProperty("connectionTimeZone")).isEqualTo("UTC");
+                    assertThat(source.getDataSourceProperties().getProperty("forceConnectionTimeZoneToSession")).isEqualTo("true");
+                    assertThat(source.getDataSourceProperties().getProperty("sslMode")).isEqualTo("VERIFY_IDENTITY");
+                    assertThat(source.getDataSourceProperties()).doesNotContainKey("allowPublicKeyRetrieval");
                     assertThat(context.getBean(JdbcTemplate.class).getQueryTimeout()).isEqualTo(2);
                     ServerProperties server = Binder.get(context.getEnvironment()).bind("server", ServerProperties.class).get();
                     assertThat(server.getError().getIncludeMessage().name()).isEqualTo("NEVER");
@@ -57,6 +64,35 @@ class ConfigurationTest {
                     assertThat(server.getError().getIncludeBindingErrors().name()).isEqualTo("NEVER");
                     assertThat(server.getError().isIncludeException()).isFalse();
                 });
+    }
+
+    @Test void rootApplicationAccountFailsBeforeDatabaseConnection() {
+        assertThatThrownBy(() -> RequiredEnvironment.validate(validEnvironment().withProperty("DB_USERNAME", "root")))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("DB_USERNAME")
+                .hasMessageNotContaining("private-value");
+    }
+
+    @Test void localAndProductionTlsAreSeparated() throws Exception {
+        var loader = new YamlPropertySourceLoader();
+        for (String profile : new String[]{"local", "prod"}) {
+            var environment = new MockEnvironment();
+            environment.getPropertySources().addLast(loader.load("profile", new ClassPathResource("application-" + profile + ".yml")).get(0));
+            environment.getPropertySources().addLast(loader.load("common", new ClassPathResource("application.yml")).get(0));
+            String prefix = "spring.datasource.hikari.data-source-properties.";
+            assertThat(environment.getProperty(prefix + "sslMode")).isEqualTo(profile.equals("local") ? "DISABLED" : "VERIFY_IDENTITY");
+            assertThat(environment.getProperty(prefix + "allowPublicKeyRetrieval")).isEqualTo(profile.equals("local") ? "true" : null);
+        }
+    }
+
+    @Test void composeUsesAnApplicationSelectWithoutPasswordArguments() throws Exception {
+        var compose = new YamlPropertySourceLoader().load("compose", new FileSystemResource("../docker-compose.yml")).get(0);
+        assertThat(compose.getProperty("services.mysql.image")).isEqualTo("mysql:8.4.11");
+        assertThat(compose.getProperty("services.mysql.environment.MYSQL_RANDOM_ROOT_PASSWORD")).isEqualTo("yes");
+        assertThat(compose.getProperty("services.mysql.ports[0]")).isEqualTo("127.0.0.1:3306:3306");
+        String probe = (String) compose.getProperty("services.mysql.healthcheck.test[1]");
+        assertThat(probe).contains("MYSQL_PWD=\"$${MYSQL_PASSWORD}\"", "--protocol=TCP", "--user=\"$${MYSQL_USER}\"",
+                "--database=\"$${MYSQL_DATABASE}\"", "SELECT 1", ">/dev/null 2>&1")
+                .doesNotContain("--password", "mysqladmin", "mangabridge_local_only", "root");
     }
 
     private MockEnvironment validEnvironment() {

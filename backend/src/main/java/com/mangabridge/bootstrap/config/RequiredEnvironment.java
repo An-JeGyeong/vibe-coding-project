@@ -19,6 +19,9 @@ public class RequiredEnvironment implements ApplicationContextInitializer<Config
                 fail("Missing required environment variable: " + name);
             }
         }
+        if ("root".equalsIgnoreCase(environment.getProperty("DB_USERNAME").trim())) {
+            fail("Invalid environment variable: DB_USERNAME (dedicated application account required)");
+        }
         origins(environment.getProperty("CORS_ALLOWED_ORIGINS"));
     }
 

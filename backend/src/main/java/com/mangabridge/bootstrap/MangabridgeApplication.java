@@ -13,7 +13,7 @@ public class MangabridgeApplication {
             application.run(args);
         } catch (RuntimeException failure) {
             // Do not print nested JDBC/Flyway exceptions containing connection details.
-            System.err.println("Startup failed: check required environment variables and PostgreSQL availability.");
+            System.err.println("Startup failed: check required environment variables and MySQL availability.");
             System.exit(1);
         }
     }

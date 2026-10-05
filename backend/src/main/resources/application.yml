@@ -19,8 +19,13 @@ spring:
       connection-timeout: 2000
       validation-timeout: 1000
       data-source-properties:
-        connectTimeout: 2
-        socketTimeout: 2
+        connectTimeout: 2000
+        socketTimeout: 3000
+        characterEncoding: UTF-8
+        connectionCollation: utf8mb4_0900_ai_ci
+        connectionTimeZone: UTC
+        forceConnectionTimeZoneToSession: true
+        sslMode: VERIFY_IDENTITY
   jdbc:
     template:
       query-timeout: 2s
@@ -34,6 +39,6 @@ logging:
     org.springframework: OFF
     com.zaxxer.hikari: OFF
     org.flywaydb: OFF
-    org.postgresql: OFF
+    com.mysql: OFF
     org.apache.catalina: OFF
     org.apache.coyote: OFF

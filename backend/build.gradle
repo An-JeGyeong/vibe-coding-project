@@ -14,19 +14,19 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-jdbc'
     implementation 'org.flywaydb:flyway-core'
-    implementation 'org.flywaydb:flyway-database-postgresql'
-    runtimeOnly 'org.postgresql:postgresql'
+    implementation 'org.flywaydb:flyway-mysql'
+    runtimeOnly 'com.mysql:mysql-connector-j'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.withType(Test).configureEach { useJUnitPlatform() }
-tasks.named('test') { exclude '**/PostgresIntegrationTest.class' }
+tasks.named('test') { exclude '**/MySqlIntegrationTest.class' }
 tasks.register('integrationTest', Test) {
-    description = 'Requires a running local PostgreSQL; never replaces real DB checks with mocks.'
+    description = 'Requires a running local MySQL 8.4; never replaces real DB checks with mocks.'
     group = 'verification'
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
-    include '**/PostgresIntegrationTest.class'
+    include '**/MySqlIntegrationTest.class'
     shouldRunAfter tasks.named('test')
 }
