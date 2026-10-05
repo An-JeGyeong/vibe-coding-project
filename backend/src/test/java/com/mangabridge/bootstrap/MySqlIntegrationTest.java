@@ -110,9 +110,10 @@ class MySqlIntegrationTest {
                 .as("healthcheck must use the application account and environment password").isTrue();
         String password = System.getenv("DB_PASSWORD");
         assertThat(password == null || !probe.contains(password)).as("inspect command must not contain a literal password").isTrue();
-        DockerResult valid = docker("compose", "exec", "-T", "mysql", "sh", "-c", probe);
+        DockerResult valid = dockerWithInput(probe + "\n", "compose", "exec", "-T", "mysql", "sh", "-s");
         assertThat(valid.exitCode()).isZero();
-        DockerResult invalid = docker("compose", "exec", "-T", "mysql", "sh", "-c", "MYSQL_PASSWORD=\"invalid-${MYSQL_PASSWORD}\"; " + probe);
+        DockerResult invalid = dockerWithInput("MYSQL_PASSWORD=\"invalid-${MYSQL_PASSWORD}\"; " + probe + "\n",
+                "compose", "exec", "-T", "mysql", "sh", "-s");
         assertThat(invalid.exitCode()).isNotZero();
         assertThat(valid.output().isBlank() && invalid.output().isBlank()).as("healthcheck output must be suppressed").isTrue();
         DockerResult health = docker("inspect", "--format", "{{.State.Health.Status}}", id.output().trim());
@@ -121,10 +122,18 @@ class MySqlIntegrationTest {
     }
 
     private DockerResult docker(String... arguments) throws Exception {
+        return dockerWithInput(null, arguments);
+    }
+
+    private DockerResult dockerWithInput(String input, String... arguments) throws Exception {
         java.util.List<String> command = new java.util.ArrayList<>();
         command.add("docker");
         command.addAll(java.util.List.of(arguments));
         Process process = new ProcessBuilder(command).directory(Path.of("..").toFile()).redirectErrorStream(true).start();
+        // Send shell scripts on stdin; Windows native argument quoting can alter sh -c scripts.
+        try (var stdin = process.getOutputStream()) {
+            if (input != null) stdin.write(input.getBytes(StandardCharsets.UTF_8));
+        }
         if (!process.waitFor(15, TimeUnit.SECONDS)) {
             process.destroyForcibly();
             throw new IllegalStateException("Docker verification timed out");
