@@ -249,3 +249,23 @@ try {
 백엔드는 `gradlew.bat build integrationTest --no-daemon --rerun-tasks`로 기존 회귀·실제 MySQL·인증을 검증합니다. 프런트 테스트는 Claude Code가 수행하고, 통합 후 Codex가 실제 브라우저/API/MySQL 결과와 대상 커밋을 기록합니다. 실행 전에는 통과로 기록하지 않습니다.
 
 백엔드 검증 기록(2026-10-05): 실제 MySQL에서 V2~V5 적용, 로그인/me/logout·만료·4개 역할 권한·위조 거부·동시 실패 제한·IP 제한 경계를 통합 테스트로 확인했습니다. 감사 저장 실패의 503/롤백과 계정 초기화 생성/재실행/덮어쓰기 금지는 단위 테스트로 확인했습니다. 운영 JAR에 테스트 전용 경로가 포함되지 않았습니다. PowerShell 5.1.26100.9444로 환경을 주입한 별도 8081 검증 서버에서 health 200, 미인증 me 401, 실패 login 401, 형식 오류 400, token 없는 logout 204, 잘못된 헤더 logout 400, Authorization preflight 200, 비허용 Origin 403을 확인했습니다. 기존 8080 서버는 변경하지 않았으므로 프런트 통합 때 새 백엔드를 사용할 포트를 맞춰야 합니다. 실제 데모 계정의 비밀번호는 사용자가 위 초기화 절차로 설정합니다. 프런트 구현·브라우저 통합·배포는 아직 검증하지 않았습니다.
+
+### 67d1dae 통합 마무리 검증 기록
+
+코드·계약 기준은 `67d1dae7fdbe700a055aa18567936e4ed2ac86b1`입니다(계약 `31dbc53`, backend `1e2fb4f`, frontend `96566da`, 추가 정책 `67d1dae`). 아래 기록은 2026-10-05 KST에 실행했으며, 앞선 기록과 검증자를 구분합니다. 이번 문서 커밋은 이 코드 기준에 검증 기록만 추가합니다.
+
+| Codex 직접 실행 | 결과·범위 |
+|---|---|
+| `gradlew.bat build integrationTest --no-daemon --rerun-tasks` | 통과. 실제 MySQL 8.4.11 localhost:3306, 기본·회귀 20개 + 통합 12개, 실패/오류/건너뛰기 0, 37초. XML 생성 시각 22:21:16(기본)/22:21:35(통합). 기존 볼륨·컨테이너 보존 |
+| 테스트 소스 `GET /__test/operator` | 실제 MySQL 테스트 통과. 미인증 401, OPERATOR 200, TRANSLATOR/REVIEWER/READER 403. READER의 X-Role/X-User-Id 위조는 403, login JSON의 role 주입은 400 |
+| `jar tf backend/build/libs/mangabridge-backend-0.0.1-SNAPSHOT.jar` 및 bootRun 프로세스 classpath 확인 | 통과. 운영 JAR에 IntegrationTest/OperatorFixture/TestApplication 0개. bootRun은 main 클래스만 포함하고 test 클래스 경로 없음. 별도 역할 검증 API를 운영 코드에 추가하지 않음 |
+| README 7절 seed/bootRun, Windows PowerShell 5.1.26100.9444 | 통과. 사용자가 Read-Host로 4개 비밀번호 직접 입력. seed 종료 0(22:23:04 KST), 새 API 8083 health 200. DB 환경은 기존 로컬 예시, CORS는 검증 사본의 http://localhost:3002. 값은 기록하지 않음 |
+| 프런트 스모크 준비 | 백엔드는 README 2절 환경 주입 후 `$env:PORT='8083'; $env:CORS_ALLOWED_ORIGINS='http://localhost:3002'`를 설정하고 README 7절 명령 그대로 실행. 추적 파일의 격리 사본에서 NEXT_PUBLIC_API_BASE_URL=http://localhost:8083, `npm run dev -- --port 3002 --webpack`. 원본 frontend/.next를 변경하지 않음 |
+| 비밀값·코드 변경 검사 | 수집한 테스트 출력의 비밀값/전체 JDBC 문자열 검사 0건, 실제 .env 추적 0개, backend/frontend 코드는 기준 커밋과 동일 |
+| 기존 3000 next start 영향 확인 | /login 200, 참조 JS 15개 모두 200. 서버 시작 19:11:51 KST보다 BUILD_ID 갱신 21:56:16 KST가 늦어 최신 빌드 적용을 보장하려면 사용자 재시작 필요. 직접 종료하지 않음 |
+
+Claude Code의 전달된 직접 검증 보고(Codex 재실행 결과 아님): 임시 MySQL :3307, API :8082, frontend :3001에서 네 역할 로그인·새로고침·TTL 90초 만료·서버 폐기 후 401·429/Retry-After·서버 중지 후 재시도 복구·정상 logout/이전 token 401·logout 통신 실패의 로컬 정리/서버 폐기 미확인 경고와 남은 token 200·sessionStorage 단일 키/localStorage·쿠키 미사용/credentials omit을 확인했다고 전달받았습니다. 셸 주입은 Git Bash였고 대부분 브라우저 스크립트 이벤트, 탭 활성은 hidden 패널의 visibilityState를 visible로 변경한 방식이었다는 한계도 전달받았습니다. 프런트 node 4개·Vitest 74개·타입 검사·빌드 및 늦은 /me 응답 방어 변이 시험/원복은 Claude의 보고이며 이번 Codex 실행에 합산하지 않습니다.
+
+미검증 유지: 역할별 실제 브라우저 403(첫 업무 API로 이월), 외부 배포/Vercel, 프록시 IP 정책. PS5.1 서버의 브라우저 스모크(login → /demo → 새로고침 사용자·역할 복원 → logout)은 사용자가 직접 수행하고 같은 날 검증 완료를 회신했습니다. 도구 연결 탭이 사용자 인증 세션과 달라 Codex 직접 브라우저 관찰은 미검증입니다. 변경된 검증 설정은 새 프로세스 환경에만 주입했으며, 검증 후 이번 3002/8083 서버와 비밀번호 입력 창만 종료했습니다. 기존 8080/8081/3000 리스너의 프로세스 ID 유지와 검증 포트 해제를 확인했습니다. 추적 설정·기존 Docker 컨테이너·볼륨은 변경하거나 삭제하지 않았고 초기화한 데모 계정은 보존합니다.
+
+Git 메모: 시작 HEAD는 위 기준과 일치. PROJECT_CONTEXT.md는 i/lf w/crlf, core.autocrlf=true이며 정규화 파일 해시가 HEAD와 같고 내용 diff는 없습니다. 요청에 따라 파일은 수정하거나 stage하지 않았습니다. 필요하면 사용자가 `git update-index --refresh -- PROJECT_CONTEXT.md`로 인덱스 메타데이터만 갱신하는 방법을 검토할 수 있으며, 내용 덮어쓰기/전체 restore/reset은 필요하지 않습니다.
