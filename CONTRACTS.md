@@ -1,7 +1,7 @@
 # CONTRACTS.md
 
 관리: ProjectBootstrap·EpisodeSource는 Claude Code, DemoAuth 공통 계약은 Codex / 최종 승인: 사용자
-범위: ProjectBootstrap, 승인된 DemoAuth, 13절 EpisodeSource(PROPOSED: 사용자 계약 승인 전 구현 금지). 아래 DemoAuth 절은 인증 제외·단일 API·빈 스키마 등 Bootstrap 단계 제한을 해당 기능에 한해 대체한다.
+범위: ProjectBootstrap, 승인된 DemoAuth, 13절 EpisodeSource(APPROVED 2026-10-05). 아래 DemoAuth 절은 인증 제외·단일 API·빈 스키마 등 Bootstrap 단계 제한을 해당 기능에 한해 대체한다.
 근거: `DECISIONS.md` D-001~D-003, D-006~D-008, D-010, D-012~D-018 (D-011, D-004의 DB 엔진 부분은 D-018로 대체)
 DB 엔진: MySQL 8.4 LTS (D-018). 이전 PostgreSQL 기준 문구는 모두 대체되었다.
 미결정(계약 대상 아님): D-004 관리형 MySQL 제품, D-005 백엔드 호스팅 제품, D-009 인증 방식
@@ -344,9 +344,9 @@ MySQL 세부(collation, 시각, 타임아웃, TLS, 권한, healthcheck): D-019 A
 - frontend(Claude Code): /login-/demo, 초기/갱신/만료, 오류별 처리·이전 응답 무시·logout, sessionStorage, 타입/빌드/자체 테스트.
 - 최종 실제 연동(Codex): 통합 커밋 고정, 실제 frontend/API/MySQL에서 로그인·사용자역할·새로고침·만료/401·통신 장애·logout 확인. 브라우저 역할별 403은 첫 업무 API까지 이월. 결과·커밋을 Claude Code의 마지막 통합 리뷰에 전달한다.
 
-## 13. EpisodeSource — 회차·원문 관리 (PROPOSED, 사용자 계약 승인 후 구현)
+## 13. EpisodeSource — 회차·원문 관리 — APPROVED (2026-10-05, 사용자 승인)
 
-작성: Claude Code(계약). 구현: backend=Codex, frontend=Claude Code. 이 절의 확정 근거는 DECISIONS.md D-026~D-029(승인)와 D-030(세부, 이 계약 승인 시 함께 승인). 인증·역할·오류 형식·CORS·Bearer 규칙은 12절을 그대로 따른다. 이 절은 12절의 "업무 API 금지" 제한을 이 기능에 한해 대체한다.
+작성: Claude Code(계약). 구현: backend=Codex, frontend=Claude Code. 이 절의 확정 근거는 DECISIONS.md D-026~D-029(승인)와 D-030(세부, 계약과 함께 2026-10-05 승인). 인증·역할·오류 형식·CORS·Bearer 규칙은 12절을 그대로 따른다. 이 절은 12절의 "업무 API 금지" 제한을 이 기능에 한해 대체한다.
 
 ### 범위
 - 포함: 회차 생성·목록·상세, 원문 블록 저장(= 새 원문 버전 생성), 버전 이력·버전 조회, 낙관적 충돌 방지, 감사 기록. 운영자(OPERATOR) 전용.
