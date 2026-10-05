@@ -288,3 +288,55 @@ Git 메모: 시작 HEAD는 위 기준과 일치. PROJECT_CONTEXT.md는 i/lf w/cr
 DB 집계는 컨테이너 앱 계정의 MYSQL_PWD 환경으로 실행했으며 비밀번호를 명령 인자에 넣지 않았습니다. 집계 해시의 GROUP_CONCAT은 해당 조회 세션에만 group_concat_max_len=1048576을 적용했습니다. 첫 실행 뒤 조회 스크립트를 파일에서 읽으며 붙은 빈 CRLF로 sh 오류가 발생했으나 Gradle은 종료 0이었습니다. 스크립트의 TrimEnd() 적용 후 읽기 전용 조회를 재실행해 정상 종료와 동일 집계를 확인했습니다. 두 Gradle 실행 모두 실제 DB 검증을 수행했으며 건너뛰기나 모의 DB 대체는 없습니다.
 
 기존 제한 행 88개는 이번 실행의 생성물로 식별할 수 없으므로 보존했습니다. PROJECT_CONTEXT.md의 기존 줄바꿈 M도 수정·stage·restore하지 않았습니다. 기존 컨테이너·볼륨·서비스는 중단하거나 삭제하지 않았고 push는 수행하지 않았습니다. 이번 범위에 미검증 항목은 없으며, 앞서 이월한 실제 브라우저 역할별 403·외부 배포/Vercel·프록시 IP 정책은 계속 미검증입니다.
+## 8. EpisodeSource 회차·원문 API 실행·검증
+
+승인 기준: CONTRACTS.md 13절, DECISIONS.md D-026~D-030, 시작 커밋 `582b5d0811a09d1cbeabaffb345f645388805e70`. 백엔드 코드·테스트 기준은 `9e43a99`이며 스키마 `115fdd2`, API `c4d47fd`를 포함합니다. 아래 문서 커밋은 검증 기록만 추가합니다.
+
+여섯 API는 모두 OPERATOR Bearer 인증이 필요합니다. `POST /api/episodes`, `GET /api/episodes`, `GET /api/episodes/{id}`, `PUT /api/episodes/{id}/source`, `GET /api/episodes/{id}/source/versions`, `GET /api/episodes/{id}/source/versions/{version}`. 요청·응답과 입력 규칙은 계약 13.2~13.5를 따릅니다. source PUT은 expectedVersion을 보내며 새 버전 201, 동일 내용 200 changed:false, 충돌 409 error.latestVersion입니다. 제목·본문을 변환하지 않으며 과거 버전·블록은 INSERT만 합니다.
+
+기존 서버를 임의 종료하지 마세요. 프런트 연동을 위해 새 서버가 필요하면 사용하지 않는 포트를 선택하고 별도 PowerShell 창에서 실행합니다. 아래는 **실행 예시이며 이번 검증에서 실행하지 않았습니다**. 예시 포트 8084의 사용 여부를 먼저 확인하세요. 환경 주입은 PowerShell 5.1 문법이며 기존 2절과 같습니다.
+
+```powershell
+Set-Location C:\Project_File\vibe-coding-project\backend
+Get-Content .env.example | Where-Object { $_ -match '^(DB_URL|DB_USERNAME|DB_PASSWORD|CORS_ALLOWED_ORIGINS|SPRING_PROFILES_ACTIVE|PORT|AUTH_CLIENT_IP_MODE)=' } | ForEach-Object {
+  $pair = $_ -split '=', 2
+  [Environment]::SetEnvironmentVariable($pair[0], $pair[1], 'Process')
+}
+$env:AUTH_CLIENT_IP_MODE = 'DIRECT'
+$env:PORT = '8084'
+$env:CORS_ALLOWED_ORIGINS = 'http://localhost:3000'
+.\gradlew.bat bootRun --no-daemon
+```
+
+프런트의 NEXT_PUBLIC_API_BASE_URL은 선택한 API 포트와 일치해야 합니다(프런트 변경 담당 Claude Code). Flyway는 기동 때 V6~V9를 적용·검증합니다. 기존 실행 중인 서버가 새 API를 자동으로 제공하는 것은 아니므로 새 프로세스로 확인하세요. CORS는 기존 PUT·Content-Type·Authorization 허용과 credentials=false를 그대로 사용하며 설정 변경은 없습니다. DB/JDBC 타임아웃도 기존 connectTimeout=2000ms, socketTimeout=3000ms, Hikari connectionTimeout=2000ms, query timeout=2초를 유지했습니다.
+
+### Codex 직접 검증 (2026-10-05 KST, 실제 MySQL 8.4.11 localhost:3306)
+
+실제 실행은 backend/.env.example에서 위 DB/CORS/profile/PORT 환경을 프로세스에 주입하고 AUTH_CLIENT_IP_MODE=DIRECT로 수행했습니다. Gradle 출력은 ignored build/verification의 로그로 수집하고 네이티브 명령 직후 LASTEXITCODE를 보존했습니다. 기존 8080/8081/3000 서비스·컨테이너·볼륨은 중단하거나 삭제하지 않았습니다.
+
+| 명령·검사 | 통과/실패/미검증 및 증빙 |
+|---|---|
+| 최초 `gradlew.bat build integrationTest --no-daemon --rerun-tasks` (23:35:05 시작) | 실패, 종료 1, 32초. 신규 테스트 TrackingAuthDao의 final 선언으로 Spring 프록시 생성 실패(통합 20개 실패). 실제 MySQL 마이그레이션·기존 DB 테스트 5개는 통과. final 제거 후 재검증 |
+| 같은 명령, 수정 후 성공 1회차 (23:36:43 시작) | 통과, 종료 0, 48초. 기본 회귀 20개 + 실제 통합 25개(EpisodeSource 11, DemoAuth 9, MySQL 5), 총 45개, 실패/오류/건너뛰기 0 |
+| 같은 명령, 코드 변경 없이 연속 성공 2회차 (23:39:08~23:39:59) | 통과, 종료 0, 50초. 같은 45개 모두 통과, 실패/오류/건너뛰기 0 |
+| 4개 역할 × 6개 API + 미인증 | 실제 HTTP/MySQL 통과. 미인증 6개 모두 401, 비운영자 3역할의 18개 모두 403 및 ACCESS_DENIED 감사, OPERATOR 6개 성공·no-store. X-Role/X-User-Id·본문 role/userId 위조 거부 |
+| 입력·프로토콜·저장 함수 | 제목/텍스트 코드포인트 상하한·공백/제어문자·배열 1~200·pageNo/expectedVersion 엄격 타입·경로 규칙·미정의 필드·깨진 JSON·비JSON/빈 본문 400/404 확인. 페이지네이션/내림차순/원문 없음 null·이력·과거 버전 불변·동일 내용 무쓰기·409 최신 번호·동시 저장 정확히 201 하나/409 하나 통과 |
+| DB/감사 실패 | 실제 MySQL 트랜잭션에서 감사 쓰기 예외를 주입해 생성·저장 전체 롤백/503 확인. 읽기 DAO를 실제 연결 거부 대상 JDBC에 연결해 안전한 SERVICE_UNAVAILABLE 503 확인. 운영 DB를 중지하지 않음 |
+| V6~V9 | Flyway 각 버전 1회 적용, 재기동 시 검증 성공. 파일당 CREATE TABLE DDL 하나, 실제 InnoDB/utf8mb4·ascii_bin 감사 event·PK 유일성·모든 FK·seq/pageNo CHECK·감사 actor NOT NULL 통과. socketTimeout=3000ms 유지 상태에서 적용 성공 |
+| 테스트 데이터 정리 | 테스트 전용 서버 측 fixture.UUID 주소로 공유 127.0.0.1 제한 키를 사용하지 않음. 생성 계정 ID로 회차/블록/버전/도메인 감사/토큰을 정확히 정리하고 ID/IP 제한 키 삭제. 테스트 인증 감사는 GeneratedKeyHolder로 발급 ID만 추적해 익명 실패 감사까지 삭제. 사용자 데이터나 기존 행의 추정 삭제 없음 |
+| 비밀값·범위 검사 | 성공 두 실행의 로그/XML과 최초 실행 로그에서 DB 비밀번호·전체 JDBC URL·Bearer 토큰/root 비밀번호/비밀키 패턴 0건. 운영 JAR에 TrackingAuthDao/FixtureAddress/IntegrationTest/OperatorFixture 0개. V1~V5·기존 인증 Service/DAO/Controller·CORS·frontend·승인 문서 내용 diff 0 |
+
+읽기 전용 앱 계정 조회(`MYSQL_PWD` 환경, stdin → `docker compose exec -T mysql sh -s`)의 실행 전/성공 1회차 후/2회차 후 결과입니다. 기존 인증 테이블은 정렬한 전체 행 집계 SHA-256도 동일합니다. group_concat_max_len=1048576은 조회 세션에만 설정했습니다. 비밀번호·토큰·원문·개별 해시는 기록하지 않습니다.
+
+| 테이블 | 실행 전 | 성공 1회 후 | 성공 2회 후 |
+|---|---:|---:|---:|
+| auth_login_limit | 88 | 88 | 88 |
+| demo_account (네 demo.* 계정) | 4 | 4 | 4 |
+| auth_token | 8 | 8 | 8 |
+| auth_audit | 130 | 130 | 130 |
+| episode | 미존재 | 0 | 0 |
+| episode_source_version | 미존재 | 0 | 0 |
+| source_block | 미존재 | 0 | 0 |
+| domain_audit | 미존재 | 0 | 0 |
+
+남은 미검증: EpisodeSource 프런트 구현 후의 실제 브라우저 전체 흐름(생성·저장·수정·과거 버전·새로고침·충돌·비운영자 403). 이는 Claude Code의 프런트 통합 후 Codex가 실행합니다. 외부 배포/Vercel·프록시 IP 정책도 계속 미검증입니다. PROJECT_CONTEXT.md의 기존 줄바꿈 M은 수정·stage·restore하지 않았습니다. push·이력 재작성·기존 컨테이너/볼륨 삭제는 수행하지 않았습니다.
