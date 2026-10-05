@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { checkHealth, healthLabel, type HealthResult } from "@/lib/api";
 
@@ -29,5 +30,6 @@ export default function Home() {
       {result && result.kind !== "ERROR" && <p>확인 시각 (UTC): <time>{result.time}</time></p>}
       <button onClick={() => void refresh()} disabled={loading}>다시 확인</button>
     </section>
+    <p><Link href="/login">데모 로그인</Link></p>
   </main>;
 }
