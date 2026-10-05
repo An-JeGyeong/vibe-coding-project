@@ -6,6 +6,7 @@ import java.io.IOException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import static com.mangabridge.bootstrap.auth.AuthModels.*;
 
@@ -28,7 +29,8 @@ public class AuthErrors {
         if(e.retryAfter>0) response.header("Retry-After",Long.toString(e.retryAfter));
         return response.body(body(e.code));
     }
-    @ExceptionHandler(HttpMessageNotReadableException.class) ResponseEntity<ErrorResponse> invalid() { return failure(AuthFailure.invalid()); }
+    @ExceptionHandler({HttpMessageNotReadableException.class, HttpMediaTypeNotSupportedException.class})
+    ResponseEntity<ErrorResponse> invalid() { return failure(AuthFailure.invalid()); }
     @ExceptionHandler(Exception.class) ResponseEntity<ErrorResponse> internal() {
         return ResponseEntity.internalServerError().header("Cache-Control","no-store").body(body("INTERNAL_ERROR"));
     }

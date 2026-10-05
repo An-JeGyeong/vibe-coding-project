@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.*;
 import static com.mangabridge.bootstrap.auth.AuthModels.*;
 import com.mangabridge.bootstrap.MangabridgeApplication;
 import com.mangabridge.bootstrap.config.RequiredEnvironment;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequestWrapper;
+import jakarta.servlet.Filter;
 import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
@@ -12,9 +15,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.Ordered;
 import org.springframework.http.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -29,12 +34,26 @@ import org.springframework.web.bind.annotation.*;
 class DemoAuthIntegrationTest {
     @Autowired TestRestTemplate http; @Autowired JdbcTemplate jdbc; @Autowired PasswordEncoder encoder;
     @Autowired AuthService service; @Autowired AuthDao dao; @Autowired MutableClock clock;
+    @Autowired FixtureAddress fixtureAddress;
     private final List<Long> accounts=new ArrayList<>();
+    private final Set<String> loginIds=ConcurrentHashMap.newKeySet();
+    private final Set<String> addresses=ConcurrentHashMap.newKeySet();
     private String id; private String password;
     @TestConfiguration static class Fixtures {
         @Bean @Primary MutableClock testClock() { return new MutableClock(); }
         @Bean OperatorFixture operatorFixture() { return new OperatorFixture(); }
+        @Bean FixtureAddress fixtureAddress() { return new FixtureAddress(); }
+        @Bean FilterRegistrationBean<Filter> fixtureAddressFilter(FixtureAddress address) {
+            // Test-only server-side identity: never trust a header or mutate the shared loopback key.
+            Filter filter=(request,response,chain)->chain.doFilter(new HttpServletRequestWrapper((HttpServletRequest)request) {
+                @Override public String getRemoteAddr() { return address.current; }
+            },response);
+            var registration=new FilterRegistrationBean<>(filter);
+            registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
+            return registration;
+        }
     }
+    static class FixtureAddress { volatile String current; }
     // Only in src/test. It is never packaged into bootJar.
     @RestController static class OperatorFixture {
         @GetMapping("/__test/operator") @PreAuthorize("hasRole('OPERATOR')")
@@ -48,10 +67,12 @@ class DemoAuthIntegrationTest {
     }
     @BeforeEach void setup() {
         clock.now=Instant.now(); id="test."+UUID.randomUUID().toString(); password=UUID.randomUUID().toString();
+        fixtureAddress.current=address();
         account(id,Role.READER);
     }
     private long account(String loginId,Role role) {
         dao.insertAccount(loginId,"검증 계정",role,encoder.encode(password));
+        loginIds.add(loginId);
         long accountId=dao.account(loginId).id(); accounts.add(accountId); return accountId;
     }
     @AfterEach void cleanup() {
@@ -60,7 +81,21 @@ class DemoAuthIntegrationTest {
             jdbc.update("DELETE FROM auth_audit WHERE account_id=?",accountId);
             jdbc.update("DELETE FROM demo_account WHERE id=?",accountId);
         }
-        // Fixture limits contain only digests; expired rows remain subject to approved manual cleanup.
+        for(String loginId:loginIds) deleteLimit("id:"+loginId);
+        for(String address:addresses) deleteLimit("ip:"+address);
+    }
+    private void deleteLimit(String input) {
+        byte[] key=AuthService.hash(input);
+        jdbc.update("DELETE FROM auth_login_limit WHERE limit_key=?",key);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM auth_login_limit WHERE limit_key=?",Integer.class,key)).isZero();
+    }
+    private String address() {
+        String address="fixture."+UUID.randomUUID();
+        addresses.add(address); return address;
+    }
+    private String missingId() {
+        String missing="missing."+UUID.randomUUID();
+        loginIds.add(missing); return missing;
     }
     private ResponseEntity<Map> login(String loginId,String pass) {
         return http.postForEntity("/api/auth/login",new LoginRequest(loginId,pass),Map.class);
@@ -115,7 +150,7 @@ class DemoAuthIntegrationTest {
         assertThat(forgedBody.getStatusCode().value()).isEqualTo(400);
     }
     @Test void failedLoginIsUniformAndLimitBoundariesReset() {
-        var unknown=login("missing."+UUID.randomUUID(),"wrong"); var wrong=login(id,"wrong");
+        var unknown=login(missingId(),"wrong"); var wrong=login(id,"wrong");
         assertThat(unknown.getStatusCode().value()).isEqualTo(401);
         assertThat(unknown.getBody()).isEqualTo(wrong.getBody());
         for(int i=0;i<4;i++) assertThat(login(id,"wrong").getStatusCode().value()).isEqualTo(401);
@@ -131,8 +166,8 @@ class DemoAuthIntegrationTest {
         ExecutorService pool=Executors.newFixedThreadPool(4);
         try {
             List<Callable<Integer>> jobs=new ArrayList<>();
-            for(int i=0;i<8;i++) { final int ip=i; jobs.add(()->{
-                try { service.loginDemoAccount(new LoginRequest(id,"wrong"),"fixture."+UUID.randomUUID()+ip); return 200; }
+            for(int i=0;i<8;i++) { final String ip=address(); jobs.add(()->{
+                try { service.loginDemoAccount(new LoginRequest(id,"wrong"),ip); return 200; }
                 catch(AuthFailure failure) {return failure.status;}
             }); }
             List<Integer> codes=new ArrayList<>(); for(Future<Integer> f:pool.invokeAll(jobs)) codes.add(f.get(20,TimeUnit.SECONDS));
@@ -142,10 +177,10 @@ class DemoAuthIntegrationTest {
         } finally {pool.shutdownNow();}
     }
     @Test void ipLimitIsIndependentAndSuccessOnlyClearsId() {
-        String address="fixture."+UUID.randomUUID(); byte[] ipKey=AuthService.hash("ip:"+address);
+        String address=address(); byte[] ipKey=AuthService.hash("ip:"+address);
         var now=java.sql.Timestamp.from(clock.now);
         jdbc.update("INSERT INTO auth_login_limit(limit_key,failures,window_start,updated_at) VALUES (?,29,?,?)",ipKey,now,now);
-        String missing="missing."+UUID.randomUUID();
+        String missing=missingId();
         assertThatThrownBy(()->service.loginDemoAccount(new LoginRequest(missing,"wrong"),address))
                 .satisfies(e->assertThat(((AuthFailure)e).status).isEqualTo(401));
         assertThatThrownBy(()->service.loginDemoAccount(new LoginRequest(id,password),address))
@@ -173,5 +208,25 @@ class DemoAuthIntegrationTest {
         HttpHeaders cookie=new HttpHeaders(); cookie.set("Cookie","JSESSIONID=forged");
         assertThat(http.exchange("/api/auth/me",HttpMethod.GET,new HttpEntity<>(cookie),String.class).getStatusCode().value()).isEqualTo(401);
         assertThat(login(" Demo.operator",password).getStatusCode().value()).isEqualTo(400);
+    }
+    @Test void unsupportedLoginMediaTypesDoNotChangeLimitsOrLeakDetails() {
+        assertThat(login(id,"wrong").getStatusCode().value()).isEqualTo(401);
+        byte[] idKey=AuthService.hash("id:"+id),ipKey=AuthService.hash("ip:"+fixtureAddress.current);
+        for(MediaType mediaType:List.of(MediaType.TEXT_PLAIN,MediaType.APPLICATION_FORM_URLENCODED)) {
+            HttpHeaders headers=new HttpHeaders(); headers.setContentType(mediaType);
+            var response=http.exchange("/api/auth/login",HttpMethod.POST,
+                    new HttpEntity<>("loginId="+id+"&password="+password,headers),Map.class);
+            assertThat(response.getStatusCode().value()).isEqualTo(400);
+            assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store");
+            assertThat(response.getBody()).isEqualTo(Map.of("error",Map.of(
+                    "code","INVALID_REQUEST","message","요청 형식을 확인하세요.")));
+            for(byte[] key:List.of(idKey,ipKey)) {
+                assertThat(jdbc.queryForObject("SELECT failures FROM auth_login_limit WHERE limit_key=?",Integer.class,key)).isEqualTo(1);
+            }
+        }
+    }
+    @Test void unsupportedMethodsKeepExistingStatuses() {
+        assertThat(call("/api/auth/login",HttpMethod.GET,null).getStatusCode().value()).isEqualTo(405);
+        assertThat(call("/api/auth/me",HttpMethod.POST,null).getStatusCode().value()).isEqualTo(401);
     }
 }
