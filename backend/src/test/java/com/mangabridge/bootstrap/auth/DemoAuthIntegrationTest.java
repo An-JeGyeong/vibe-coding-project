@@ -35,12 +35,14 @@ class DemoAuthIntegrationTest {
     @Autowired TestRestTemplate http; @Autowired JdbcTemplate jdbc; @Autowired PasswordEncoder encoder;
     @Autowired AuthService service; @Autowired AuthDao dao; @Autowired MutableClock clock;
     @Autowired FixtureAddress fixtureAddress;
+    @Autowired TrackingAuthDao trackingAuthDao;
     private final List<Long> accounts=new ArrayList<>();
     private final Set<String> loginIds=ConcurrentHashMap.newKeySet();
     private final Set<String> addresses=ConcurrentHashMap.newKeySet();
     private String id; private String password;
     @TestConfiguration static class Fixtures {
         @Bean @Primary MutableClock testClock() { return new MutableClock(); }
+        @Bean @Primary TrackingAuthDao trackingAuthDao(JdbcTemplate jdbc) { return new TrackingAuthDao(jdbc); }
         @Bean OperatorFixture operatorFixture() { return new OperatorFixture(); }
         @Bean FixtureAddress fixtureAddress() { return new FixtureAddress(); }
         @Bean FilterRegistrationBean<Filter> fixtureAddressFilter(FixtureAddress address) {
@@ -76,6 +78,7 @@ class DemoAuthIntegrationTest {
         long accountId=dao.account(loginId).id(); accounts.add(accountId); return accountId;
     }
     @AfterEach void cleanup() {
+        trackingAuthDao.cleanupAudits();
         for(Long accountId:accounts) {
             jdbc.update("DELETE FROM auth_token WHERE account_id=?",accountId);
             jdbc.update("DELETE FROM auth_audit WHERE account_id=?",accountId);
