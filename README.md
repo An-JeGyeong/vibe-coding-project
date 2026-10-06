@@ -762,3 +762,32 @@ DevTools 콘솔 명령 자체 및 Network 패널 관찰은 **미실행**입니�
 | 기존 데이터 | 계정4·토큰8·제한88·인증 감사130·모든 도메인0 그대로, 전체 기존 내용 집계 해시 차이0. 개발 DB에 검증 fixture 생성·삭제 없음 |
 
 검증 후 소유 PID/포트를 대조해 이번 API·프런트·자격증명 보조 프로세스만 종료하고, 컨테이너 ID를 대조한 뒤 `docker stop --timeout 10 mangabridge-translation-browser-1384139`(종료0, --rm 자동 정리)만 실행했습니다. 기존 MySQL은 healthy이며 기존 컨테이너·볼륨 삭제나 기존 서버 종료 명령은 실행하지 않았습니다. 기존 3000/8080/8081 프로세스 ID의 전후 동일성은 초기 조회 증빙이 부족해 미검증으로 남깁니다. 실제 임시 비밀번호·Bearer/root 출력 패턴은 로그/격리 정적 JS40개에서 검출0건, 값은 파일에 보존하지 않았고 브라우저 변수·임시 clipboard·소유 서버 메모리는 정리했습니다. 외부 배포·Vercel·프록시 IP 정책은 계속 미검증입니다. 남은 제품 수정은 위 표시 문제이며, 저장소의 편집 중 직접 관찰 및 DevTools 콘솔/Network 패널 검증은 별도 미검증으로 남깁니다.
+### Review 백엔드 검증 기록 (2026-10-06, Codex 직접 실행)
+
+승인 기준은 CONTRACTS.md 18절(정정 `f2b9304`), DECISIONS.md D-045·D-046입니다. 시작 HEAD는 프런트 구현 `293337c0d7452a1aa6f9c28b60af939741002aa9`이며, 검증한 운영 코드 커밋은 `3952018`, 테스트 포함 코드 기준은 `f056fc92d11ee16ff007c842f47332a0a07f426c`입니다. 이번 문서 커밋은 아래 실행 증빙만 추가합니다. frontend/, 승인 문서 3종, V1~V31은 변경하지 않았습니다. 마이그레이션과 의존성 추가는 없습니다.
+
+격리 환경: MySQL `8.4.11`, `mysql@sha256:6ea90827b1100f8f2ae306a539f86d2c264a26ed435a2a9f75551dd5c3aeb242`, `--rm`, `/var/lib/mysql` tmpfs, `localhost:3315/review_verify`. Windows PowerShell `5.1.26100.9444`에서 README의 Spring 환경변수를 프로세스에 주입하고 실행했습니다. 앱 계정의 실제 `SELECT 1` 성공 후 기존 Flyway V1~V31을 빈 격리 DB에 적용했고 validate가 통과했습니다. 7절의 일회용 시드 명령으로 프로세스 안에서 생성한 임시 비밀번호를 사용하여 데모 4계정을 초기화했습니다. 값은 출력하거나 파일에 저장하지 않았으며 시드 후 프로세스 환경변수를 정리했습니다.
+
+| 실제 실행 명령 (backend/) | 결과 |
+|---|---|
+| `gradlew.bat -I build/verification/schema-tool.init.gradle schemaMigrate --no-daemon` (로컬 무추적 검증 도구) | 종료 0. 기존 31개 적용, current=31, Flyway validate 통과 |
+| `gradlew.bat bootRun --args='--demo-auth-seed=true --spring.main.web-application-type=none' --no-daemon` | 종료 0. 격리 DB의 데모 4계정 시드 |
+| `gradlew.bat integrationTest --tests "*ReviewIntegrationTest" --no-daemon` | 종료 0. 초기 감수 테스트 11개 통과. 이후 추가한 이력 테스트를 포함한 12개는 아래 전체 실행 두 번에서 검증 |
+| `gradlew.bat build integrationTest --no-daemon --rerun-tasks` 첫 실행 | 20:40~20:42 KST, 종료 0, 2분 33초. 단위 20 + 통합 75 = 95개, 실패·오류·건너뜀 0 |
+| 같은 전체 명령 두 번째 연속 실행 | 20:43~20:45 KST, 종료 0, 2분 32초. 같은 95개, 실패·오류·건너뜀 0 |
+
+감수 통합 테스트 12개는 대기 목록의 배정·상태·정렬·페이지 경계, 감수자의 가시 상태 3종과 병기·결정·decidable, 현재 배정 및 교체 후 인계, 운영자의 모든 상태 조회, 반려 사유의 코드포인트 경계·제어문자·공백 보존·공개 범위, 반려 후 새 DRAFT 복사, 승인 결정/감사 정합, 중복 처리와 상태/원문 충돌, 자기 검수 403과 ACCESS_DENIED 감사, 승인·반려 동시 요청 중 정확히 하나만 성공, 감사 저장 실패 시 실제 DB 트랜잭션 전체 롤백, 승인 후 원문 변경의 INVALIDATED/invalidated_at/APPROVAL_INVALIDATED 결합을 확인합니다. API 7개 × 4역할·비로그인 매트릭스, 위조 헤더·본문 role 거부, no-store, 비JSON/깨진 JSON/미정의 필드/approve 본문 400, 오류의 비밀·내부 정보 비노출도 확인했습니다. 감사 장애는 DAO 장애 주입과 실제 MySQL 롤백으로 검증했으며, 별도의 접속 불가 MySQL 주소로 7개 서비스 함수의 503 변환을 확인했습니다. POST preflight는 실제 HTTP에서 허용 Origin·Authorization·Content-Type과 credentials=false를 확인했으며, 브라우저 검증으로 간주하지 않습니다. 기존 CORS 설정은 변경하지 않았습니다.
+
+기존 TranslationIntegrationTest 변경은 정확히 두 응답 필드 목록(상세·목록 항목)에 `decision` 추가와 각각의 `decision:null` 검증 추가뿐입니다. 기본 커밋으로부터 예상하는 이 변경과 실제 파일을 대조하여 일치함을 확인했고, 나머지 단언은 유지했습니다. 기존 EpisodeSource·Assignment·인증 통합 테스트는 수정 없이 통과했습니다. 기존 스키마/제약·health 회귀도 통과했습니다.
+
+| 읽기 전용 전후 비교 | 첫 전체 실행 전 → 첫 실행 후 → 두 번째 실행 후 |
+|---|---|
+| 격리 DB demo_account / 데모 계정 | 4 → 4 → 4 (내용 해시 동일) |
+| 격리 DB auth_token / auth_login_limit / auth_audit | 각 0 → 0 → 0 |
+| 격리 DB 도메인 테이블 9개 | 각 0 → 0 → 0 |
+| 개발 DB(3306) demo_account / auth_token / auth_login_limit / auth_audit | 검증 전후 4 / 8 / 88 / 130, 내용 해시 모두 동일 |
+| 개발 DB 도메인 테이블 9개 | 검증 전후 각 0 |
+
+테스트는 생성한 계정·회차 ID와 추적한 감사 ID만 정리하고, 제한 행은 테스트 서버 필터가 정한 고유 주소와 테스트 로그인 ID의 해시만 정리합니다. 공유 `127.0.0.1` 제한 키와 데모 계정은 건드리지 않습니다. 개발 DB는 읽기 전용 비교만 수행했으며 스키마·데이터 변경은 하지 않았습니다. 검증 후 이번에 만든 격리 컨테이너만 ID를 확인하여 종료했고 기존 서버·컨테이너·볼륨은 보존했습니다. 변경 소스의 비밀 리터럴 검사에서 후보 0개, 추적 환경 파일은 예시 파일뿐이며 `git diff --check`가 통과했습니다.
+
+미실행: 18.6의 실제 브라우저 통합 시나리오와 프런트 테스트 재실행. 이번 요청의 백엔드 구현·검증 범위에 포함되지 않으며 통과로 기록하지 않습니다. Claude Code의 백엔드 리뷰·API 점검 후 별도 실제 연동 요청으로 진행합니다. PROJECT_CONTEXT.md의 기존 줄바꿈 M 상태는 수정·stage·restore하지 않았습니다.
