@@ -69,13 +69,59 @@ class DomainSchemaConstraintsIntegrationTest {
         try { action.run(); fail("Expected MySQL constraint rejection"); }
         catch(SQLException e) { assertThat(e.getErrorCode()).isEqualTo(code); }
     }
+    private LinkedHashMap<String,Object> values(Object... pairs) {
+        var result=new LinkedHashMap<String,Object>();
+        for(int i=0;i<pairs.length;i+=2) result.put((String)pairs[i],pairs[i+1]);
+        return result;
+    }
+    private void nullColumnsRejected(String table,LinkedHashMap<String,Object> valid) throws SQLException {
+        String columns=String.join(",",valid.keySet());
+        String placeholders=String.join(",",Collections.nCopies(valid.size(),"?"));
+        String sql="INSERT INTO "+table+"("+columns+") VALUES ("+placeholders+")";
+        for(String column:valid.keySet()) {
+            var invalid=new LinkedHashMap<>(valid); invalid.put(column,null);
+            rejected(1048,()->update(sql,invalid.values().toArray()));
+        }
+        update(sql,valid.values().toArray());
+    }
+    @Test void everyRequiredColumnRejectsNullAndNormalRowsRemainValid() throws Exception {
+        Timestamp time=Timestamp.valueOf("2026-01-01 00:00:00");
+        nullColumnsRejected("episode_assignment",values("episode_id",episode,"assignee_role","TRANSLATOR",
+                "account_id",translator,"assigned_by",operator,"assigned_at",time));
+        nullColumnsRejected("translation_version",values("episode_id",episode,"version_no",1,"source_version_no",1,
+                "status","APPROVED","created_by",translator,"created_at",time));
+        long id;
+        try(var s=statement("SELECT id FROM translation_version WHERE episode_id=? AND version_no=1",episode);var rows=s.executeQuery()) {rows.next();id=rows.getLong(1);}
+        nullColumnsRejected("translation_block",values("translation_version_id",id,"episode_id",episode,
+                "source_version_no",1,"source_seq",1,"body","translation fixture"));
+        nullColumnsRejected("review_decision",values("translation_version_id",id,"decision","APPROVED",
+                "reviewer_id",reviewer,"source_version_no",1,"decided_at",time));
+        nullColumnsRejected("publication",values("episode_id",episode,"translation_version_id",id,
+                "source_version_no",1,"published_by",operator,"published_at",time));
+    }
+    @Test void historicalNullBypassesAreRejected() throws Exception {
+        rejected(1048,()->update("INSERT INTO translation_version(episode_id,version_no,source_version_no,status,created_by,created_at) VALUES (?,1,NULL,NULL,?,UTC_TIMESTAMP(6))",episode,translator));
+        long id=translation(episode,1,1,"APPROVED");
+        rejected(1048,()->update("INSERT INTO translation_block VALUES (?,NULL,NULL,999,'unlinked')",id));
+        rejected(1048,()->decision(id,null,null,null));
+        rejected(1048,()->update("INSERT INTO publication(episode_id,translation_version_id,source_version_no,published_by,published_at) VALUES (NULL,NULL,NULL,NULL,NULL)"));
+        rejected(1048,()->update("INSERT INTO episode_assignment(episode_id,assignee_role,account_id,assigned_by,assigned_at) VALUES (?,'TRANSLATOR',NULL,?,UTC_TIMESTAMP(6))",episode,operator));
+    }
+    @Test void onlyApprovedNullableDomainColumnsAndGeneratedSlotRemain() throws Exception {
+        String sql="SELECT CONCAT(TABLE_NAME,'.',COLUMN_NAME) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND IS_NULLABLE='YES' AND TABLE_NAME IN ('episode_assignment','translation_version','translation_block','review_decision','publication') ORDER BY TABLE_NAME,COLUMN_NAME";
+        var names=new ArrayList<String>(); try(var s=statement(sql);var rows=s.executeQuery()) {while(rows.next()) names.add(rows.getString(1));}
+        assertThat(names).containsExactlyInAnyOrder("translation_version.submitted_at","translation_version.open_slot","review_decision.reason","review_decision.invalidated_at");
+        assertThat(count("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND (TABLE_NAME,COLUMN_NAME) IN (('episode','published_translation_version_id'),('domain_audit','translation_version_id')) AND IS_NULLABLE='YES'")).isEqualTo(2);
+        assertThat(count("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='episode_assignment' AND COLUMN_NAME='assigned_at' AND DATA_TYPE='datetime' AND DATETIME_PRECISION=6 AND IS_NULLABLE='NO'")).isEqualTo(1);
+        assertThat(count("SELECT @@foreign_key_checks")).isEqualTo(1);
+    }
     @Test void assignmentRoleAndPrimaryKeyAndAssignedRoleChange() throws Exception {
-        update("INSERT INTO episode_assignment VALUES (?,?,?,?)",episode,"TRANSLATOR",translator,operator);
-        update("INSERT INTO episode_assignment VALUES (?,?,?,?)",episode,"REVIEWER",reviewer,operator);
-        rejected(1062,()->update("INSERT INTO episode_assignment VALUES (?,?,?,?)",episode,"TRANSLATOR",translator,operator));
-        rejected(1452,()->update("INSERT INTO episode_assignment VALUES (?,?,?,?)",other,"TRANSLATOR",reader,operator));
+        update("INSERT INTO episode_assignment(episode_id,assignee_role,account_id,assigned_by,assigned_at) VALUES (?,?,?,?,UTC_TIMESTAMP(6))",episode,"TRANSLATOR",translator,operator);
+        update("INSERT INTO episode_assignment(episode_id,assignee_role,account_id,assigned_by,assigned_at) VALUES (?,?,?,?,UTC_TIMESTAMP(6))",episode,"REVIEWER",reviewer,operator);
+        rejected(1062,()->update("INSERT INTO episode_assignment(episode_id,assignee_role,account_id,assigned_by,assigned_at) VALUES (?,?,?,?,UTC_TIMESTAMP(6))",episode,"TRANSLATOR",translator,operator));
+        rejected(1452,()->update("INSERT INTO episode_assignment(episode_id,assignee_role,account_id,assigned_by,assigned_at) VALUES (?,?,?,?,UTC_TIMESTAMP(6))",other,"TRANSLATOR",reader,operator));
         rejected(1451,()->update("UPDATE demo_account SET role='READER' WHERE id=?",translator));
-        rejected(3819,()->update("INSERT INTO episode_assignment VALUES (?,?,?,?)",other,"READER",reader,operator));
+        rejected(3819,()->update("INSERT INTO episode_assignment(episode_id,assignee_role,account_id,assigned_by,assigned_at) VALUES (?,?,?,?,UTC_TIMESTAMP(6))",other,"READER",reader,operator));
         rejected(1451,()->update("DELETE FROM episode WHERE id=?",episode));
     }
     @Test void openVersionUniquenessAndClosedVersionsAllowMultiplicity() throws Exception {
