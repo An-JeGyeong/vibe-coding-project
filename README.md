@@ -562,3 +562,50 @@ PowerShell 5.1에서 기존 환경 주입과 localhost:3306 URL 검사를 거쳐
 12:30 KST에 이번 3310 tmpfs 컨테이너만 저장한 ID를 대조 후 docker stop(--rm 자동 정리)했습니다. 테스트별 컨테이너도 각 테스트에서 종료됐습니다. 기존 MySQL healthy, 기존 컨테이너·볼륨·서버는 보존했습니다. 수집한 Gradle 로그·JUnit XML의 실제 DB 비밀번호 일치 및 Bearer/root 출력 패턴 0건, V1~V25 파일 SHA-256 차이 0입니다. PROJECT_CONTEXT.md의 기존 M은 수정·stage·restore하지 않았고 push·이력 재작성도 하지 않았습니다.
 
 백엔드 구현·자동 테스트·격리/개발 DB 마이그레이션은 완료했습니다. **Assignment 프런트 구현과 실제 브라우저 연동은 미검증**이며 Claude Code의 같은 계약 구현 후 Codex가 격리 환경에서 15.7 시나리오를 수행합니다. 외부 배포·Vercel·프록시 IP 정책 검증도 이번 범위 밖입니다. 기존 Flyway의 MySQL 8.4 지원 업그레이드 권고 경고는 남으며 의존성을 변경하지 않았습니다.
+
+### Assignment 최종 실제 브라우저 연동 검증 — Codex 직접 실행
+
+검증 대상은 frontend/통합 HEAD `7bd23a76f4ded4328492e261166e48c01a302628`, 포함된 backend `e303509`, 승인 계약 15절 `e251317`입니다. 위 백엔드 구현 시점의 브라우저 미검증 기록을 이번 결과로 보완합니다. 브라우저 확인은 **2026-10-06 13:14~16:19 KST**, 정리·보존 비교는 **16:23 KST**에 수행했습니다. 시작 상태는 PROJECT_CONTEXT.md의 기존 줄바꿈 M뿐이었으며 해당 파일을 수정·stage·restore하지 않았습니다. 운영 코드·프런트 코드·계약은 변경하지 않았습니다.
+
+격리 환경은 MySQL **8.4.11**, `mangabridge-assignment-browser-7bd23a7` (--rm, `/var/lib/mysql` tmpfs, localhost:3311/assignment_browser), Spring :8084, Next :3004였습니다. V1~V26 성공 이력 26개를 실제 DB에서 확인했습니다. `CORS_ALLOWED_ORIGINS=http://localhost:3004` 하나, `NEXT_PUBLIC_API_BASE_URL=http://localhost:8084`, local/DIRECT, 토큰 기본 TTL 3600초를 사용했습니다. 원본 frontend/.next 대신 HEAD의 격리 사본을 빌드했습니다. Windows PowerShell **5.1.26100.9444** 프로세스에서 임시 비밀번호를 생성하고 README 7절 방식으로 네 계정을 시드했습니다. 교체 검증용 `demo.translator2`는 격리 DB에만 기존 BCrypt 의존성으로 만든 해시를 INSERT했습니다. 비밀번호·해시·토큰 값은 실행 결과나 이 문서에 기록하지 않았습니다.
+
+| 직접 실행한 명령 / 확인 | 결과 |
+|---|---|
+| `docker run -d --rm --pull=never --name mangabridge-assignment-browser-7bd23a7 --publish 127.0.0.1:3311:3306 --tmpfs /var/lib/mysql:rw --env MYSQL_USER --env MYSQL_PASSWORD --env MYSQL_DATABASE --env MYSQL_RANDOM_ROOT_PASSWORD mysql:8.4.11 --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci --default-time-zone=+00:00` | 통과. 환경변수로 전달, root 로그 조회 없음 |
+| `gradlew.bat bootJar --no-daemon` | 통과, 종료 0 |
+| `gradlew.bat bootRun --args='--demo-auth-seed=true --spring.main.web-application-type=none' --no-daemon` | 통과, 종료 0. PS5.1, 시드 후 비밀번호 환경변수 제거 |
+| 격리 프런트 `npm.cmd run build -- --webpack`, 이어서 `node <Next CLI> start <격리 frontend 경로> -p 3004` | 빌드 통과, 종료 0; 실제 브라우저 접속 성공. 원본 .next 사용·덮어쓰기 없음 |
+| `java -jar backend/build/libs/mangabridge-backend-0.0.1-SNAPSHOT.jar` (PS5.1 환경 주입 후 별도 프로세스) | 실제 Spring/MySQL 헬스 200 및 브라우저 연동 성공 |
+| 전체 `gradlew.bat build integrationTest --no-daemon --rerun-tasks`, 프런트 자동 테스트 | **이번 최종 연동 작업에서는 미실행**. 앞선 자동 테스트 기록을 재실행 결과로 표시하지 않음 |
+
+| 요청 시나리오 | Codex 직접 실행 결과 |
+|---|---|
+| 1 운영자 로그인·A 원문 저장·B 미배정 생성 | 통과. A(id=1)는 앞뒤 공백 제목, 두 블록(한글·이모지·줄바꿈·공백), 페이지 3/없음으로 v1 저장. B(id=2)는 원문·배정 없음. 모두 격리 DB에만 생성 |
+| 2 미배정 표시·역할별 후보·번역가/감수자 지정 | 통과. 번역가 후보 2명, 감수자 후보 1명으로 역할 구분. 두 지정 알림·담당자·UTC 배정 시각 표시, 현재 담당자 선택 시 교체 버튼 비활성 |
+| 3 새로고침 배정 유지 | 통과. 최초 지정 및 교체 후 담당자·시각 유지 |
+| 4 번역가 메뉴·목록·읽기 전용·미배정 404 | 통과. 배정된 회차 링크와 나머지 비활성 메뉴, A만 목록 표시. 제목·두 블록·페이지 읽기 전용, 편집/저장 UI 없음. B 직접 접근 404 안내·목록 링크·로그인 유지 |
+| 5 감수자 동일 확인 | 통과. 내 담당 감수자, A만 목록 및 읽기 전용 표시. B 404, 운영자 화면 게이트 유지 |
+| 6 교체 후 접근 이전 | 통과. 운영자 교체 알림, 이전 번역가 목록 비어 있음·A 상세 404·원문 비노출. 새 번역가 실제 로그인 후 A 목록·원문 열람 성공 |
+| 7 역할별 UI 게이트·불필요한 API 요청 방지 | 통과. 운영자/독자의 /assigned 및 상세는 역할 안내·로그인 유지. 번역가/감수자/독자의 /episodes/1도 운영자 안내, 배정 영역 없음. 해당 게이트 구간의 API 접근 기록은 /api/auth/me이며 회차·assignments 요청 없음 |
+| 8 같은 브라우저 토큰의 서버 권한 강제 | 통과. 번역가·감수자·독자의 후보 GET/배정 GET·PUT 각각 403 FORBIDDEN, 운영자·독자의 내 회차 GET 403. 브라우저에서 상태·코드 읽기 성공. ACCESS_DENIED 실제 감사 11건(운영자 1, 번역가 3, 감수자 3, 독자 4) |
+| 9 실제 PUT preflight | 통과. 브라우저가 보낸 translator/reviewer OPTIONS 200, Allow-Origin=http://localhost:3004, 요청/응답 허용 헤더 authorization·content-type 확인 |
+| 10 지정·교체·변경 없음 감사 | 통과. ASSIGNED 정확히 3건, actor=1/episode=1/subject=2·3·5. 동일 담당자 재지정 200 changed:false 후에도 3건 유지 |
+| 11 배정 저장 통신 장애·복구 | 통과. 본인이 띄운 8084 PID만 확인 후 중지. 교체 저장 시 통신 오류·선택값 유지, 동일 설정 복구 후 재시도 성공. 최초 시도 전 세션 만료로 로그인 이동한 것은 배정 장애 결과에서 제외하고 새 로그인으로 재실행 |
+| 12 토큰 폐기 후 401 | 통과. 현재 브라우저 토큰을 서버에서 폐기(204)하고 로컬 토큰만 확인용으로 남긴 뒤 /assigned 로드, /me 401 → /login 및 인증 만료/무효 안내 |
+
+브라우저 도구의 읽기 전용 평가 범위에는 fetch/sessionStorage가 없어 **DevTools 콘솔 명령 자체는 미실행**입니다. 8·10의 재지정·12의 폐기는 격리 프런트 public의 테스트 페이지에서 같은 탭 sessionStorage 토큰으로 실제 fetch(credentials omit)를 실행했습니다. 운영 프런트 파일을 수정하거나 토큰 값을 추출·출력하지 않았습니다. **DevTools Network 패널 기록도 미실행**이며, 7·9의 네트워크 증빙은 실제 Spring/Tomcat 접근 기록(메서드·경로·상태·Origin·preflight 요청/응답 헤더만 기록)입니다. Authorization 값·본문·쿼리·IP는 해당 기록에 포함하지 않았습니다. 이 도구상의 차이를 문자 그대로의 콘솔/Network 패널 검증 완료로 표시하지 않습니다.
+
+Claude Code가 별도로 보고한 역할 매트릭스·지정/교체/동일·미배정 404·교체 후 접근 이전·입력 거부·감사 3건은 **Claude Code 직접 실행(API, Codex 재실행 아님)**입니다. 그 보고에는 브라우저 연동이 포함되지 않으며, 이번 Codex 브라우저 결과와 구분합니다. 이번 기능 검증에서 제품 코드 결함은 발견하지 않았습니다. 준비 과정의 로컬 셸/선택자 문제는 수정하여 진행했으며 제품 결함이나 테스트 통과로 집계하지 않았습니다.
+
+| 개발 DB3306 읽기 전용 비교 | 검증 전 → 후 |
+|---|---|
+| demo_account / demo.* | 4 → 4 / 4 → 4 |
+| auth_token / auth_login_limit / auth_audit | 8 → 8 / 88 → 88 / 130 → 130 |
+| episode / episode_source_version / source_block / domain_audit | 각각 0 → 0 |
+| episode_assignment / translation_version / translation_block / review_decision / publication | 각각 0 → 0 |
+| 기존 인증 전체 행 정렬 집계 해시 | 전후 차이 0 |
+| 원본 frontend/.next/BUILD_ID SHA-256 | 동일 |
+
+정리 시점에는 저장했던 격리 프런트/API PID가 이미 종료되어 있었고, 이번 컨테이너 ID를 대조한 뒤 `docker stop --timeout 10 mangabridge-assignment-browser-7bd23a7`(종료 0)만 실행했습니다(--rm 자동 정리). 기존 MySQL은 healthy이며 기존 컨테이너·볼륨은 삭제하지 않았습니다. **기존 3000/8080/8081의 저장된 PID와 리스너도 정리 시점에 부재**했습니다. 해당 기존 프로세스에 종료 명령을 내리지 않았으나 종료 원인은 확인되지 않아 실행 유지 검증은 통과로 표시하지 않습니다. 기존 서비스 이용에는 사용자 재시작이 필요합니다.
+
+종료 후 로그와 격리 프런트 정적 JS 총 40개 파일에서 실제 임시 비밀번호·DB 비밀번호 일치 0건, 로그의 Bearer 토큰/root 비밀번호 출력 패턴 0건을 확인했습니다. 도구 입력용 임시 자격증명 파일은 삭제했고 브라우저 변수와 PS 프로세스 환경변수도 정리했습니다. Git에 시드 비밀번호나 검증 전용 페이지를 추가하지 않았습니다. 외부 배포·Vercel·프록시 IP 정책은 계속 미검증입니다. 이번 기록은 README만 별도 로컬 문서 커밋하며 PROJECT_CONTEXT.md 기존 M은 그대로 둡니다.
