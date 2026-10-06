@@ -1,6 +1,12 @@
 import type { ApiFailure } from "@/lib/auth/types";
 
-export type EpisodeFailure = ApiFailure | { kind: "not_found" } | { kind: "conflict"; latestVersion: number | null };
+export type EpisodeFailure =
+  | ApiFailure
+  | { kind: "not_found" }
+  | { kind: "conflict"; latestVersion: number | null }
+  | { kind: "revision_conflict"; latestRevision: number | null }
+  | { kind: "state_conflict"; currentStatus: string | null }
+  | { kind: "incomplete"; missingSeqs: number[] };
 export type EpisodeResult<T> = { ok: true; value: T } | { ok: false; failure: EpisodeFailure };
 
 export type SavedBy = { id: string; displayName: string };

@@ -39,7 +39,9 @@ function summary(value: unknown): EpisodeSummary | null {
 }
 
 export type CallResult = { ok: true; value: unknown; status: number } | { ok: false; failure: EpisodeFailure };
-export type Call = { path: string; method: string; body?: unknown; signal?: AbortSignal; ok: number[] };
+export type Call = {
+  /** Maps a non-success response to a specific failure before the generic status mapping (returns null to fall through). */
+  onError?: (status: number, body: unknown) => EpisodeFailure | null; path: string; method: string; body?: unknown; signal?: AbortSignal; ok: number[] };
 
 // The bearer token is read from sessionStorage at call time; without one no request is sent.
 export async function call(request: Call): Promise<CallResult> {
@@ -48,6 +50,8 @@ export async function call(request: Call): Promise<CallResult> {
   const sent = await send(request.path, { method: request.method, token: stored.token, body: request.body, signal: request.signal });
   if (sent.kind === "failure") return fail(sent.failure);
   if (request.ok.includes(sent.status)) return { ok: true, value: parseJson(sent.text), status: sent.status };
+  const specific = request.onError?.(sent.status, parseJson(sent.text));
+  if (specific) return fail(specific);
   if (sent.status === 404) return fail({ kind: "not_found" });
   if (sent.status === 409) {
     const body = parseJson(sent.text);

@@ -7,6 +7,7 @@ import { getMyEpisode, listMyEpisodes } from "@/lib/assignment/client";
 import { ASSIGNEE_LABEL, type MyEpisodeDetail, type MyEpisodeList } from "@/lib/assignment/types";
 import { episodeFailureMessage } from "@/lib/episodes/messages";
 import type { EpisodeFailure } from "@/lib/episodes/types";
+import { TranslationWorkspace } from "./TranslationWorkspace";
 
 const PAGE_SIZE = 20;
 
@@ -113,13 +114,15 @@ export function AssignedDetailView({ episodeId }: { episodeId: string }) {
     <h1 className="h2 mb-1">{detail.title}</h1>
     <p className="text-secondary">내 담당: <strong>{ASSIGNEE_LABEL[detail.assignedRole]}</strong> ·
       {detail.source ? ` 최신 원문 v${detail.source.version}` : " 아직 저장된 원문이 없습니다."}</p>
-    <section aria-label="원문 (읽기 전용)" className="card card-body shadow-sm">
+    {detail.assignedRole === "TRANSLATOR" && detail.source !== null
+      ? <TranslationWorkspace episodeId={episodeId} />
+      : <section aria-label="원문 (읽기 전용)" className="card card-body shadow-sm">
       <h2 className="h5">원문 (읽기 전용)</h2>
       {detail.source === null
         ? <p className="text-secondary">운영자가 원문을 저장하면 여기에 표시됩니다.</p>
         : <ol>{detail.source.blocks.map((block) => <li key={block.seq} style={{ whiteSpace: "pre-wrap" }}>
           {block.pageNo !== null && <span className="badge text-bg-secondary me-2">p.{block.pageNo}</span>}{block.text}
         </li>)}</ol>}
-    </section>
+    </section>}
   </>;
 }

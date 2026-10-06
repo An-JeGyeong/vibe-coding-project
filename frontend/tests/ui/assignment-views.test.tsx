@@ -236,7 +236,12 @@ describe("assigned episode detail (read-only source)", () => {
 
   test("a reload after the assignment moved away no longer shows the source", async () => {
     let assigned = true;
-    server("TRANSLATOR", { "GET /api/my/episodes/7": () => (assigned ? json(200, myDetail()) : json(404, errorBody("NOT_FOUND"))) });
+    server("TRANSLATOR", {
+      "GET /api/my/episodes/7": () => (assigned ? json(200, myDetail()) : json(404, errorBody("NOT_FOUND"))),
+      "GET /api/my/episodes/7/translations": () => json(200, { latestSourceVersion: 2, items: [{ versionNo: 1, status: "REJECTED", sourceVersion: 2, revision: 1, createdAt: T, submittedAt: T }] }),
+      "GET /api/my/episodes/7/translations/1": () => json(200, { versionNo: 1, status: "REJECTED", sourceVersion: 2, revision: 1, createdAt: T, submittedAt: T, editable: false,
+        blocks: [{ seq: 1, pageNo: 1, source: "안녕", text: null }] }),
+    });
     renderWithAuth(<AssignedDetailPage />);
     await screen.findByText("안녕");
     assigned = false;
