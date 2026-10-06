@@ -1,0 +1,3 @@
+ALTER TABLE domain_audit
+    MODIFY COLUMN occurred_at DATETIME(6) NOT NULL,
+    MODIFY COLUMN event VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL;
