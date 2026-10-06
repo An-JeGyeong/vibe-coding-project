@@ -863,3 +863,24 @@ Codex 직접 실행, 2026-10-07 07:12~07:24 KST. 승인 기준 ef060f5이며 후
 초기 실행 실패도 구분합니다: 2026-10-06 사전 스키마 적용 누락으로 제약 테스트 11건 실패, 2026-10-07 재개 초기에는 Docker 데몬 연결 실패, 이후 첫 준비 실행은 MySqlIntegrationTest의 격리 Compose 대상 미지정으로 1건 실패했습니다. 검증 환경을 보정한 뒤 위 전체 명령이 연속 2회 통과했으며, 실패를 통과로 대체하지 않았습니다. 로그·XML·집계는 ignored backend/build/verification/login-no-limit-ef060f5에 보관했습니다. 비밀번호·토큰을 출력·README·Git에 기록하지 않았습니다. PROJECT_CONTEXT.md 줄바꿈 M과 상대 변경은 보존했습니다.
 
 정리: 소유 컨테이너 ID를 대조해 docker stop --timeout 10으로 종료했으며 --rm으로 남은 컨테이너 0입니다. 별도 API·프런트 프로세스는 기동하지 않았습니다. 브라우저 검증은 사용자 결정에 따라 미실행·최종 통합으로 이월합니다.
+
+### Publication 백엔드 검증 — CONTRACTS 20절 / D-048
+
+Codex 직접 실행, 2026-10-07 07:28~07:36 KST. 승인 계약 0cb736c, 구현 시작 HEAD 5fb1992(로그인 제한 제거 검증·커밋 완료 이후). 프런트 9b828dd는 Claude Code가 별도 구현한 커밋이며 이번 프런트 테스트·브라우저 검증 결과로 간주하지 않습니다. Publication 코드 ba72394, 신규 통합 테스트 da8efba. 신규 마이그레이션 없으며 V1~V31·기존 인증/회차/원문/배정/번역/감수 테스트와 기존 API 응답 필드는 변경하지 않았습니다.
+
+추가 API는 운영자의 POST /api/episodes/{id}/translations/{versionNo}/publish(본문 없음), GET /api/episodes/{id}/publication 및 인증 불필요 GET /api/public/episodes, GET /api/public/episodes/{id}입니다. 공개 경로는 Bearer 판정을 건너뛰고 CORS Origin 정책을 유지합니다. 발행은 회차 행 잠금 후 승인·결정·최신 원문 조건 검사, 상태/이력/포인터/감사를 한 트랜잭션으로 기록합니다. 독자 응답은 포인터의 번역 text·seq·pageNo, 회차 ID·제목·발행 시각만 반환합니다.
+
+격리 MySQL 8.4.11, 127.0.0.1:3318/publication_verify, --rm/tmpfs 사용. PowerShell 5.1.26100.9444에서 DB/CORS/local 환경과 검증 전용 Compose 프로젝트를 주입했습니다. 스키마 준비는 기존 test classpath의 schemaMigrate 보조 task를 사용했으며 Flyway V31/validate 통과·추가 적용 0을 확인했습니다. 데모 4계정은 격리 DB에만 무작위 일회용 비밀번호로 시드하고 비밀번호 환경변수를 즉시 정리했습니다. 개발 DB 3306과 기존 8080/8081/3000·원본 frontend/.next·next-env.d.ts는 사용하거나 조작하지 않았고 별도 프런트/API 서비스도 띄우지 않았습니다(통합 테스트가 임의 포트의 실제 Spring HTTP 서버를 기동).
+
+| 실행 명령 | 직접 실행 결과 |
+|---|---|
+| gradlew.bat build integrationTest --no-daemon --rerun-tasks (1회) | 20 단위 + 85 통합 = 105개 통과, 실패/오류/건너뛰기 0, exit 0, 2분43초 |
+| 같은 명령 (2회, 동일 코드) | 105개 연속 통과, 실패/오류/건너뛰기 0, exit 0, 2분41초 |
+
+신규 PublicationIntegrationTest 9개: 정상 발행의 정확한 응답·포인터·publication/감사1건, 승인 조건/없는 결정/무효 승인/미승인·기발행409, 원문 변경 후 승인 무효화409, 새 초안·검수·승인 중 공개 응답 유지 및 원문 변경 후 공개본 불변, 공개본 교체·이전 PUBLISHED 유지·history 순서·오래된 APPROVED 교체, 감사 저장 장애503와 실제 DB 전체 롤백(이전 포인터·상태·이력 보존), 동일 버전 동시 요청 정확히200 1건/409 1건, 운영자 API의 4역할+미인증·위조 거부·ACCESS_DENIED 감사, 공개 상세의 익명/4역할/만료·변조·잘못된 Authorization 동일200, 공개 목록의 공개본만·정렬·페이지·경계/잘못된 인자400, 미발행/미존재 동일404·정확한 공개 필드·계정/원문/상태/사유 비노출, 본문/깨진 JSON/비JSON400·경로 형식404·POST/PUT/DELETE405·허용 preflight200/비허용Origin403을 확인했습니다. DB 장애 검증은 DAO 예외 주입이며 실제 DB를 중단한 장애 테스트로 보고하지 않습니다.
+
+읽기 전용 전후 비교(전/1회/2회): demo_account 4→4→4 및 모든 계정 내용 집계 동일, auth_login_limit 0→0→0, auth_token/auth_audit/episode/episode_source_version/source_block/domain_audit/episode_assignment/translation_version/translation_block/review_decision/publication 각0→0→0, Flyway 성공31 유지. 테스트가 만든 회차·계정·토큰·감사만 정확히 삭제했습니다. 기존 계정·데이터·제한 행은 수정하지 않았습니다. 비밀번호·토큰은 출력·Git·README에 기록하지 않았습니다. 운영 코드에서 원문/반려 사유/토큰을 로그에 추가하지 않았습니다.
+
+초기 준비 단계에서 신규 테스트의 package-private hash 접근으로 compileTestJava가 실패해 신규 테스트 내부 SHA-256 픽스처 함수로 수정했습니다(기존 인증 운영 코드나 테스트 접근 범위 변경 없음). 수정 후 위 전체 명령이 연속2회 통과했습니다. 로그·XML·집계는 ignored backend/build/verification/publication-0cb736c에 보관했습니다.
+
+정리: 소유 컨테이너 ID를 대조해 docker stop --timeout 10으로 종료했고 --rm으로 해당 컨테이너는 남지 않았습니다. 별도 API·프런트 프로세스가 없으며 Gradle --no-daemon 실행의 테스트 서버는 종료됐습니다. 기존 컨테이너·볼륨 삭제 없음. 남은 작업은 Claude Code의 코드 리뷰·API 점검과 이후 별도 요청의 마지막 브라우저 통합 검증(Review 수정4건·로그인 제한 제거·발행/독자 열람)입니다. 이번 브라우저·외부 배포·Vercel 검증은 미실행입니다. PROJECT_CONTEXT.md 줄바꿈 M은 그대로 보존했습니다.
