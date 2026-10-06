@@ -706,3 +706,59 @@ Windows PowerShell **5.1.26100.9444**, 실제 MySQL **8.4.11**, Docker Linux. �
 
 V31 개발 DB 적용은 별도 사용자 확인 대기 중이며 아직 실행하지 않았습니다. 브라우저·프런트 검증은 이번 백엔드 작업에서 미실행입니다. Claude Code의 프런트 구현 후 계약 17.7의 실제 브라우저 최종 연동을 격리 환경에서 수행해야 합니다. 외부 배포·Vercel·프록시 IP 정책도 미검증입니다.
 이번 소유 3313 컨테이너는 저장한 ID를 대조한 뒤 `docker stop --timeout 10 mangabridge-translation-9b0f9d3`(종료 0)으로 정리했습니다(--rm 자동 정리). 테스트별 일회용 컨테이너도 종료됐으며 기존 개발 MySQL은 healthy입니다. 기존 컨테이너·볼륨을 삭제하거나 기존 서버를 중지하지 않았습니다. 실제 적용한 DB는 빈/업그레이드 경로 일회용 DB와 주 회귀 격리 DB이며, 개발 DB3306은 사용자 승인 답변 전까지 V30을 유지합니다. README의 이번 추가 diff에 DB 비밀번호 값이 없으며 프런트·계약 문서·PROJECT_CONTEXT.md를 stage하지 않습니다.
+
+### Translation 최종 실제 연동 검증 (2026-10-06 KST)
+
+Codex 직접 실행. 대상 frontend/통합 HEAD `1384139f266aa4b1e3dccae41d48e26027441b0b`, backend `8652c26`, 승인 계약 17절 `9b0f9d3`. 작업 전 HEAD와 status 조건이 일치했고 PROJECT_CONTEXT.md 기존 M뿐이었습니다. 이번에는 README 기록만 변경하며 제품 코드는 결함을 발견해도 수정하지 않습니다. Claude Code가 별도로 보고한 역할 매트릭스·생성/복사·저장/충돌/입력 거부·제출/누락/제출 후 409·원문/승인 무효화·감사·교체·동시성/직렬화는 **Claude Code 직접 실행(API, Codex 재실행 아님)**이며 브라우저 결과와 구분합니다.
+
+실제 환경은 Windows PowerShell **5.1.26100.9444**, MySQL **8.4.11**, Docker **29.5.3/Linux**, API localhost:8086, 프런트 localhost:3005입니다. 이번 소유 `mangabridge-translation-browser-1384139`는 localhost:3314/translation_browser, --rm, /var/lib/mysql tmpfs이며 이미지 digest는 `mysql@sha256:6ea90827b1100f8f2ae306a539f86d2c264a26ed435a2a9f75551dd5c3aeb242`입니다. 프런트는 HEAD 추적 파일의 ignored 격리 사본에서 빌드했으며 원본 frontend/.next/BUILD_ID 해시는 전후 동일합니다. API의 CORS 출처는 http://localhost:3005 하나만 설정했습니다. 개발 DB는 연동 시나리오에 사용하지 않았습니다.
+
+| 실제 준비 명령 / 실행 구분 | 결과 |
+|---|---|
+| `docker info`, `docker image inspect mysql:8.4.11` | 통과. Server 연결/Linux, 고정 digest 확인 |
+| `docker run -d --rm --pull=never --name mangabridge-translation-browser-1384139 --publish 127.0.0.1:3314:3306 --tmpfs /var/lib/mysql:rw --env MYSQL_USER --env MYSQL_PASSWORD --env MYSQL_DATABASE --env MYSQL_RANDOM_ROOT_PASSWORD mysql:8.4.11 --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci --default-time-zone=+00:00` | 통과. 값은 프로세스 환경으로 전달하며 root 로그 조회 없음 |
+| README 2절 환경 주입 + `gradlew.bat bootJar --no-daemon` | 통과, 종료 0. Java 17의 기존 백엔드 운영 JAR 사용 |
+| README 7절 시드 `gradlew.bat bootRun --args='--demo-auth-seed=true --spring.main.web-application-type=none' --no-daemon` | 통과, 종료 0, 9초. PS5.1에서 사용자가 허용한 일회용 비밀번호 생성으로 Read-Host를 대체하고 seed 환경변수 정리. V1~V31 성공 31개·실패 0 |
+| 격리 사본 `NEXT_PUBLIC_API_BASE_URL=http://localhost:8086` 주입, `npm.cmd run build -- --webpack` | 통과, 종료 0. 기존 node_modules를 junction으로 공유하므로 앞선 검증과 같은 webpack 빌드 사용. 원본 .next 변경 없음 |
+| `java -jar .../mangabridge-backend-0.0.1-SNAPSHOT.jar`, 격리 사본 `node .../next/dist/bin/next start .../frontend --port 3005` | 통과. 새 소유 PID와 포트 사용, health 실제 200 |
+| `gradlew.bat build integrationTest --no-daemon --rerun-tasks`, 프런트 자동 테스트 | **이번 실제 연동 작업에서 미실행**. 앞선 83개 연속 통과 및 Claude 보고를 이번 재실행으로 표시하지 않음 |
+
+준비 과정에서 stdin PowerShell 마지막 메모리 전달 구간 및 .ps1 실행 정책 문제가 있었고, 실행 정책 변경 없이 PS5.1 인라인 Invoke-Expression으로 진행했습니다. 처음 생성한 이번 소유 환경만 다시 준비했고 기존 DB/서비스는 변경하지 않았습니다. 메모리 전달이 실패해 검증용 5계정의 임시 비밀번호를 PS5.1 BCrypt fixture로 다시 설정한 뒤 실제 로그인했습니다. 값은 파일·화면·로그·Git에 남기지 않았습니다. 첫 자동 입력은 브라우저 DOM의 비밀번호 마스킹 문자열을 실제 값으로 사용할 수 없어 로그인 실패했으며 제품 결함으로 집계하지 않습니다. 이후 localhost 보조 서버의 메모리 전달로 실제 로그인 화면을 조작했습니다. 보조 서버와 임시 환경은 종료 시 정리했습니다.
+
+### 시나리오별 Codex 직접 결과 (브라우저 19:39~19:50 KST)
+
+| 번호 | 통과 / 실패 / 미검증 및 관찰 |
+|---|---|
+| 1 준비 | 통과. 운영자 실제 로그인, A(id=1) 3블록·페이지 1/없음/2와 번역가/감수자 배정. B(id=2) 원문 1블록·미배정. 생성 행은 모두 격리 DB에만 존재 |
+| 2 번역 시작 | 통과. /demo → 배정된 회차 → A, 번역 없음 안내와 새 번역 시작. v1 DRAFT의 왼쪽 원문/페이지·오른쪽 블록 N 번역 입력 확인 |
+| 3 저장·입력 검증 | 통과. 앞뒤 공백·줄바꿈 두 블록 저장/새로고침 후 문자열 정확히 일치. 빈 블록 전체 교체 저장. 공백만/4001자 거부와 실제 PUT 증가 0. 동일 상태 저장 비활성, 미저장 시 제출·다른 버전 보기 비활성 |
+| 4 리비전 충돌 | 통과. 같은 토큰을 가진 검증 탭에서 실제 브라우저 PUT으로 revision=4 증가, 편집 화면 저장 409 안내·local draft 유지. 최신 내용 불러오기를 눌렀을 때만 remote translation으로 교체 |
+| 5 제출 | 통과. 확인 문구/취소/재확정, 누락 2블록 안내와 실제 submit 요청 증가 0. 완성 저장 후 확정, v1 REVIEW_PENDING·읽기 전용·새 번역 시작 없음, 새로고침 유지 |
+| 6 원문 변경·복사 | 통과. 변경 없는 원문 저장은 v1 REVIEW_PENDING 유지. A 원문 변경과 seq3 삭제 후 원문 v2, 번역 v1 INVALIDATED·읽기 전용·새 번역 시작. v2 생성은 seq1/2 번역만 복사, seq3 제외 |
+| 7 편집 중 무효화 | 핵심 흐름 통과. v2 편집 중 운영자 원문 v3 저장, 저장 409 무효화 안내·초안 유지, 최신 불러오기 후 읽기 전용/새 번역 시작. **최신 원문 번호 표시 불일치 1건 실패**: 상단 v2가 남지만 이후 v3 새 번역의 표에는 원문 v3(최신) 표시. 아래 재현 참고 |
+| 8 승인 무효화 | 통과. 격리 DB의 v3에 APPROVED/review_decision fixture(감수자)를 INSERT 후 운영자 원문 v4 저장. 번역 INVALIDATED, invalidated_at 설정, APPROVAL_INVALIDATED(actor=1,episode=1,source=4,translation=3) 정확히 1건 |
+| 9 번역가 교체 | 통과. v4 DRAFT 상태에서 Extra translator(account=5)로 교체. 이전 번역가 목록 비움·A 상세 404·원문/번역 비노출. 새 번역가 실제 로그인하여 v4 이어서 저장·제출 성공 |
+| 10 역할·서버 강제 | 통과. 배정 감수자는 읽기 전용 원문만 표시, /translations 요청 0건(해당 구간 /auth/me·/my/episodes/1만). 운영자/독자 /assigned 역할 안내·로그인 유지. 같은 역할별 세션의 실제 브라우저 GET/POST/PUT 모두 403 FORBIDDEN 읽기 성공, ACCESS_DENIED 각각 3건(총9). 미배정 번역가 B 생성 404 |
+| 11 CORS | 통과(서버 접근 기록 증빙). 브라우저의 생성·PUT·submit OPTIONS 200, Allow-Origin=http://localhost:3005. PUT/submit과 보조 페이지 생성의 authorization,content-type 허용 확인. 본문 없는 앱 생성은 Content-Type을 보내지 않아 authorization만 preflight하며 정상 201 |
+| 12 감사 | 통과. TRANSLATION_CREATED v1~v4 각각1건(4), TRANSLATION_SUBMITTED v1·v4 각각1건(2; 시나리오9 추가 제출 포함), APPROVAL_INVALIDATED 1건. 모두 translation_version_id 포함. 감사 종류는 EPISODE_CREATED2/SOURCE_SAVED5/ASSIGNED3 및 위3종뿐, DRAFT 저장·승인 아닌 무효화의 별도 이벤트 없음 |
+| 13 장애·세션 | 통과. 이번 소유 8086 API 중지 → 저장 통신 오류·offline draft retained 입력 유지 → 같은 설정 복구/health200 → 재저장 성공. 새 번역가 토큰 서버 폐기204 후 /assigned/A 로드 → /me401 → /login 및 인증 만료/무효 안내 |
+| 14 저장소 | **부분 확인**. 편집·저장 후 같은 편집 탭의 보조 페이지에서 sessionStorage 토큰 키 하나, localStorage 빈 목록, 쿠키 없음 확인. 편집기를 그대로 유지한 시점의 저장소 직접 관찰은 도구 제한으로 **미검증**이며 이 결과로 대체하지 않음 |
+
+DevTools 콘솔 명령 자체 및 Network 패널 관찰은 **미실행**입니다. 4·10·13의 직접 호출은 격리 사본 public의 검증 페이지에서 같은 탭 sessionStorage 토큰으로 fetch(credentials omit)를 실행했습니다. 충돌 검증용 복사 탭은 토큰 값을 메모리에서만 전달하고 임시 clipboard를 바로 비웠으며 값은 출력하지 않았습니다. 응답 403을 브라우저 DOM에서 읽어 CORS 성공을 확인했습니다. 네트워크 증빙은 Tomcat 접근 기록(메서드·경로·상태·Origin·preflight 요청/응답 헤더만 기록)이며 Authorization 값·본문·IP는 포함하지 않습니다. 검사 전후 PUT/submit 수와 감수자 구간 요청 수를 읽기 전용 비교했습니다. 보조 페이지는 운영 코드나 Git에 포함하지 않았습니다.
+
+### 발견한 프런트 표시 문제: 수정하지 않음
+
+재현: /assigned/1에서 원문 v2 기반 DRAFT를 편집 → 다른 운영자 탭에서 원문 v3 저장 → 저장 409 STATE_CONFLICT → 최신 내용 불러오기 → 새 번역 시작. 무효화·읽기 전용·v3 생성은 정상이나 상단은 `최신 원문 v2`, 번역 표는 `원문 v3 (최신)`으로 서로 다릅니다. 전체 페이지 새로고침 후에는 상단도 최신 값으로 복구됩니다. `frontend/src/components/AssignedViews.tsx:116`은 최초 detail.source.version을 쓰고 TranslationWorkspace의 load는 부모 detail을 다시 조회하지 않습니다. 담당 Claude Code에 이 조건으로 표시 상태 갱신을 요청해야 하며 이번에는 직접 수정하지 않았습니다. 백엔드 동작 결함은 발견하지 않았습니다.
+
+### 개발 DB 보존 및 사용자 승인 후 V31 별도 적용
+
+실제 연동 전후 읽기 전용 비교에서 demo_account/demo.* 4→4, auth_token8→8, auth_login_limit88→88, auth_audit130→130, 9개 도메인 테이블 각각0→0이며 기존 인증 전체 행 정렬 집계 해시 차이0입니다. 연동 종료 시 Flyway는 V30과 기존 checksum/FK/NULL 허용 목록 그대로였습니다. 이후 표시 문제를 알린 별도 질문에 사용자가 **개발 DB에 V31 적용**을 승인했고 적용 직전 데이터가 그대로임을 다시 확인했습니다. 이전 12절의 개발 DB 승인 대기 기록은 그 당시 상태이며 다음 결과로 갱신됩니다.
+
+| 별도 실제 개발 DB 명령 / 조회 (2026-10-06 19:54 KST) | 결과 |
+|---|---|
+| PS5.1 README 2절 환경 주입·localhost:3306 URL 검사 후 `gradlew.bat -I build/verification/schema-tool.init.gradle schemaMigrate --no-daemon` | 통과, 종료0, 7초. **V31 1개 적용**, current=31, validate=PASS |
+| 같은 명령 재실행 | 통과, 종료0, 7초. **추가 적용0개**, current=31, validate=PASS |
+| Flyway/스키마 | 성공31개·최대31·실패0, draft_revision=int/NOT NULL/default1. V1~V30 checksum 차이0, FK19/NULL 허용13개 및 foreign_key_checks 연결·전역1 유지 |
+| 기존 데이터 | 계정4·토큰8·제한88·인증 감사130·모든 도메인0 그대로, 전체 기존 내용 집계 해시 차이0. 개발 DB에 검증 fixture 생성·삭제 없음 |
+
+검증 후 소유 PID/포트를 대조해 이번 API·프런트·자격증명 보조 프로세스만 종료하고, 컨테이너 ID를 대조한 뒤 `docker stop --timeout 10 mangabridge-translation-browser-1384139`(종료0, --rm 자동 정리)만 실행했습니다. 기존 MySQL은 healthy이며 기존 컨테이너·볼륨 삭제나 기존 서버 종료 명령은 실행하지 않았습니다. 기존 3000/8080/8081 프로세스 ID의 전후 동일성은 초기 조회 증빙이 부족해 미검증으로 남깁니다. 실제 임시 비밀번호·Bearer/root 출력 패턴은 로그/격리 정적 JS40개에서 검출0건, 값은 파일에 보존하지 않았고 브라우저 변수·임시 clipboard·소유 서버 메모리는 정리했습니다. 외부 배포·Vercel·프록시 IP 정책은 계속 미검증입니다. 남은 제품 수정은 위 표시 문제이며, 저장소의 편집 중 직접 관찰 및 DevTools 콘솔/Network 패널 검증은 별도 미검증으로 남깁니다.
