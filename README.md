@@ -457,3 +457,38 @@ NULL 거부·정상 값·V19 업그레이드·최종 validate·전체 빌드/int
 개발 DB(3306)는 이번 작업에서 변경하지 않았고 V20~V25 **미적용**입니다. 현시점 읽기 전용 조회: Flyway 최대 버전 19/성공 19개, 계정 4·토큰 8·제한 88·인증 감사 130, 회차·원문 버전·블록·도메인 감사 각각 0. 이번 시도는 개발 DB의 적용 전후 비교 단계에 도달하지 않았습니다. 이번 임시 컨테이너만 저장한 ID와 대조 후 docker stop(--rm 자동 정리)했고 기존 컨테이너·볼륨은 보존했습니다. PROJECT_CONTEXT.md는 수정·stage·restore하지 않았습니다.
 
 승인 필요한 제안: V24에서 fk_review_reviewer를 제거하고 NOT NULL 보정 후 기존 이름·참조·RESTRICT 정의로 다시 생성하는 절차를 계약에 명시합니다. 한 ALTER TABLE 안에서 가능한지는 별도 일회용 DB 검증이 필요하며, 불가능하면 파일당 DDL 하나 원칙에 맞게 추가 버전/적용 순서 변경 승인이 필요합니다. V25에서도 유사 제한이 발생하는지 현재는 미검증입니다. 제안은 승인된 결정으로 기록하지 않았으며 승인 전 추가 구현·개발 DB 적용을 진행하지 않습니다.
+
+### V20~V25 승인 보정 재개 검증 (2026-10-06 11:10~11:19 KST, Codex 직접 실행)
+
+시작 기준 `797d54598d90fed1c7a9d63417eee4c51b4727a3`, CONTRACTS.md 14.2/14.6 및 D-039를 확인했습니다. 시작 상태는 PROJECT_CONTEXT.md의 기존 줄바꿈 M과 이전 V20~V25 미커밋 SQL 6개뿐이었습니다. V20~V23은 초안 그대로 유지하고, V24/V25는 승인된 `SET foreign_key_checks=0; ALTER TABLE ...; SET foreign_key_checks=1;` 구조로 적용했습니다. 각 파일의 DDL은 ALTER 하나이며 FK 삭제·재생성은 수행하지 않았습니다. 위 차단 기록은 과거 실행 결과이며 아래는 변경 승인 후 새로 수행한 결과입니다.
+
+마이그레이션 커밋 `3064624`, 테스트 커밋 `c09b326`. 운영 Java/API·frontend·승인 문서·V1~V19는 변경하지 않았습니다. V1~V19 파일 SHA-256 차이 0입니다.
+
+실행 환경: Windows PowerShell **5.1.26100.9444**, Docker 29.5.3 Linux, 실제 **MySQL 8.4.11**. 이번 소유 컨테이너 localhost:3310/schema_verify와 테스트별 일회용 --rm/tmpfs DB를 사용했습니다. 비밀번호는 프로세스 환경과 stdin으로 전달하고 값은 기록하지 않았습니다. README 2절의 환경 주입 후 검증용 DB_URL만 변경했으며, schemaMigrate 작업은 위에 기록한 test classpath 전용 init script를 사용했습니다. 네이티브 명령 직후 LASTEXITCODE를 보존했습니다.
+
+| 실제 실행 명령 / 검증 | 결과 |
+|---|---|
+| `gradlew.bat -I build/verification/schema-tool.init.gradle schemaMigrate --no-daemon` (빈 격리 DB) | 통과, 종료 0, 16초. V1~V25 25개 적용, current=25, validate=PASS |
+| 최초 `gradlew.bat build integrationTest --no-daemon --rerun-tasks` | 실패, 종료 1, 1분 30초. CHECK 정의 비교 1건: ALTER가 같은 ASCII 열거 리터럴의 introducer를 _utf8mb4에서 _ascii로 바꿈. ASCII 문자열임을 먼저 검사하고 이 introducer만 정규화하는 테스트 수정. SQL은 변경하지 않음 |
+| 같은 전체 명령, 수정 후 연속 성공 1회차 | 통과, 종료 0, 1분 30초. 기본 20 + 실제 MySQL 통합 38 = 58개, 실패·오류·건너뛰기 0 |
+| 같은 전체 명령, 코드 변경 없이 연속 성공 2회차 | 통과, 종료 0, 1분 30초. 같은 58개, 실패·오류·건너뛰기 0 |
+| 빈 DB V1~V25 / 데이터 있는 V19→V25 / 기존 V9→V25 | 통과. 각 별도 일회용 DB에서 적용·validate·재실행 추가 0개. 기존 행 수·모든 기존 컬럼의 정렬 내용 해시·기존 Flyway 체크섬 유지 |
+| V24/V25 직후 FK 검사 복구 | 통과. Flyway AFTER_EACH_MIGRATE callback이 **실제 마이그레이션 연결**에서 @@foreign_key_checks=1을 각각 확인 |
+| FK·UNIQUE·CHECK·생성 컬럼 보존 | 통과. V19 전후 FK 이름·개수·참조·RESTRICT 규칙, UNIQUE 인덱스·컬럼 순서, CHECK 이름·조건식, open_slot 생성식 비교. CHECK/생성식 ASCII 리터럴 introducer 외 SQL 내용은 그대로 비교 |
+| NULL 거부·정상 삽입·기존 제약 | 통과. 보정 필수 컬럼을 포함한 26개 명시 컬럼 각각 NULL 삽입 시 MySQL 1048 확인, 정상 삽입 허용. 역사적 NULL 우회 5종 모두 거부. assigned_at 정상 삽입, 기존 제약 테스트 전부 유지 |
+| information_schema | 통과. 새 도메인 5개 테이블 NOT NULL 29개, nullable submitted_at/reason/invalidated_at 및 생성 open_slot만 유지. 기존 episode 공개 포인터와 domain_audit 번역 ID는 nullable 유지. 열거 ascii_bin, assigned_at DATETIME(6), FK 총 19개(새 도메인 12개), RESTRICT 유지 |
+
+| 기존 데이터 | 격리 전체 테스트 전 / 1회 후 / 2회 후 | 개발 DB 검증 전 / 격리 테스트 후 |
+|---|---|---|
+| demo_account (demo.* 4계정 유지) | 4 / 4 / 4 | 4 / 4 |
+| auth_token | 0 / 0 / 0 | 8 / 8 |
+| auth_login_limit | 0 / 0 / 0 | 88 / 88 |
+| auth_audit | 0 / 0 / 0 | 130 / 130 |
+| episode / episode_source_version / source_block / domain_audit | 각각 0 / 0 / 0 | 각각 0 / 0 |
+| episode_assignment / translation_version / translation_block / review_decision / publication | 각각 0 / 0 / 0 | 각각 0 / 0 |
+
+기존 인증 네 테이블의 정렬 집계 해시도 동일합니다. 새 제약 fixture는 전용 JDBC 트랜잭션을 rollback하며, 기존 HTTP 테스트의 서버 측 고유 주소·정확한 생성 행 정리를 유지했습니다. 공유 127.0.0.1 제한 키를 정리하지 않았습니다. 업그레이드 fixture는 일회용 DB에만 계정 4·토큰 1·제한 1·인증 감사 1·회차 1·원문 버전 1·블록 2·도메인 감사 1을 삽입하고 기존 컬럼 내용을 비교했습니다. AUTO_INCREMENT 번호의 공백은 생길 수 있습니다.
+
+검증 로그·JUnit XML의 실제 DB 비밀번호 일치 0건, Bearer/root 비밀번호 출력 패턴 0건. 운영 JAR의 검증 runner/신규 통합 테스트 클래스 0개. 기존 Flyway의 MySQL 8.4 지원 업그레이드 권고 경고는 남지만 실제 적용·validate·제약 테스트는 통과했습니다. 의존성은 변경하지 않았습니다.
+
+개발 DB 적용은 모든 검증 통과 후 별도 사용자 확인을 요청했으며, 답변 전에는 실행하지 않습니다. 현재 개발 DB V20~V25는 미적용(V19 유지)입니다. 개발 DB 적용·재실행·적용 후 NOT NULL/FK 조회는 미실행이며 승인 응답 후 추가 기록합니다. 11:21 KST에 이번 3310 tmpfs 컨테이너만 저장한 ID와 대조 후 docker stop(--rm 자동 정리)했습니다. 테스트별 일회용 컨테이너도 각 테스트에서 종료했으며 기존 컨테이너·볼륨은 보존했습니다. PROJECT_CONTEXT.md의 기존 줄바꿈 M은 수정·stage·restore하지 않았습니다.
