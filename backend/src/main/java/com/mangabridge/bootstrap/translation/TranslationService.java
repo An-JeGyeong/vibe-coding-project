@@ -33,7 +33,7 @@ public class TranslationService {
         long episode=path(pathId,false);
         return execute(read,()->{
             var row=assigned(actor,episode,false);
-            return new Versions(row.latest(),dao.versions(episode).stream().map(Stored::item).toList());
+            return new Versions(row.latest(),dao.versions(episode).stream().map(v->v.item(dao.decision(v.id()))).toList());
         });
     }
     public Created createTranslation(CurrentUser actor,String pathId) {
@@ -54,7 +54,7 @@ public class TranslationService {
         return execute(read,()->{
             assigned(actor,episode,false); Stored version=required(episode,number);
             return new Detail(version.versionNo(),version.status(),version.sourceVersion(),version.revision(),version.createdAt(),
-                    version.submittedAt(),version.status().equals("DRAFT"),dao.blocks(episode,version));
+                    version.submittedAt(),version.status().equals("DRAFT"),dao.blocks(episode,version),dao.decision(version.id()));
         });
     }
     public Saved saveTranslationDraft(CurrentUser actor,String pathId,String pathVersion,SaveRequest request) {

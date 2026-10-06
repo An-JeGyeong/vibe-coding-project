@@ -28,6 +28,11 @@ public class TranslationDao {
                 VERSION_ROW,episode,version);
         return rows.isEmpty()?null:rows.get(0);
     }
+    public com.mangabridge.bootstrap.review.ReviewModels.Decision decision(long version) {
+        var rows=jdbc.query("SELECT decision,decided_at,reason FROM review_decision WHERE translation_version_id=?",
+                (rs,n)->new com.mangabridge.bootstrap.review.ReviewModels.Decision(rs.getString(1),rs.getTimestamp(2).toInstant(),rs.getString(3)),version);
+        return rows.isEmpty()?null:rows.get(0);
+    }
     public int latestTranslationVersion(long episode) {
         return jdbc.queryForObject("SELECT latest_translation_version FROM episode WHERE id=?",Integer.class,episode);
     }

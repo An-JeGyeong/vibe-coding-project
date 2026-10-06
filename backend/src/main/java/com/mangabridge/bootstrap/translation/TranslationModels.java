@@ -13,17 +13,17 @@ public final class TranslationModels {
         @Override public String toString() { return "SaveRequest[redacted]"; }
     }
     public record SubmitRequest(JsonNode expectedRevision) { }
-    public record Item(int versionNo,String status,int sourceVersion,int revision,Instant createdAt,Instant submittedAt) { }
+    public record Item(int versionNo,String status,int sourceVersion,int revision,Instant createdAt,Instant submittedAt,com.mangabridge.bootstrap.review.ReviewModels.Decision decision) { }
     public record Versions(int latestSourceVersion,List<Item> items) { }
     public record Created(int versionNo,String status,int sourceVersion,int revision) { }
     public record Block(int seq,Integer pageNo,String source,String text) {
         @Override public String toString() { return "Block[redacted]"; }
     }
     public record Detail(int versionNo,String status,int sourceVersion,int revision,Instant createdAt,
-                         Instant submittedAt,boolean editable,List<Block> blocks) { }
+                         Instant submittedAt,boolean editable,List<Block> blocks,com.mangabridge.bootstrap.review.ReviewModels.Decision decision) { }
     public record Saved(int revision,boolean changed) { }
     public record Submitted(int versionNo,String status,Instant submittedAt) { }
     public record Stored(long id,int versionNo,String status,int sourceVersion,int revision,Instant createdAt,Instant submittedAt) {
-        Item item() { return new Item(versionNo,status,sourceVersion,revision,createdAt,submittedAt); }
+        Item item(com.mangabridge.bootstrap.review.ReviewModels.Decision decision) { return new Item(versionNo,status,sourceVersion,revision,createdAt,submittedAt,decision); }
     }
 }
