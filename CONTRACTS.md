@@ -442,7 +442,7 @@ demo_account ─┬─< episode_assignment >─ episode            (번역가·�
 | 파일 | 변경 | 핵심 제약 |
 |---|---|---|
 | V10 | demo_account에 `UNIQUE(id, role)` 추가 | 역할 일치 외래키의 기반. 배정된 계정의 역할 변경을 막는다 |
-| V11 | episode_assignment | PK(episode_id, assignee_role) → 회차당 역할별 1명. FK(episode_id)→episode, **FK(account_id, assignee_role)→demo_account(id, role)**(번역가 칸에는 TRANSLATOR 계정만), assigned_by FK, CHECK(assignee_role IN ('TRANSLATOR','REVIEWER')) |
+| V11 | episode_assignment | PK(episode_id, assignee_role) → 회차당 역할별 1명. FK(episode_id)→episode, **FK(account_id, assignee_role)→demo_account(id, role)**(번역가 칸에는 TRANSLATOR 계정만), assigned_by FK, assigned_at DATETIME(6)(V21에서 추가), CHECK(assignee_role IN ('TRANSLATOR','REVIEWER')) |
 | V12 | translation_version | id PK, episode_id, version_no, source_version_no, status, created_by, created_at, submitted_at NULL, 생성 컬럼 `open_slot`(status가 DRAFT·REVIEW_PENDING이면 1, 아니면 NULL). UNIQUE(episode_id, version_no), **UNIQUE(episode_id, open_slot)**(열린 버전 하나), UNIQUE(episode_id, id), UNIQUE(id, episode_id, source_version_no). **FK(episode_id, source_version_no)→episode_source_version**, created_by FK. CHECK(status IN ('DRAFT','REVIEW_PENDING','REJECTED','APPROVED','PUBLISHED','INVALIDATED','ON_HOLD')), CHECK(version_no>=1) |
 | V13 | translation_block | PK(translation_version_id, source_seq), body VARCHAR(4000) NOT NULL. **FK(translation_version_id, episode_id, source_version_no)→translation_version(id, episode_id, source_version_no)**, **FK(episode_id, source_version_no, source_seq)→source_block** → 번역 블록은 자기 번역 버전의 원문 버전에 실제로 있는 블록에만 붙는다. CHECK(CHAR_LENGTH(body)>=1) |
 | V14 | review_decision | id PK, translation_version_id **UNIQUE**, decision, reason VARCHAR(500) NULL, reviewer_id FK, source_version_no, decided_at, invalidated_at NULL. FK→translation_version, CHECK(decision IN ('APPROVED','REJECTED')), **CHECK(반려면 reason이 1~500자, 승인이면 reason NULL)**, CHECK(invalidated_at IS NULL OR decision='APPROVED') |
@@ -453,6 +453,17 @@ demo_account ─┬─< episode_assignment >─ episode            (번역가·�
 | V19 | domain_audit에 translation_version_id BIGINT NULL 추가 | 번역·감수·발행 이벤트 연결 |
 - 순서·유일성은 시각이 아니라 `version_no`와 UNIQUE로 보장한다(D-028). 모든 FK는 ON DELETE/UPDATE RESTRICT(삭제 기능 없음).
 - 기존 데이터(회차·원문·계정·토큰·감사)는 보존한다. 새 테이블은 비어 있다.
+- **NOT NULL 규칙(2026-10-06 명확화·D-039)**: 위 표에서 NULL 허용을 명시하지 않은 컬럼은 모두 NOT NULL이다. NULL 허용은 `translation_version.submitted_at`, `review_decision.reason`, `review_decision.invalidated_at`, `episode.published_translation_version_id`, `domain_audit.translation_version_id`뿐이다. 이유: 복합 FK는 구성 컬럼 중 하나라도 NULL이면 검사되지 않고 CHECK도 NULL이면 통과하므로, NULL을 허용하면 "DB가 직접 막는 규칙"이 우회된다(일회용 DB에서 재현 확인).
+- **보정 마이그레이션 V20~V25**: V11~V18은 이미 적용되어 수정할 수 없으므로 새 파일로 보정한다(파일당 DDL 하나, 해당 테이블은 비어 있다).
+| 파일 | 변경 |
+|---|---|
+| V20 | episode_assignment: account_id, assigned_by NOT NULL |
+| V21 | episode_assignment: assigned_at DATETIME(6) NOT NULL 추가(배정 시각) |
+| V22 | translation_version: episode_id, version_no, source_version_no, status, created_by, created_at NOT NULL |
+| V23 | translation_block: episode_id, source_version_no NOT NULL |
+| V24 | review_decision: translation_version_id, decision, reviewer_id, source_version_no, decided_at NOT NULL |
+| V25 | publication: episode_id, translation_version_id, source_version_no, published_by, published_at NOT NULL |
+- 기존 FK·CHECK·UNIQUE·생성 컬럼(open_slot)은 그대로 유지하고, 컬럼 변경이 MySQL 8.4에서 막히면(예: 생성 컬럼이 참조하는 status) 우회하지 말고 변경 제안을 보고한다.
 
 ### 14.3 상태 전이 (서비스가 강제, 모든 전이는 episode 행 `FOR UPDATE` 후 기대 상태 확인, 불일치 409)
 | 전이 | 행위자 | 조건 | 부가 효과 |
@@ -483,6 +494,7 @@ demo_account ─┬─< episode_assignment >─ episode            (번역가·�
 
 ### 14.6 마이그레이션 노드(Codex) 완료 조건·테스트
 - V10~V19가 **빈 DB**와 **V1~V9가 적용된 기존 DB(데이터 있음)** 모두에서 적용되고, 기존 행 수·내용이 변하지 않으며, V1~V9 체크섬이 그대로이고 Flyway validate가 통과한다.
+- **NULL 거부 테스트(보정 필수)**: 14.2의 NOT NULL 컬럼마다 NULL 삽입이 거부(MySQL 오류 1048)되는지, 그리고 NULL로 우회되던 시나리오(상태·원문 버전이 NULL인 번역 버전, 키가 NULL인 번역 블록, decision이 NULL인 감수 결정, 전부 NULL인 발행 이력, 담당자 없는 배정)가 모두 거부되는지 확인한다. 정상 값은 계속 허용되어야 한다.
 - 제약별 실제 MySQL 테스트(위반 시 거부, 정상 시 허용): 배정 역할 불일치 FK, 역할당 1명 PK, 열린 버전 둘째 DRAFT·REVIEW_PENDING 거부와 REJECTED·INVALIDATED 다수 허용, 번역 버전의 원문 버전 FK, 번역 블록의 원문 블록 FK와 복합 FK 불일치 거부, 상태 CHECK, 반려 사유 CHECK(없음·501자 거부), 번역 버전당 결정 1건, 발행 이력과 포인터의 회차 불일치 거부, domain_audit 컬럼 추가.
 - 테스트는 만든 행만 정확히 정리하고 데모 계정·기존 데이터·제한 행을 늘리거나 지우지 않는다. 연속 2회 통과·전후 행 수 비교를 보고한다. 이 노드에서 API·서비스 코드는 만들지 않는다.
 - 변경 가능: backend/src/main/resources/db/migration(V10~V19 신규), backend/src/test, README 검증 기록. 변경 금지: V1~V9, 기존 서비스·API, frontend/, 문서 3종.
