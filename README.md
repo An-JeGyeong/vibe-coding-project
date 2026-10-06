@@ -609,3 +609,55 @@ Claude Code가 별도로 보고한 역할 매트릭스·지정/교체/동일·�
 정리 시점에는 저장했던 격리 프런트/API PID가 이미 종료되어 있었고, 이번 컨테이너 ID를 대조한 뒤 `docker stop --timeout 10 mangabridge-assignment-browser-7bd23a7`(종료 0)만 실행했습니다(--rm 자동 정리). 기존 MySQL은 healthy이며 기존 컨테이너·볼륨은 삭제하지 않았습니다. **기존 3000/8080/8081의 저장된 PID와 리스너도 정리 시점에 부재**했습니다. 해당 기존 프로세스에 종료 명령을 내리지 않았으나 종료 원인은 확인되지 않아 실행 유지 검증은 통과로 표시하지 않습니다. 기존 서비스 이용에는 사용자 재시작이 필요합니다.
 
 종료 후 로그와 격리 프런트 정적 JS 총 40개 파일에서 실제 임시 비밀번호·DB 비밀번호 일치 0건, 로그의 Bearer 토큰/root 비밀번호 출력 패턴 0건을 확인했습니다. 도구 입력용 임시 자격증명 파일은 삭제했고 브라우저 변수와 PS 프로세스 환경변수도 정리했습니다. Git에 시드 비밀번호나 검증 전용 페이지를 추가하지 않았습니다. 외부 배포·Vercel·프록시 IP 정책은 계속 미검증입니다. 이번 기록은 README만 별도 로컬 문서 커밋하며 PROJECT_CONTEXT.md 기존 M은 그대로 둡니다.
+
+## 11. V6~V9 NOT NULL 보정 V27~V30 검증 (2026-10-06 KST)
+
+Codex 직접 실행, 시작 기준 `3e3dc03a1cbfffbfa5b698d3635a4e40368e747e`, 승인 계약 16절 및 D-039/D-042. 작업 전 변경은 PROJECT_CONTEXT.md의 기존 줄바꿈 M뿐이었고 해당 파일을 수정·stage·restore하지 않았습니다. V27~V30 신규 SQL 4개, 스키마 테스트 3개 파일 및 이번 README 기록만 변경했습니다. V1~V26과 운영 Java 코드·프런트·계약 문서는 변경하지 않았습니다. SQL 커밋 `159b74d`, 테스트 커밋 `8391b2e`입니다.
+
+V27은 episode의 title/created_by/created_at/updated_at, V28은 episode_source_version의 created_by/created_at/block_count, V29는 source_block.body, V30은 domain_audit.occurred_at/event를 NOT NULL로 변경합니다. 기존 타입·charset·collation을 유지하고 각 파일에 ALTER TABLE 하나만 있습니다. V27/V28은 승인된 SET foreign_key_checks=0 → ALTER → SET foreign_key_checks=1 구조를 사용합니다. 기존 FK를 삭제·재생성하거나 기존 마이그레이션을 수정하지 않았습니다.
+
+### 격리 검증: Codex 직접 실행, 16:35~16:43 KST
+
+Windows PowerShell **5.1.26100.9444**, 실제 MySQL **8.4.11**, Docker Linux를 사용했습니다. 고정 이미지 digest는 `mysql@sha256:6ea90827b1100f8f2ae306a539f86d2c264a26ed435a2a9f75551dd5c3aeb242`입니다. 주 회귀 DB는 이번 소유 `mangabridge-source-notnull-3e3dc03` (--rm, `/var/lib/mysql` tmpfs), localhost:3312/source_correction_verify입니다. 마이그레이션 경로 테스트는 각각 별도 일회용 MySQL을 사용하고 소유 컨테이너만 종료합니다. DB 비밀번호는 환경변수로 전달하고 값을 출력하지 않았으며 root 로그를 조회하지 않았습니다.
+
+| 실제 명령 / 확인 | 결과 |
+|---|---|
+| `docker run -d --rm --pull=never --name mangabridge-source-notnull-3e3dc03 --publish 127.0.0.1:3312:3306 --tmpfs /var/lib/mysql:rw --env MYSQL_USER --env MYSQL_PASSWORD --env MYSQL_DATABASE --env MYSQL_RANDOM_ROOT_PASSWORD mysql:8.4.11 --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci --default-time-zone=+00:00` | 성공, 앱 계정의 실제 SELECT 1 확인 |
+| `gradlew.bat -I build/verification/schema-tool.init.gradle schemaMigrate --no-daemon` | 통과, 종료 0, 11초. 빈 주 검증 DB V1~V30 30개 적용, current=30/validate=PASS |
+| 최초 `gradlew.bat build integrationTest --no-daemon --rerun-tasks` | 실패, 종료 1, 1분 51초. 신규 테스트에서 모든 기존 FK 규칙 문자열이 RESTRICT라는 잘못된 단정 1건. 기존 19개는 RESTRICT 13개/NO ACTION 6개이므로 계약 16.3의 전후 정의 동일 비교로 테스트만 보정. SQL 변경 없음, 실패 실행 후 데이터 차이 0 |
+| 같은 전체 명령, 보정 후 연속 성공 1회 | 통과, 종료 0, 1분 48초. 기본 20 + 실제 MySQL 통합 51 = 71개, 실패·오류·건너뛰기 0 |
+| 같은 전체 명령, 코드 변경 없이 연속 성공 2회 | 통과, 종료 0, 1분 48초. 같은 71개, 실패·오류·건너뛰기 0 |
+| 필수 컬럼 NULL 및 정상 INSERT | 통과. 보정 대상 10개 컬럼의 NULL은 실제 MySQL 1048로 거부, 정상 회차·원문 버전·블록·감사 INSERT 허용, 선택적 page_no NULL 유지. 기존 도메인 NULL·UNIQUE·FK·CHECK 거부 테스트도 유지 |
+| 전체 스키마 NULL 허용 집합 | 통과. flyway_schema_history만 제외하고 information_schema 전체를 조회, 계약 16.1의 13개(생성 open_slot 포함)와 정확히 일치. 추가·누락 모두 실패하도록 검사 |
+| 빈 DB 경로 | 통과. 일회용 DB V1~V30 30개 적용, validate 및 재실행 추가 적용 0개. 실제 Flyway 연결에서 V24/V25/V27/V28 실행 직후 foreign_key_checks=1 확인 |
+| 데이터가 있는 V26 업그레이드 경로 | 통과. 일회용 V26 DB에 4계정·토큰·제한·인증 감사·회차·원문 버전·2블록·도메인 감사 fixture를 저장한 뒤 V27~V30 4개 적용, validate/재실행 추가 적용 0개. 13개 업무·인증 테이블의 행 수·전체 컬럼 정렬 내용 해시 및 V1~V26 Flyway checksum 동일 |
+| FK·CHECK·인덱스·컬럼 정의 보존 | 통과. 전체 FK 19개의 이름·참조 컬럼/순서·기존 UPDATE/DELETE 규칙 동일(기존 NO ACTION 포함). UNIQUE를 포함한 모든 인덱스·CHECK·생성 컬럼·컬럼 타입/charset/collation/기본값/정밀도 유지. 최종 연결 및 전역 foreign_key_checks=1 |
+| 기존 회귀 | 통과. 인증·EpisodeSource·Assignment·health 및 기존 V9/V19/V25 경로 검사 유지. 최신 Flyway 기대 버전만 30으로 갱신, V25→V26 전용 테스트는 명시 target=26 유지 |
+
+PS5.1 네이티브 실행 직후 LASTEXITCODE를 보존했고, 기존 VM 경고가 PowerShell 예외로 결과를 바꾸지 않도록 해당 명령 구간만 ErrorActionPreference=Continue를 사용했습니다. 실행용 스크립트·로그·결과 XML은 ignored build/verification 아래에 두며 운영 의존성·설정은 추가하지 않았습니다.
+
+| 테이블 | 주 격리 DB 실행 전 / 성공 1회 후 / 성공 2회 후 | 개발 DB 검증 전 / 테스트 후 (읽기 전용) |
+|---|---|---|
+| demo_account / demo.* | 4 / 4 / 4 | 4 / 4 |
+| auth_token | 0 / 0 / 0 | 8 / 8 |
+| auth_login_limit | 0 / 0 / 0 | 88 / 88 |
+| auth_audit | 0 / 0 / 0 | 130 / 130 |
+| episode / episode_source_version / source_block / domain_audit | 각각 0 / 0 / 0 | 각각 0 / 0 |
+| episode_assignment / translation_version / translation_block / review_decision / publication | 각각 0 / 0 / 0 | 각각 0 / 0 |
+
+주 격리 DB의 4계정은 로그인용 시드가 아닌 보존 fixture입니다. 기존 HTTP 테스트는 자체 계정과 고유 서버 측 주소를 사용하고 공유 127.0.0.1 제한 키를 정리하지 않습니다. 각 테스트가 만든 행만 롤백·정리했습니다. 앱 계정의 읽기 전용 비교에서 격리·개발 DB 기존 인증 전체 행 정렬 집계 해시 차이 0, V1~V26 SQL 파일 SHA-256 차이 0입니다. 로그/JUnit XML 37개 파일에서 실제 DB 비밀번호 일치 및 Bearer/root 출력 패턴 0건을 확인했습니다.
+
+### 개발 DB3306 적용 상태
+
+격리 검증이 모두 통과한 후 사용자가 **개발 DB에 V27~V30 적용**을 별도로 승인했습니다. 적용 직전 V26 성공 이력 26개·대상 컬럼 NULL 데이터 0건·기존 행 수/내용 차이 0을 읽기 전용 확인한 뒤, PowerShell 5.1에서 README 2절 환경 주입과 localhost:3306 URL 검사를 거쳐 다음 명령을 실행했습니다. 회귀 테스트는 끝까지 격리 DB만 대상으로 했습니다.
+
+| 실제 개발 DB 명령 / 최종 조회 (2026-10-06, 16:46 KST 확인) | 결과 |
+|---|---|
+| `gradlew.bat -I build/verification/schema-tool.init.gradle schemaMigrate --no-daemon` | 통과, 종료 0, 7초. V27~V30 **4개 적용**, current=30, validate=PASS |
+| 같은 명령 재실행 | 통과, 종료 0, 7초. **추가 적용 0개**, current=30, validate=PASS |
+| Flyway 이력 | 성공 30개·최대 버전 30·실패 0개, V1~V26 checksum 차이 0 |
+| 데이터·제약 보존 | 위 표의 개발 DB 행 수 그대로(계정 4·토큰 8·제한 88·인증 감사 130·모든 도메인 0), 기존 인증 전체 행 정렬 집계 해시 차이 0. 개발 DB에 fixture 삽입/정리 없음 |
+| information_schema | 대상 10개 컬럼 모두 NOT NULL. NULL 허용 13개가 16.1과 정확히 일치. FK 19개의 이름·참조·규칙 전후 차이 0 |
+| FK 검사 | 최종 조회 연결 및 전역 foreign_key_checks=1. 실제 마이그레이션 연결의 V27/V28 복구는 위 일회용 DB callback 테스트에서 별도 확인 |
+
+이번 소유 3312 컨테이너는 저장한 ID를 대조한 뒤 `docker stop --timeout 10 mangabridge-source-notnull-3e3dc03`(종료 0)으로 정리했습니다(--rm 자동 정리). 테스트별 일회용 컨테이너도 각 테스트에서 종료했습니다. 기존 MySQL healthy, 기존 컨테이너·볼륨은 보존했습니다. V1~V30을 적용한 DB는 빈/업그레이드 경로의 일회용 DB, 주 회귀 격리 DB, 사용자 승인 후 개발 DB3306입니다. 다른 기존 DB에는 적용하지 않았습니다. 적용 후 로그/XML 총 39개 파일의 실제 DB 비밀번호 일치·Bearer/root 출력 패턴은 0건이고 이번 README 추가 diff에도 해당 비밀번호 값이 없습니다. 전체 README에서는 .env.example과 같은 로컬 예시 값이 검출됐지만 시작 커밋에도 있던 내용으로 이번에 추가하지 않았습니다(값은 보고하지 않음). V1~V26 파일 해시·운영 코드·프런트·계약 문서는 그대로이며 PROJECT_CONTEXT.md의 기존 M은 남겨 둡니다. 외부 배포·브라우저 검증은 이번 스키마 노드 범위가 아니며 실행하지 않았습니다.
