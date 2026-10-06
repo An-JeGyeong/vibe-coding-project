@@ -1,7 +1,7 @@
 # CONTRACTS.md
 
 관리: ProjectBootstrap·EpisodeSource는 Claude Code, DemoAuth 공통 계약은 Codex / 최종 승인: 사용자
-범위: ProjectBootstrap, 승인된 DemoAuth, 13절 EpisodeSource(APPROVED 2026-10-05), 14절 전체 도메인 스키마(APPROVED 2026-10-06), 15절 Assignment(APPROVED 2026-10-06), 16절 스키마 보정 2(APPROVED), 17절 Translation(APPROVED 2026-10-06). 아래 DemoAuth 절은 인증 제외·단일 API·빈 스키마 등 Bootstrap 단계 제한을 해당 기능에 한해 대체한다.
+범위: ProjectBootstrap, 승인된 DemoAuth, 13절 EpisodeSource(APPROVED 2026-10-05), 14절 전체 도메인 스키마(APPROVED 2026-10-06), 15절 Assignment(APPROVED 2026-10-06), 16절 스키마 보정 2(APPROVED), 17절 Translation(APPROVED 2026-10-06), 18절 Review(PROPOSED: 사용자 계약 승인 전 구현 금지). 아래 DemoAuth 절은 인증 제외·단일 API·빈 스키마 등 Bootstrap 단계 제한을 해당 기능에 한해 대체한다.
 근거: `DECISIONS.md` D-001~D-003, D-006~D-008, D-010, D-012~D-018 (D-011, D-004의 DB 엔진 부분은 D-018로 대체)
 DB 엔진: MySQL 8.4 LTS (D-018). 이전 PostgreSQL 기준 문구는 모두 대체되었다.
 미결정(계약 대상 아님): D-004 관리형 MySQL 제품, D-005 백엔드 호스팅 제품, D-009 인증 방식
@@ -655,3 +655,66 @@ NOT NULL 규칙은 **모든 도메인·인증 테이블**에 적용한다. NULL 
 - backend(실제 MySQL): 17.4 표의 테스트, 4개 역할 × 5개 API의 401/403/성공 매트릭스(역할 위조·본문 role 포함), 배정 범위(미배정 번역가·교체된 이전 번역가 404, 새 번역가의 DRAFT 이어받기, 감수자가 배정 회차에서도 번역 API 403), V31 적용·기존 데이터 보존·스키마 검사 통과, 기존 EpisodeSource·Assignment·인증 통합 테스트가 **수정 없이** 통과, 오류 비노출·비JSON 400, 기존 회귀·빌드. 통합 테스트가 만든 회차·배정·번역·감사·계정 행만 정리하고 연속 2회 통과·전후 행 수를 비교한다.
 - frontend: 17.5 전부(생성·병기 편집·저장·제출·누락 표시·409 두 종류·401·403·404·503·통신 오류·중복 제출·늦은 응답 무시·감수자의 번역 API 미호출·읽기 전용 상태), 기존 회귀, 타입·빌드. 모킹 테스트 통과는 실제 연동 성공이 아니다.
 - 최종 실제 연동(Codex, 격리 환경): 운영자가 회차·원문·배정 → 번역가가 새 번역 시작·편집·저장·새로고침 유지·다른 탭/API로 리비전을 올린 뒤 저장해 충돌 → 일부 번역만 있는 상태에서 제출해 누락 표시 → 완성 후 제출(REVIEW_PENDING·읽기 전용) → 운영자가 원문을 수정해 번역 버전이 INVALIDATED가 되고 번역가 화면이 안내 → 새 번역 시작 시 이전 내용이 seq 기준으로 복사됨 → 번역가 교체 후 이전 번역가 404·새 번역가가 DRAFT를 이어받음 → 감수자·운영자·독자의 실제 브라우저 403(콘솔 fetch)·PUT/POST preflight·감사(TRANSLATION_CREATED·TRANSLATION_SUBMITTED·APPROVAL_INVALIDATED는 테스트 픽스처로 승인 상태를 만든 뒤)를 확인한다. 삭제 API가 없어 만든 행이 남으므로 격리 환경에서만 수행한다.
+
+## 18. Review — 감수(검수 대기·대조·승인·반려)와 운영자의 번역 조회 (PROPOSED, 사용자 계약 승인 후 구현)
+
+작성: Claude Code. 구현: backend=Codex, frontend=Claude Code. 근거: DECISIONS.md D-032·D-033·D-035·D-036·D-038(승인), D-045(승인), D-046(이 계약 승인 시 함께 승인). 인증·역할·오류 형식·CORS는 12절, 회차·원문은 13절, 스키마는 14·16절, 배정은 15절, 번역은 17절을 따른다. **이 노드는 마이그레이션이 없다**(`review_decision`·감사 이벤트는 14절에 이미 있다).
+
+### 범위
+- 포함: 배정된 감수자의 검수 대기 목록, 원문·번역 대조 조회, 승인, 반려(사유 필수), 운영자의 번역 버전 읽기(목록·상세), 번역가의 반려 사유 조회(기존 17절 응답에 필드 추가).
+- 제외: 발행·독자 열람(다음 노드), 승인 취소(D-045: 두지 않음), 감수 의견 수정·삭제, AI 검수 참고(선택 기능).
+
+### 18.1 API
+시각은 UTC ISO-8601 `Z`, ID는 문자열, 번역 버전은 회차 안의 `versionNo`(정수), `Cache-Control: no-store`. 감수자 API는 그 회차의 **현재 배정된** REVIEWER만 쓸 수 있다.
+| API | 권한 | 요청 | 성공 응답 |
+|---|---|---|---|
+| GET /api/my/reviews?limit=&offset= | REVIEWER | limit 1~100(기본 50), offset ≥0 | 200 {"items":[{"episodeId","title","versionNo","sourceVersion","submittedAt"}],"total":n} — 내게 배정된 회차의 `REVIEW_PENDING` 버전만, 제출 시각 오름차순 |
+| GET /api/my/episodes/{id}/reviews | 배정된 REVIEWER | — | 200 {"latestSourceVersion":n,"items":[{"versionNo","status","sourceVersion","submittedAt","decision":null\|{"decision","decidedAt","reason"}}]} — 상태 `REVIEW_PENDING`·`APPROVED`·`REJECTED`만, versionNo 내림차순 |
+| GET /api/my/episodes/{id}/reviews/{versionNo} | 배정된 REVIEWER | — | 200 {"versionNo","status","sourceVersion","submittedAt","decidable":bool,"decision":null\|{…},"blocks":[{"seq","pageNo","source","text"}]} (그 버전이 묶인 원문 버전의 모든 블록) |
+| POST /api/my/episodes/{id}/reviews/{versionNo}/approve | 배정된 REVIEWER | 본문 없음 | 200 {"versionNo","status":"APPROVED","decidedAt"} |
+| POST /api/my/episodes/{id}/reviews/{versionNo}/reject | 배정된 REVIEWER | {"reason":"…"} | 200 {"versionNo","status":"REJECTED","decidedAt"} |
+| GET /api/episodes/{id}/translations | OPERATOR | — | 200 {"latestSourceVersion":n,"items":[{"versionNo","status","sourceVersion","revision","createdAt","submittedAt","decision":null\|{…}}]} — **모든 상태**, versionNo 내림차순 |
+| GET /api/episodes/{id}/translations/{versionNo} | OPERATOR | — | 200 {"versionNo","status","sourceVersion","createdAt","submittedAt","decision":null\|{…},"invalidatedAt":null\|"…","blocks":[{"seq","pageNo","source","text"}]} |
+- `decision` 객체는 `{"decision":"APPROVED"\|"REJECTED","decidedAt":"…","reason":"…"\|null}`이며 `reason`은 반려일 때만 값이 있다. 작성자·감수자 이름 등 계정 정보는 노출하지 않는다.
+- **번역가 응답에 필드 추가(17.2의 가산적 변경)**: `GET /api/my/episodes/{id}/translations`의 `items[]`와 `GET …/translations/{versionNo}`에 `decision`(위 형식, 없으면 null)을 추가한다. 기존 필드·동작은 바뀌지 않는다.
+- 경로의 id·versionNo가 `^[1-9][0-9]{0,17}$`(versionNo는 `{0,8}`)가 아니거나, 존재하지 않거나, **배정되지 않은 회차**이거나, 감수자에게 보이지 않는 상태(`DRAFT`·`INVALIDATED`·`PUBLISHED`·`ON_HOLD`)이면 404 NOT_FOUND(D-038). 역할 위반은 403 FORBIDDEN(ACCESS_DENIED 감사), 비로그인 401. `/api/my/reviews`는 감수자 외(번역가 포함)에게 403이다.
+- 미정의 필드·깨진 JSON·비JSON Content-Type은 400 INVALID_REQUEST. approve는 본문을 받지 않는다(있으면 400).
+
+### 18.2 규칙 (모든 변경은 episode 행 `SELECT … FOR UPDATE` 후 하나의 트랜잭션)
+- **승인·반려 공통 조건**: 호출자가 그 회차의 현재 배정된 감수자이고, 버전 상태가 `REVIEW_PENDING`이며, 버전의 `source_version_no`가 최신 원문 버전과 같아야 한다. 상태 불일치(이미 처리됨·원문 변경으로 무효화됨 등)는 409 STATE_CONFLICT(`currentStatus` 포함). 호출자가 번역 버전의 작성자(`created_by`)와 같으면 403 FORBIDDEN(D-035의 추가 방어, 계정당 단일 역할이라 정상 흐름에서는 발생하지 않는다).
+- **동시 처리 검사는 별도로 두지 않는다(D-045)**: 제출된 버전은 불변이므로 `expectedRevision` 같은 검사 없이, 상태가 `REVIEW_PENDING`인지로만 판정한다. 감수자가 화면을 보는 사이 원문이 바뀌면 그 버전은 이미 `INVALIDATED`이므로 요청은 409이다. 같은 버전에 동시에 승인·반려가 오면 정확히 하나만 성공하고 나머지는 409이다.
+- **승인**: `review_decision`을 INSERT(decision='APPROVED', reason NULL, reviewer_id, source_version_no, decided_at)하고 버전 상태를 `APPROVED`로 바꾸며 감사 `REVIEW_APPROVED`(actor=감수자, episode_id, source_version, translation_version_id)를 기록한다. **결정 행과 상태 변경은 반드시 같은 트랜잭션**이다(승인된 버전은 항상 결정 행이 정확히 하나 있다 — 17.3의 원문 변경 시 무효화가 이 전제를 쓴다).
+- **반려**: 사유 필수(1~500 코드포인트, 공백만 불가, 제어문자는 탭·개행만, trim·정규화 금지, 아니면 400). `review_decision`(decision='REJECTED', reason)을 INSERT하고 상태를 `REJECTED`로 바꾸며 감사 `REVIEW_REJECTED`를 기록한다. 이후 번역가는 새 번역을 시작할 수 있다(`REJECTED`는 열린 버전이 아니며 새 DRAFT는 직전 번역을 같은 seq로 복사한다 — 17.3).
+- **사유 공개 범위(D-045)**: 반려 사유는 그 회차의 현재 배정된 번역가·감수자와 운영자만 볼 수 있다(위 API들의 `decision.reason`). 독자·비배정 번역가·감수자에게는 어떤 경로로도 노출하지 않는다. 사유는 감사에 저장하지 않는다.
+- **승인 취소는 없다(D-045)**: 승인된 버전을 되돌리는 API가 없다. 승인은 발행 전에 운영자가 원문을 바꿔 `INVALIDATED`가 되는 경우로만 무효화된다(17.3).
+- 감사 저장 실패는 전체 롤백과 503 SERVICE_UNAVAILABLE. 오류 형식은 12·13절과 같고 추가 필드는 `currentStatus`뿐이다. 코드: 400 INVALID_REQUEST, 401, 403, 404, 409 STATE_CONFLICT, 503, 500. 비밀·내부 예외 비노출.
+- **보안 규칙 순서**: `/api/my/reviews`와 `/api/my/episodes/*/reviews/**`는 REVIEWER 전용이며 기존 `/api/my/**`(번역가·감수자 공용)보다 **먼저** 평가되어야 한다(번역가가 403이어야 한다). 운영자 API는 기존 `/api/episodes/**` OPERATOR 전용 규칙이 이미 덮는다.
+
+### 18.3 처리 함수
+| 이름 | 입력 → 출력 | 권한 | 상태 변경 | 실패 | 필수 테스트 |
+|---|---|---|---|---|---|
+| listPendingReviews | 호출자, limit, offset → 목록 | REVIEWER | 없음 | 400/401/403/503 | 내게 배정된 회차의 REVIEW_PENDING만, 다른 감수자 배정 제외, 정렬·페이지·경계 |
+| listEpisodeReviews / getReview | 호출자, episodeId(, versionNo) → 목록/상세 | 배정된 REVIEWER | 없음 | 404/401/403/503 | 보이는 상태 3종만, DRAFT·INVALIDATED 404, 미배정·교체 후 404, 병기 내용 일치, decidable 값, 결정 정보 |
+| approveTranslation | 호출자, versionNo → 결과 | 배정된 REVIEWER | 결정 행 INSERT, 상태→APPROVED, 감사 | 404/409/403/503 | 정상(결정 행 1개·감사 1건), REVIEW_PENDING 아님 409, 원문 변경으로 INVALIDATED면 409, 중복 처리 409, 작성자 방어 403, 감사 장애 롤백, 동시 승인·반려 하나만 성공 |
+| rejectTranslation | 호출자, versionNo, reason → 결과 | 배정된 REVIEWER | 결정 행 INSERT, 상태→REJECTED, 감사 | 400/404/409/503 | 정상, 사유 없음·공백만·501자·제어문자 400, 중복 409, 반려 후 번역가의 새 번역 생성·복사 |
+| listTranslationsForOperator / getTranslationForOperator | episodeId(, versionNo) → 목록/상세 | OPERATOR | 없음 | 404/401/403/503 | 모든 상태, 결정·사유·invalidatedAt, 없는 버전 404, 다른 역할 403 |
+| (번역가 응답 확장) | — | 배정된 TRANSLATOR | 없음 | — | 반려 버전의 사유 노출, 승인 버전, 결정 없는 버전 null, 기존 17절 테스트 수정 없이 통과 |
+
+### 18.4 프런트 계약 (Claude Code)
+- **감수자** `/demo`: "검수 대기 목록"을 링크(`/reviews`)로 활성화한다(기존 "배정된 회차" 링크 유지, "승인·반려"는 별도 화면이 없는 동작이라 비활성 유지).
+  - `/reviews`: 검수 대기 목록(회차 제목, 버전, 제출 시각, 20개씩 페이지 이동)과 `/reviews/{episodeId}/{versionNo}` 링크.
+  - `/reviews/{episodeId}/{versionNo}`: 원문·번역 읽기 전용 병기 표시. `decidable`이면 "승인"과 "반려"를 보인다. 둘 다 되돌릴 수 없으므로 확인 단계를 거친다(승인은 확인 문구, 반려는 사유 입력(1~500자 검증)과 확인). 결정이 이미 있으면 결정·시각·반려 사유를 읽기 전용으로 보인다.
+  - 감수자의 `/assigned/{id}`: 기존 읽기 전용 원문에 더해 "검수 버전" 목록(상태·제출 시각·결정)과 상세 링크를 추가한다. 번역가용 번역 API는 호출하지 않는다.
+- **번역가** `/assigned/{id}`: `REJECTED` 버전에 반려 사유를 표시하고(목록 요약과 상세), 반려 후 "새 번역 시작"이 가능함을 안내한다. 승인된 버전은 승인됨으로 읽기 전용 표시.
+- **운영자** `/episodes/{id}`: "번역 현황" 영역을 추가한다 — 버전 목록(상태·기준 원문·제출 시각·결정)과 "보기"로 읽기 전용 병기 상세(결정·반려 사유·무효화 시각 포함).
+- 오류 처리: 401은 인증 정리, 403은 권한 안내(로그인 유지), 404는 "배정되지 않았거나 존재하지 않는 항목", 409 STATE_CONFLICT는 현재 상태 안내(이미 처리됨/원문 변경으로 무효화됨)와 새로고침, 503·통신 오류는 입력(반려 사유)을 유지한 재시도. 중복 제출 방지, 늦은 응답 무시. 역할 판정은 편의 기능이며 서버가 강제한다.
+
+### 18.5 파일 소유권
+- Codex 변경: backend/src/main(신규 `review` 패키지와 운영자 번역 조회, 번역가 응답의 `decision` 추가, 보안 규칙 순서, 공통 오류 처리), backend/src/test, README 실행·검증 기록. **마이그레이션 없음.**
+- Claude Code 변경: frontend/src, frontend/tests/ui.
+- 변경 금지: V1~V31, 기존 인증·회차·원문·배정·번역 API의 기존 필드·동작(번역가 응답의 `decision` 추가 제외), PROJECT_CONTEXT.md, 서로의 영역. 계약 변경이 필요하면 구현을 멈추고 제안한다.
+
+### 18.6 필수 테스트·완료 조건
+- backend(실제 MySQL): 18.3 표의 테스트, 역할 매트릭스(`GET /api/my/reviews`·감수 상세·승인·반려·운영자 번역 조회 × 4개 역할 + 비로그인, 역할 위조·본문 role 포함, 번역가가 `/api/my/reviews`에서 403), 배정 범위(미배정·교체된 이전 감수자 404, 새 감수자의 인계), 사유 노출 범위(독자·비배정자에게 비노출), 승인된 버전은 결정 행이 정확히 1개, 승인 후 운영자의 원문 변경 → INVALIDATED·`invalidated_at`·`APPROVAL_INVALIDATED`(17절 훅과 결합), 기존 EpisodeSource·Assignment·Translation 통합 테스트가 **수정 없이** 통과, 오류 비노출·비JSON 400, 기존 회귀·빌드. 통합 테스트가 만든 행만 정확히 정리하고 데모 계정·기존 데이터·제한 행 수를 바꾸지 않으며 연속 2회 통과·전후 행 수를 비교한다.
+- frontend: 18.4 전부(검수 대기 목록·페이지 이동, 병기 조회, 승인·반려의 확인 단계와 사유 검증, 409·404·401·403·503·통신 오류, 중복 제출 방지, 늦은 응답 무시, 번역가의 사유 표시, 운영자 번역 현황, 역할별 미호출·안내), 기존 회귀, 타입·빌드. 모킹 테스트 통과는 실제 연동 성공이 아니다.
+- 최종 실제 연동(Codex, 격리 환경 — 삭제 API가 없어 만든 행이 남음): 운영자 원문·배정 → 번역가가 제출 → 감수자가 대기 목록에서 열어 원문 대조 후 반려(사유) → 번역가가 사유를 보고 새 번역(복사)을 제출 → 감수자가 승인 → 운영자가 번역 현황에서 승인됨과 결정을 확인 → 운영자가 원문을 수정하면 승인된 버전이 무효화되고 감수자의 대기 목록·번역가 화면에 반영 → 처리된 버전 재처리 409·동시 승인/반려 하나만 성공 → 미배정 감수자 404·번역가·운영자·독자의 브라우저 403(콘솔 fetch)·승인/반려 POST preflight → 감사 `REVIEW_APPROVED`·`REVIEW_REJECTED`·`APPROVAL_INVALIDATED`와 결정 행 정합(승인 버전마다 결정 행 1개)을 확인한다.
