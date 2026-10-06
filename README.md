@@ -661,3 +661,48 @@ PS5.1 네이티브 실행 직후 LASTEXITCODE를 보존했고, 기존 VM 경고�
 | FK 검사 | 최종 조회 연결 및 전역 foreign_key_checks=1. 실제 마이그레이션 연결의 V27/V28 복구는 위 일회용 DB callback 테스트에서 별도 확인 |
 
 이번 소유 3312 컨테이너는 저장한 ID를 대조한 뒤 `docker stop --timeout 10 mangabridge-source-notnull-3e3dc03`(종료 0)으로 정리했습니다(--rm 자동 정리). 테스트별 일회용 컨테이너도 각 테스트에서 종료했습니다. 기존 MySQL healthy, 기존 컨테이너·볼륨은 보존했습니다. V1~V30을 적용한 DB는 빈/업그레이드 경로의 일회용 DB, 주 회귀 격리 DB, 사용자 승인 후 개발 DB3306입니다. 다른 기존 DB에는 적용하지 않았습니다. 적용 후 로그/XML 총 39개 파일의 실제 DB 비밀번호 일치·Bearer/root 출력 패턴은 0건이고 이번 README 추가 diff에도 해당 비밀번호 값이 없습니다. 전체 README에서는 .env.example과 같은 로컬 예시 값이 검출됐지만 시작 커밋에도 있던 내용으로 이번에 추가하지 않았습니다(값은 보고하지 않음). V1~V26 파일 해시·운영 코드·프런트·계약 문서는 그대로이며 PROJECT_CONTEXT.md의 기존 M은 남겨 둡니다. 외부 배포·브라우저 검증은 이번 스키마 노드 범위가 아니며 실행하지 않았습니다.
+
+## 12. Translation 백엔드 및 V31 검증 (2026-10-06 KST)
+
+Codex 직접 실행, 시작 기준 `9b0f9d3048029eff4ad7efdac8ce643f2449ffd8`, 승인 계약 17절 및 D-043/D-044. 작업 전 변경은 PROJECT_CONTEXT.md의 기존 줄바꿈 M뿐이었으며 해당 파일은 수정·stage·restore하지 않았습니다. SQL 커밋 `bf629c9`, 백엔드 커밋 `d377bfc`, 테스트 커밋 `a8b6e0a`입니다. V1~V30, 프런트, CONTRACTS.md·DECISIONS.md 및 기존 인증·EpisodeSource·Assignment 통합 테스트는 변경하지 않았습니다.
+
+현재 배정된 TRANSLATOR 전용 API 5개(번역 버전 목록·생성·상세·전체 교체 저장·검수 제출)를 추가했습니다. 서버는 매 요청 현재 배정을 확인하고, 모든 변경에서 episode 행 잠금 후 상태·리비전을 검사합니다. 원문 신규 저장은 같은 트랜잭션에서 DRAFT/REVIEW_PENDING/APPROVED를 INVALIDATED로 바꾸며 승인 무효화·감사 실패 시 원문 저장까지 롤백합니다. 동일 원문 저장, REJECTED/INVALIDATED/PUBLISHED/ON_HOLD 및 공개 포인터는 그대로 유지합니다. 저장 API의 기존 요청·응답은 유지합니다. CORS는 기존 POST/PUT·Authorization/Content-Type 허용 설정으로 충분하여 변경하지 않았습니다.
+
+### 격리 실제 MySQL 검증
+
+Windows PowerShell **5.1.26100.9444**, 실제 MySQL **8.4.11**, Docker Linux. 주 검증 DB는 이번 소유 `mangabridge-translation-9b0f9d3`, localhost:3313/translation_verify(--rm, /var/lib/mysql tmpfs)이며 마이그레이션 경로 테스트는 각각 별도 일회용 MySQL을 사용했습니다. 주 DB의 demo.* 4계정은 보존 fixture로 로그인용 시드가 아니며, HTTP 테스트는 자체 계정·BCrypt·실제 Bearer 인증을 사용합니다. 개발 DB를 회귀 테스트 대상으로 사용하지 않았습니다.
+
+| 직접 실행 명령 / 항목 | 결과 |
+|---|---|
+| `docker run -d --rm --pull=never --name mangabridge-translation-9b0f9d3 --publish 127.0.0.1:3313:3306 --tmpfs /var/lib/mysql:rw --env MYSQL_USER --env MYSQL_PASSWORD --env MYSQL_DATABASE --env MYSQL_RANDOM_ROOT_PASSWORD mysql:8.4.11 --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci --default-time-zone=+00:00` | 성공. 앱 계정의 실제 SELECT 1 확인. 비밀번호 값과 root 로그는 출력하지 않음 |
+| `gradlew.bat compileJava compileTestJava --no-daemon` | 통과, 종료 0, 9초 |
+| `gradlew.bat -I build/verification/schema-tool.init.gradle schemaMigrate --no-daemon` | 통과, 종료 0, 9초. 빈 주 검증 DB V1~V31 31개 적용, current=31/validate=PASS |
+| `gradlew.bat integrationTest --tests '*TranslationIntegrationTest' --no-daemon --rerun-tasks` | 당시 번역 테스트 10개 통과, 종료 0, 28초. 이후 동시 원문 저장 테스트와 입력 검증 보완은 아래 전체 실행에서 검증 |
+| 첫 `gradlew.bat build integrationTest --no-daemon --rerun-tasks` | 실패, 종료 1, 1시간 56분 4초. 번역 11개 등은 통과했으나 기존 populatedV26Correction 테스트의 일회용 MySQL 앱 계정 SELECT 1 준비 확인이 1건 실패. 전체 실행 지연 원인은 확정하지 못했으며 마이그레이션 SQL 실패로 표시하지 않음. 준비 타임아웃을 늘리지 않고 재실행 |
+| 같은 전체 명령, 최종 코드 연속 성공 1회 | 통과, 종료 0, 2분 11초. 기본 20 + 실제 MySQL 통합 63 = **83개**, 실패·오류·건너뛰기 0 |
+| 같은 전체 명령, 코드 변경 없이 연속 성공 2회 | 통과, 종료 0, 2분 14초. 같은 **83개**, 실패·오류·건너뛰기 0. 두 번째 성공 결과 19:11 KST 확인 |
+| 번역 입력·저장·제출 | 통과. 4000 코드포인트 경계·공백/제어문자·변환 없음·빈 배열·중복/없는 seq·JSON 타입·미정의 필드·깨진 JSON·비JSON 400, 전체 교체·동일 저장 무쓰기, 리비전 충돌 latestRevision, 상태 충돌 currentStatus, 누락 missingSeqs, 제출 후 불변성 |
+| 권한·배정·오류 | 통과. 4역할 × 5API의 비로그인 401/역할 위반 403 및 번역가 성공, ACCESS_DENIED 감사, 헤더/본문 역할 위조, 미배정/교체된 번역가 404, 새 번역가의 기존 DRAFT 편집, 작성자/내부 ID·예외 비노출, 실제 접속 불가 DB에서 503 |
+| 생성·복사·동시성 | 통과. 열린 버전/원문 없음 409, 직전 버전 상태 무관 seq 복사·삭제 seq 제외, 과거 버전 유지. 동시 생성 201/409, 동시 저장 200/409. 원문 잠금 선점 시 저장/제출 409 INVALIDATED, 제출 선행 후 원문 변경 시 INVALIDATED |
+| 무효화·롤백·감사 | 통과. 7개 상태별 효과·공개 포인터 보존, 변경 없는 원문 저장 무효화 없음, 번역 없는 회차 정상, 복수 승인 무효화 시간/감사 actor·새 원문 버전·번역 ID, 생성/제출 감사 장애 및 부분 무효화 감사 장애의 전체 롤백 |
+| V31 마이그레이션 | 통과. 빈 DB 최신 V31/validate/재실행 추가 적용 0개. 데이터가 있는 V30 DB에 V31 1개 적용, 13개 테이블의 기존 행 수·전체 기존 컬럼 내용 및 V1~V30 checksum 보존. 기존 번역 두 행에 revision=1, INT NOT NULL DEFAULT 1 확인 |
+| 스키마·기존 회귀 | 통과. NULL 허용 목록 13개 그대로, FK 19개, foreign_key_checks 연결/전역 1. 이전 마이그레이션 경로·제약·인증·EpisodeSource·Assignment·health 회귀 유지. 과거 V26 보정 전용 테스트는 명시 target=30으로 범위를 유지 |
+| API CORS | 통과. 실제 HTTP OPTIONS에서 PUT 저장과 POST 제출 허용 Origin·Authorization/Content-Type 확인. 브라우저 네트워크 검증 결과로 대체하지 않음 |
+
+환경은 README 2절 방식으로 PS 프로세스에 주입하고 DB_URL만 격리 주소로 설정했습니다. 네이티브 명령 직후 LASTEXITCODE를 보존했습니다. 도구용 Gradle init/script·로그·JUnit 결과는 ignored build/verification에만 두었고 운영 의존성·설정은 추가하지 않았습니다.
+
+| 테이블 | 주 격리 DB 전 / 성공 1회 후 / 성공 2회 후 | 개발 DB 전 / 테스트 후 (읽기 전용) |
+|---|---|---|
+| demo_account / demo.* | 4 / 4 / 4 | 4 / 4 |
+| auth_token | 0 / 0 / 0 | 8 / 8 |
+| auth_login_limit | 0 / 0 / 0 | 88 / 88 |
+| auth_audit | 0 / 0 / 0 | 130 / 130 |
+| episode / episode_source_version / source_block / domain_audit | 각각 0 / 0 / 0 | 각각 0 / 0 |
+| episode_assignment / translation_version / translation_block / review_decision / publication | 각각 0 / 0 / 0 | 각각 0 / 0 |
+
+각 테스트가 만든 행만 정확히 정리하며 고유 서버 측 fixture 주소를 사용합니다. 공유 127.0.0.1 제한 키는 정리하지 않습니다. 격리·개발 DB의 기존 인증 전체 행 정렬 집계 해시 차이 0, V1~V30 파일 SHA-256 차이 0입니다. 로그/JUnit XML 43개에서 실제 DB 비밀번호 일치·Bearer/root 출력 패턴 0건을 확인했습니다.
+
+### 개발 DB3306 및 후속 연동
+
+V31 개발 DB 적용은 별도 사용자 확인 대기 중이며 아직 실행하지 않았습니다. 브라우저·프런트 검증은 이번 백엔드 작업에서 미실행입니다. Claude Code의 프런트 구현 후 계약 17.7의 실제 브라우저 최종 연동을 격리 환경에서 수행해야 합니다. 외부 배포·Vercel·프록시 IP 정책도 미검증입니다.
+이번 소유 3313 컨테이너는 저장한 ID를 대조한 뒤 `docker stop --timeout 10 mangabridge-translation-9b0f9d3`(종료 0)으로 정리했습니다(--rm 자동 정리). 테스트별 일회용 컨테이너도 종료됐으며 기존 개발 MySQL은 healthy입니다. 기존 컨테이너·볼륨을 삭제하거나 기존 서버를 중지하지 않았습니다. 실제 적용한 DB는 빈/업그레이드 경로 일회용 DB와 주 회귀 격리 DB이며, 개발 DB3306은 사용자 승인 답변 전까지 V30을 유지합니다. README의 이번 추가 diff에 DB 비밀번호 값이 없으며 프런트·계약 문서·PROJECT_CONTEXT.md를 stage하지 않습니다.
