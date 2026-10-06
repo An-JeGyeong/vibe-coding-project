@@ -14,7 +14,7 @@ const isOpen = (status: string) => status === "DRAFT" || status === "REVIEW_PEND
 
 // Translator-only workspace (mounted by the page for a server-confirmed TRANSLATOR; the server enforces the role).
 // Drafts live in memory only — never in localStorage — until they are saved to the server.
-export function TranslationWorkspace({ episodeId }: { episodeId: string }) {
+export function TranslationWorkspace({ episodeId, onLatestSourceVersion }: { episodeId: string; onLatestSourceVersion?: (version: number) => void }) {
   const { handleUnauthorized } = useAuth();
   const [list, setList] = useState<TranslationList | null>(null);
   const [detail, setDetail] = useState<TranslationDetail | null>(null);
@@ -44,6 +44,7 @@ export function TranslationWorkspace({ episodeId }: { episodeId: string }) {
     const listed = await listTranslations(episodeId, request.signal);
     if (activeLoad.current !== request) return; // superseded or unmounted
     if (!listed.ok) { activeLoad.current = null; setLoading(false); finish(listed.failure); return; }
+    onLatestSourceVersion?.(listed.value.latestSourceVersion); // keep the page header in step with what the server just said
     const items = listed.value.items;
     const wanted = prefer ?? selectedRef.current;
     const chosen = items.find((item) => item.versionNo === wanted) ?? items.find((item) => isOpen(item.status)) ?? items[0] ?? null;
@@ -62,7 +63,7 @@ export function TranslationWorkspace({ episodeId }: { episodeId: string }) {
     setLoadFailure(null); setList(listed.value); setDetail(fetched.value);
     setTexts(Object.fromEntries(fetched.value.blocks.map((block) => [block.seq, block.text ?? ""])));
     setErrors({}); setMissing([]); setNeedsReload(false); setConfirming(false);
-  }, [episodeId, handleUnauthorized]);
+  }, [episodeId, handleUnauthorized, onLatestSourceVersion]);
 
   useEffect(() => {
     void load();

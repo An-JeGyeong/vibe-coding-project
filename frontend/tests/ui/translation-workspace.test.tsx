@@ -23,6 +23,7 @@ const detail = (versionNo: number, status: Status, texts: (string | null)[], rev
   blocks: [{ seq: 1, pageNo: 1, source: "원문 하나", text: texts[0] }, { seq: 2, pageNo: null, source: "원문 둘", text: texts[1] }],
 });
 const list = (...items: ReturnType<typeof summary>[]) => ({ latestSourceVersion: 2, items });
+const listAt = (latestSourceVersion: number, ...items: ReturnType<typeof summary>[]) => ({ latestSourceVersion, items });
 
 type H = (call: FetchCall) => Response | Promise<Response>;
 function server(routes: Record<string, H>, role: Role = "TRANSLATOR", episodeBody: unknown = episode()) {
@@ -282,6 +283,38 @@ describe("conflicts and failures", () => {
     healthy = true;
     click("다시 시도");
     expect(await screen.findByText(/아직 번역이 없습니다/)).toBeTruthy();
+  });
+});
+
+describe("page header follows the latest source version", () => {
+  test("a newer source version reported by the server replaces the stale number loaded with the page", async () => {
+    server({
+      [`GET ${BASE}`]: () => json(200, listAt(3, summary(1, "INVALIDATED"))),
+      [`GET ${BASE}/1`]: () => json(200, detail(1, "INVALIDATED", ["가", null])),
+    });
+    renderWithAuth(<AssignedDetailPage />);
+    await screen.findByText("원문 v2 (이전)");
+    expect(screen.getByText(/최신 원문 v3/)).toBeTruthy();
+    expect(screen.queryByText(/최신 원문 v2/)).toBeNull();
+  });
+
+  test("after a source change was discovered through a conflict, reloading brings the header and the table into agreement", async () => {
+    let latest = 2;
+    server({
+      [`GET ${BASE}`]: () => json(200, listAt(latest, summary(1, latest === 2 ? "DRAFT" : "INVALIDATED", 1, 2))),
+      [`GET ${BASE}/1`]: () => json(200, detail(1, latest === 2 ? "DRAFT" : "INVALIDATED", ["가", null])),
+      [`PUT ${BASE}/1`]: () => { latest = 3; return json(409, { error: { code: "STATE_CONFLICT", message: "x", currentStatus: "INVALIDATED" } }); },
+    });
+    renderWithAuth(<AssignedDetailPage />);
+    await screen.findByLabelText("블록 1 번역");
+    expect(screen.getByText(/최신 원문 v2/)).toBeTruthy();
+    type(2, "작성 중");
+    click("저장");
+    await screen.findByText("원문이 변경되어 이 번역은 무효화되었습니다. 새 번역을 시작하세요.");
+    click(/최신 내용 불러오기/);
+    await waitFor(() => expect(screen.getByText(/최신 원문 v3/)).toBeTruthy());
+    expect(screen.getByText("원문 v2 (이전)")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "새 번역 시작" })).toBeTruthy();
   });
 });
 

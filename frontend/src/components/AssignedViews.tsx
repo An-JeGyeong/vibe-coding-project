@@ -75,6 +75,8 @@ export function AssignedDetailView({ episodeId }: { episodeId: string }) {
   const [detail, setDetail] = useState<MyEpisodeDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [failure, setFailure] = useState<EpisodeFailure | null>(null);
+  // The translation workspace re-reads the latest source version after every change; the header must follow it.
+  const [liveSourceVersion, setLiveSourceVersion] = useState<number | null>(null);
   const activeLoad = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
@@ -113,9 +115,9 @@ export function AssignedDetailView({ episodeId }: { episodeId: string }) {
     <p><Link href="/assigned">← 배정된 회차</Link></p>
     <h1 className="h2 mb-1">{detail.title}</h1>
     <p className="text-secondary">내 담당: <strong>{ASSIGNEE_LABEL[detail.assignedRole]}</strong> ·
-      {detail.source ? ` 최신 원문 v${detail.source.version}` : " 아직 저장된 원문이 없습니다."}</p>
+      {detail.source ? ` 최신 원문 v${Math.max(detail.source.version, liveSourceVersion ?? 0)}` : " 아직 저장된 원문이 없습니다."}</p>
     {detail.assignedRole === "TRANSLATOR" && detail.source !== null
-      ? <TranslationWorkspace episodeId={episodeId} />
+      ? <TranslationWorkspace episodeId={episodeId} onLatestSourceVersion={setLiveSourceVersion} />
       : <section aria-label="원문 (읽기 전용)" className="card card-body shadow-sm">
       <h2 className="h5">원문 (읽기 전용)</h2>
       {detail.source === null
