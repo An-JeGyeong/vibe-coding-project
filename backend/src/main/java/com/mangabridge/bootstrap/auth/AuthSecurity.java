@@ -32,6 +32,8 @@ public class AuthSecurity {
                 .requestMatchers(org.springframework.http.HttpMethod.OPTIONS,"/**").permitAll()
                 .requestMatchers("/api/health","/api/auth/login","/api/auth/logout","/error").permitAll()
                 .requestMatchers("/api/episodes","/api/episodes/**").hasRole("OPERATOR")
+                .requestMatchers("/api/assignable-accounts").hasRole("OPERATOR")
+                .requestMatchers("/api/my/**").hasAnyRole("TRANSLATOR","REVIEWER")
                 .anyRequest().authenticated())
             .exceptionHandling(errors->errors
                 .authenticationEntryPoint((request,response,error)->AuthErrors.write(response,mapper,AuthFailure.required()))
