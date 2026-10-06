@@ -184,7 +184,8 @@ class TranslationIntegrationTest {
         assertThat(created.getBody().get("revision").intValue()).isEqualTo(1);
         error(start(id,translator),409,"STATE_CONFLICT");
         var detail=get(translations(id)+"/1",translator.token());
-        assertThat(detail.getBody().fieldNames()).toIterable().containsExactlyInAnyOrder("versionNo","status","sourceVersion","revision","createdAt","submittedAt","editable","blocks");
+        assertThat(detail.getBody().fieldNames()).toIterable().containsExactlyInAnyOrder("versionNo","status","sourceVersion","revision","createdAt","submittedAt","editable","blocks","decision");
+        assertThat(detail.getBody().get("decision").isNull()).isTrue();
         assertThat(detail.getBody().get("editable").booleanValue()).isTrue();
         assertThat(detail.getBody().get("createdAt").textValue()).endsWith("Z");
         assertThat(detail.getBody().get("submittedAt").isNull()).isTrue();
@@ -222,7 +223,8 @@ class TranslationIntegrationTest {
         error(start(id,translator),409,"STATE_CONFLICT");
         var list=get(translations(id),translator.token()).getBody();
         assertThat(list.fieldNames()).toIterable().containsExactlyInAnyOrder("latestSourceVersion","items");
-        assertThat(list.get("items").get(0).fieldNames()).toIterable().containsExactlyInAnyOrder("versionNo","status","sourceVersion","revision","createdAt","submittedAt");
+        assertThat(list.get("items").get(0).fieldNames()).toIterable().containsExactlyInAnyOrder("versionNo","status","sourceVersion","revision","createdAt","submittedAt","decision");
+        assertThat(list.get("items").get(0).get("decision").isNull()).isTrue();
         assertThat(domainCount(id,"TRANSLATION_CREATED")).isEqualTo(1);
         assertThat(domainCount(id,"TRANSLATION_SUBMITTED")).isEqualTo(1);
     }
