@@ -19,17 +19,6 @@ public class AuthDao {
     void insertAccount(String id, String name, Role role, String hash) {
         jdbc.update("INSERT INTO demo_account(login_id,display_name,role,password_hash) VALUES (?,?,?,?)", id,name,role.name(),hash);
     }
-    record Limit(byte[] key, int failures, Instant window, Instant blocked) { }
-    Limit lockLimit(byte[] key, Instant now) {
-        jdbc.update("INSERT INTO auth_login_limit(limit_key,window_start,updated_at) VALUES (?,?,?) ON DUPLICATE KEY UPDATE limit_key=limit_key",
-                key, ts(now),ts(now));
-        return jdbc.queryForObject("SELECT failures,window_start,blocked_until FROM auth_login_limit WHERE limit_key=? FOR UPDATE",
-                (rs,n) -> new Limit(key,rs.getInt(1),rs.getTimestamp(2).toInstant(),rs.getTimestamp(3)==null?null:rs.getTimestamp(3).toInstant()), key);
-    }
-    void saveLimit(Limit row, Instant now) {
-        jdbc.update("UPDATE auth_login_limit SET failures=?,window_start=?,blocked_until=?,updated_at=? WHERE limit_key=?",
-                row.failures(),ts(row.window()),row.blocked()==null?null:ts(row.blocked()),ts(now),row.key());
-    }
     void issue(byte[] hash, long id, Instant expires) {
         jdbc.update("INSERT INTO auth_token(token_hash,account_id,expires_at) VALUES (?,?,?)",hash,id,ts(expires));
     }

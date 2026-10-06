@@ -11,8 +11,8 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
     private final AuthService service;
     public AuthController(AuthService service) { this.service=service; }
-    @PostMapping("/login") public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request,HttpServletRequest http) {
-        return ResponseEntity.ok().header("Cache-Control","no-store").body(service.loginDemoAccount(request,http.getRemoteAddr()));
+    @PostMapping("/login") public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request) {
+        return ResponseEntity.ok().header("Cache-Control","no-store").body(service.loginDemoAccount(request));
     }
     @GetMapping("/me") public ResponseEntity<CurrentUser> me(Authentication authentication) {
         return ResponseEntity.ok().header("Cache-Control","no-store").body((CurrentUser)authentication.getPrincipal());

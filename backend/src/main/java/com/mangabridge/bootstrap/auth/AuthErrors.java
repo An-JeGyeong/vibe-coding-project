@@ -26,7 +26,6 @@ public class AuthErrors {
             case "INVALID_CREDENTIALS" -> "로그인 정보를 확인하세요.";
             case "AUTH_REQUIRED" -> "로그인이 필요합니다.";
             case "FORBIDDEN" -> "접근 권한이 없습니다.";
-            case "LOGIN_RATE_LIMITED" -> "잠시 후 다시 시도하세요.";
             case "AUTH_UNAVAILABLE" -> "인증 서비스를 사용할 수 없습니다. 다시 시도하세요.";
             case "NOT_FOUND" -> "요청한 회차 또는 원문 버전을 찾을 수 없습니다.";
             case "VERSION_CONFLICT" -> "원문이 변경되었습니다. 최신 버전을 확인하세요.";
@@ -37,7 +36,6 @@ public class AuthErrors {
     }
     @ExceptionHandler(AuthFailure.class) ResponseEntity<ErrorResponse> failure(AuthFailure e) {
         var response=ResponseEntity.status(e.status).header("Cache-Control","no-store");
-        if(e.retryAfter>0) response.header("Retry-After",Long.toString(e.retryAfter));
         return response.body(body(e.code));
     }
     @ExceptionHandler({HttpMessageNotReadableException.class, HttpMediaTypeNotSupportedException.class})

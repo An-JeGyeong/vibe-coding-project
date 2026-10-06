@@ -16,9 +16,6 @@ public class AuthSettings {
         try { ttl = Long.parseLong(env.getProperty("AUTH_TOKEN_TTL_SECONDS", "3600")); }
         catch (NumberFormatException e) { throw invalid("Invalid AUTH_TOKEN_TTL_SECONDS (seconds, 1..86400)"); }
         if (ttl < 1 || ttl > 86400) throw invalid("Invalid AUTH_TOKEN_TTL_SECONDS (seconds, 1..86400)");
-        if (!java.util.Arrays.asList(env.getActiveProfiles()).contains("local") ||
-                !env.getProperty("AUTH_CLIENT_IP_MODE", "DIRECT").equals("DIRECT"))
-            throw invalid("DemoAuth requires approved client IP policy; local DIRECT only currently approved");
         return ttl;
     }
     private IllegalStateException invalid(String message) {

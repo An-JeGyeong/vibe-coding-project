@@ -28,28 +28,17 @@ public class AuthService {
         this.tx=new TransactionTemplate(manager);
         this.dummyHash=encoder.encode(Base64.getEncoder().encodeToString(random.generateSeed(32)));
     }
-    public LoginResponse loginDemoAccount(LoginRequest request, String address) {
+    public LoginResponse loginDemoAccount(LoginRequest request) {
         validate(request);
         try {
             Object outcome=tx.execute(status->{
-                // Stable order across requests. Password verification happens under these locks.
                 Instant now=clock.instant().truncatedTo(ChronoUnit.MICROS);
-                var ip=normalize(dao.lockLimit(hash("ip:"+address),now),now);
-                var id=normalize(dao.lockLimit(hash("id:"+request.loginId()),now),now);
-                Instant blocked=latest(ip.blocked(),id.blocked());
-                if(blocked!=null && now.isBefore(blocked)) {
-                    dao.audit(null,"LOGIN_LIMITED","RATE_LIMIT",now);
-                    return AuthFailure.limited(Math.max(1,(long)Math.ceil((blocked.toEpochMilli()-now.toEpochMilli())/1000.0)));
-                }
                 Account account=dao.account(request.loginId());
                 boolean matches=encoder.matches(request.password(),account==null?dummyHash:account.passwordHash());
                 if(account==null || !matches || !account.enabled()) {
-                    dao.saveLimit(failed(ip,30,now),now); dao.saveLimit(failed(id,5,now),now);
                     dao.audit(null,"LOGIN_FAILURE","INVALID_CREDENTIALS",now);
                     return AuthFailure.credentials();
                 }
-                dao.saveLimit(new AuthDao.Limit(id.key(),0,now,null),now);
-                dao.saveLimit(ip,now);
                 byte[] bytes=new byte[32]; random.nextBytes(bytes);
                 String token=Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
                 Instant expires=now.plusSeconds(ttl);
@@ -98,16 +87,4 @@ public class AuthService {
         try { return MessageDigest.getInstance("SHA-256").digest(input.getBytes(StandardCharsets.UTF_8)); }
         catch(java.security.NoSuchAlgorithmException e) { throw new IllegalStateException("SHA-256 unavailable"); }
     }
-    private AuthDao.Limit normalize(AuthDao.Limit row, Instant now) {
-        if(row.blocked()!=null) {
-            if(!now.isBefore(row.blocked())) return new AuthDao.Limit(row.key(),0,now,null);
-            return row;
-        }
-        return !now.isBefore(row.window().plusSeconds(900))?new AuthDao.Limit(row.key(),0,now,null):row;
-    }
-    private AuthDao.Limit failed(AuthDao.Limit row,int maximum,Instant now) {
-        int count=row.failures()+1;
-        return new AuthDao.Limit(row.key(),count,row.window(),count>=maximum?now.plusSeconds(900):null);
-    }
-    private Instant latest(Instant first,Instant second) { return first==null?second:second==null?first:first.isAfter(second)?first:second; }
 }
