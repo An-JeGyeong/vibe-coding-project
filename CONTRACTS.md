@@ -1,7 +1,7 @@
 # CONTRACTS.md
 
 관리: ProjectBootstrap·EpisodeSource는 Claude Code, DemoAuth 공통 계약은 Codex / 최종 승인: 사용자
-범위: ProjectBootstrap, 승인된 DemoAuth, 13절 EpisodeSource(APPROVED 2026-10-05), 14절 전체 도메인 스키마(APPROVED 2026-10-06). 아래 DemoAuth 절은 인증 제외·단일 API·빈 스키마 등 Bootstrap 단계 제한을 해당 기능에 한해 대체한다.
+범위: ProjectBootstrap, 승인된 DemoAuth, 13절 EpisodeSource(APPROVED 2026-10-05), 14절 전체 도메인 스키마(APPROVED 2026-10-06), 15절 Assignment(PROPOSED: 사용자 계약 승인 전 구현 금지). 아래 DemoAuth 절은 인증 제외·단일 API·빈 스키마 등 Bootstrap 단계 제한을 해당 기능에 한해 대체한다.
 근거: `DECISIONS.md` D-001~D-003, D-006~D-008, D-010, D-012~D-018 (D-011, D-004의 DB 엔진 부분은 D-018로 대체)
 DB 엔진: MySQL 8.4 LTS (D-018). 이전 PostgreSQL 기준 문구는 모두 대체되었다.
 미결정(계약 대상 아님): D-004 관리형 MySQL 제품, D-005 백엔드 호스팅 제품, D-009 인증 방식
@@ -453,7 +453,7 @@ demo_account ─┬─< episode_assignment >─ episode            (번역가·�
 | V19 | domain_audit에 translation_version_id BIGINT NULL 추가 | 번역·감수·발행 이벤트 연결 |
 - 순서·유일성은 시각이 아니라 `version_no`와 UNIQUE로 보장한다(D-028). 모든 FK는 ON DELETE/UPDATE RESTRICT(삭제 기능 없음).
 - 기존 데이터(회차·원문·계정·토큰·감사)는 보존한다. 새 테이블은 비어 있다.
-- **NOT NULL 규칙(2026-10-06 명확화·D-039)**: 위 표에서 NULL 허용을 명시하지 않은 컬럼은 모두 NOT NULL이다. NULL 허용은 `translation_version.submitted_at`, `review_decision.reason`, `review_decision.invalidated_at`, `episode.published_translation_version_id`, `domain_audit.translation_version_id`뿐이다. 이유: 복합 FK는 구성 컬럼 중 하나라도 NULL이면 검사되지 않고 CHECK도 NULL이면 통과하므로, NULL을 허용하면 "DB가 직접 막는 규칙"이 우회된다(일회용 DB에서 재현 확인).
+- **NOT NULL 규칙(2026-10-06 명확화·D-039)**: 위 표에서 NULL 허용을 명시하지 않은 컬럼은 모두 NOT NULL이다. NULL 허용은 `translation_version.submitted_at`, `review_decision.reason`, `review_decision.invalidated_at`, `episode.published_translation_version_id`, `domain_audit.translation_version_id`뿐이다(15절 V26에서 `domain_audit.subject_account_id` 추가). 이유: 복합 FK는 구성 컬럼 중 하나라도 NULL이면 검사되지 않고 CHECK도 NULL이면 통과하므로, NULL을 허용하면 "DB가 직접 막는 규칙"이 우회된다(일회용 DB에서 재현 확인).
 - **보정 마이그레이션 V20~V25**: V11~V18은 이미 적용되어 수정할 수 없으므로 새 파일로 보정한다(파일당 DDL 하나, 해당 테이블은 비어 있다).
 | 파일 | 변경 |
 |---|---|
@@ -508,3 +508,58 @@ SET foreign_key_checks=1;
 
 ### 14.7 이후 노드 (각각 별도 계약, 스키마 변경이 필요하면 구현을 멈추고 14절 변경을 제안)
 1. 배정 — 운영자의 배정·조회, 번역가·감수자의 배정 회차 목록. 2. 번역 — 버전 생성(복사)·편집·제출, 원문 변경 시 무효화(saveSourceVersion 수정 포함). 3. 감수 — 대기 목록·원문 대조 조회·승인·반려. 4. 발행 — 승인본 발행과 공개본 고정. 5. 독자 열람 — 공개 목록·상세. 각 노드는 CONTRACTS 계약 → 사용자 승인 → Codex 백엔드 / Claude Code 프런트 → 실제 연동 검증 → 리뷰 순서를 따른다.
+
+## 15. Assignment — 담당자 배정·배정 회차 조회 (PROPOSED, 사용자 계약 승인 후 구현)
+
+작성: Claude Code. 구현: backend=Codex, frontend=Claude Code. 근거: DECISIONS.md D-031(배정)·D-038(접근 범위)·D-040(승인)·D-041(이 계약 승인 시 함께 승인). 인증·역할·오류 형식·CORS·Bearer 규칙은 12절, 회차 API 규칙은 13절을 그대로 따른다. 스키마는 14절(`episode_assignment`)을 쓰며 이 노드에서 마이그레이션 V26 하나만 추가한다.
+
+### 범위
+- 포함: 운영자의 번역가·감수자 지정·교체와 현재 배정 조회, 지정 후보 계정 목록, 번역가·감수자의 "내 배정 회차" 목록과 원문 읽기(읽기 전용), 감사 `ASSIGNED`.
+- 제외: 번역·감수·발행, 배정 해제(D-040: 교체만), 계정 생성·수정, 배정 이력 조회 화면, 알림.
+
+### 15.1 마이그레이션 (V26, DDL 하나)
+- `ALTER TABLE domain_audit ADD COLUMN subject_account_id BIGINT NULL` — 감사 대상(배정받은) 계정. 14.2의 "NULL 허용 컬럼" 목록에 추가한다(FK 없음, `translation_version_id`와 같은 방식). 배정 이력(누가 어떤 역할을 누구에게)은 이 컬럼과 계정의 역할로 복원한다.
+- V1~V25 수정 금지. 기존 데이터 보존.
+
+### 15.2 API
+| API | 권한 | 요청 | 성공 응답 |
+|---|---|---|---|
+| GET /api/assignable-accounts?role=TRANSLATOR\|REVIEWER | OPERATOR | role 필수 | 200 {"items":[{"id","displayName","role"}]} (활성 계정만, id 오름차순, loginId·비밀번호 미노출) |
+| GET /api/episodes/{id}/assignments | OPERATOR | — | 200 {"translator":{"account":{"id","displayName"},"assignedAt"}\|null,"reviewer":{…}\|null} |
+| PUT /api/episodes/{id}/assignments/{role} (role=translator\|reviewer) | OPERATOR | {"accountId":"2"} | 처음 지정 201, 교체·동일 200. {"role":"TRANSLATOR","account":{"id","displayName"},"assignedAt","changed":true\|false} |
+| GET /api/my/episodes?limit=&offset= | TRANSLATOR 또는 REVIEWER | limit 1~100(기본 50), offset ≥0 | 200 {"items":[{"id","title","assignedRole","latestSourceVersion","assignedAt","updatedAt"}],"total":n} (회차 id 내림차순) |
+| GET /api/my/episodes/{id} | TRANSLATOR 또는 REVIEWER | — | 200 {"id","title","assignedRole","latestSourceVersion","source":null\|{"version","savedAt","blocks":[{"seq","pageNo","text"}]}} (최신 원문, 읽기 전용) |
+- 모두 `Cache-Control: no-store`, ID는 문자열, 시각은 UTC ISO-8601 `Z`. 경로의 id가 `^[1-9][0-9]{0,17}$`가 아니거나 role 세그먼트가 `translator`·`reviewer`가 아니면 404 NOT_FOUND. 배정 해제용 DELETE는 두지 않는다(405).
+- 미정의 필드·깨진 JSON·비JSON Content-Type은 400 INVALID_REQUEST. `accountId`는 JSON 문자열이며 숫자 JSON은 400.
+- 역할 요구 위반(운영자가 `/api/my/**`, 번역가·감수자·독자가 운영자 API, 독자가 `/api/my/**`)은 403 FORBIDDEN(ACCESS_DENIED 감사), 비로그인은 401 AUTH_REQUIRED.
+
+### 15.3 규칙
+- **지정(PUT)**: 하나의 트랜잭션에서 episode 행을 `FOR UPDATE`로 잠그고 → 대상 계정이 존재·활성이며 계정 역할이 요청 역할과 같은지 검사(아니면 400 INVALID_REQUEST) → 같은 계정이 이미 그 칸이면 `changed:false`로 200(쓰기·감사 없음) → 아니면 `INSERT … ON DUPLICATE KEY UPDATE`로 칸을 채우거나 교체(assigned_by=운영자, assigned_at=지금) → 감사 `ASSIGNED`(actor=운영자, episode_id, subject_account_id=배정받은 계정). 감사 저장이 실패하면 전체 롤백하고 503 SERVICE_UNAVAILABLE. DB의 복합 FK가 역할 불일치를 한 번 더 막는다. 존재하지 않는 회차는 404.
+- **교체(D-040)**: 허용한다. 작성 중이던 번역 초안이 있어도 막지 않으며, 이후 번역 노드에서 "초안 편집 권한 = 현재 배정된 번역가"로 판정한다(기존 작성자는 기록으로 남는다). 감수 대기 중인 버전도 새 감수자가 이어받는다. 교체 즉시 이전 담당자는 `/api/my/**`에서 그 회차를 볼 수 없다.
+- **내 배정(조회)**: 호출자 계정이 `episode_assignment`에 있는 회차만 반환한다. 매 요청 DB에서 확인하며 클라이언트가 보낸 역할·ID는 신뢰하지 않는다. 배정되지 않았거나 존재하지 않는 회차는 **404 NOT_FOUND**(존재 노출 방지, D-038). 원문이 없으면 `source:null`. 번역가·감수자에게 작성자·내부 ID는 노출하지 않는다.
+- 동시에 같은 칸을 교체하면 둘 다 성공하고 마지막 커밋이 남으며 행은 항상 하나다(PK). 감사는 두 건 모두 남는다.
+- 오류 형식은 12·13절과 같다(`{"error":{"code","message"}}`, 비밀·내부 예외 비노출). 코드: 400 INVALID_REQUEST, 401 AUTH_REQUIRED, 403 FORBIDDEN, 404 NOT_FOUND, 503 SERVICE_UNAVAILABLE, 500 INTERNAL_ERROR.
+
+### 15.4 처리 함수
+| 이름 | 입력 → 출력 | 권한 | 상태 변경 | 실패 | 필수 테스트 |
+|---|---|---|---|---|---|
+| listAssignableAccounts | role → 계정 목록 | OPERATOR | 없음 | 400/401/403/503 | 활성만, 역할별, loginId 미노출, 잘못된 role 400 |
+| getAssignments | episodeId → 두 칸 | OPERATOR | 없음 | 404/401/403/503 | 미배정 null, 배정 후 값 |
+| setAssignment | episodeId, role, accountId, actor → 결과 | OPERATOR | episode_assignment UPSERT+감사 | 400/404/503 | 신규 201, 교체 200, 동일 200 changed:false(감사 없음), 역할 불일치·비활성·없는 계정 400, 감사 장애 롤백, 동시 교체 |
+| listMyEpisodes | 호출자, limit, offset → 목록 | TRANSLATOR·REVIEWER | 없음 | 400/401/403/503 | 본인 배정만, 다른 사람 배정 제외, 정렬·페이지 |
+| getMyEpisode | 호출자, episodeId → 회차+최신 원문 | TRANSLATOR·REVIEWER | 없음 | 404/401/403/503 | 배정 시 본문 일치, 미배정·없는 회차 404, 교체 후 이전 담당자 404 |
+
+### 15.5 프런트 계약 (Claude Code)
+- 운영자 `/episodes/{id}`에 "담당자 배정" 영역을 추가한다: 역할(번역가·감수자)마다 현재 담당자(이름, 배정 시각 UTC)나 "미배정", 후보 선택 목록, "배정"/"교체" 버튼. 후보는 `assignable-accounts`에서 불러온다. 중복 제출 방지, 401은 인증 정리, 403은 권한 안내, 503·통신 오류는 재시도, 400은 고정 안내.
+- `/demo`: 번역가·감수자 메뉴 맨 앞에 "배정된 회차"를 링크(`/assigned`)로 활성화한다. 기존 메뉴(배정된 번역 작성·검수 제출·검수 대기 목록·승인·반려)는 비활성 유지, 운영자·독자 메뉴는 변경 없음.
+- `/assigned`(목록)와 `/assigned/{id}`(읽기 전용 원문: 제목, 내 담당 역할, 최신 원문 블록과 페이지 번호). 서버가 확인한 역할이 번역가·감수자가 아니면 안내만 보이고 API는 호출하지 않는다(편의 기능, 서버가 강제). 404는 "배정되지 않았거나 존재하지 않는 회차" 안내와 목록 링크. 편집·저장 UI는 만들지 않는다.
+
+### 15.6 파일 소유권
+- Codex 변경: backend/src/main(신규 `assignment` 패키지, 보안 규칙에 `/api/assignable-accounts` OPERATOR 전용·`/api/my/**` TRANSLATOR·REVIEWER 전용 추가, 공통 오류 처리 재사용), db/migration V26, backend/src/test, README 실행·검증 기록.
+- Claude Code 변경: frontend/src, frontend/tests/ui.
+- 변경 금지: V1~V25, 기존 인증·회차·원문 API 동작, PROJECT_CONTEXT.md, 서로의 영역. 계약 변경이 필요하면 구현을 멈추고 제안한다.
+
+### 15.7 필수 테스트·완료 조건
+- backend(실제 MySQL): 위 처리 함수 테스트, 4개 역할 × 5개 API의 401/403/성공 매트릭스(역할 위조 헤더·본문 포함), V26 적용·기존 감사 행 보존, 역할 불일치가 서비스 검사와 DB 복합 FK 양쪽에서 막힘, 오류 비노출·비JSON 400, 기존 회귀·빌드. 통합 테스트가 만든 회차·배정·감사·계정 행만 정확히 정리하고 데모 계정·기존 데이터·제한 행을 늘리거나 줄이지 않으며 연속 2회 통과·전후 행 수를 비교한다.
+- frontend: 배정 영역(조회·지정·교체·오류), `/assigned` 목록·상세(404 포함), 비해당 역할 안내와 API 미호출, `/demo` 메뉴 변경, 중복 제출·늦은 응답 무시, 기존 회귀, 타입·빌드. 모킹 테스트 통과는 실제 연동 성공이 아니다.
+- 최종 실제 연동(Codex, 격리 환경 권장 — 삭제 API가 없어 만든 회차·배정이 남음): 운영자가 회차에 번역가·감수자를 배정 → 번역가·감수자가 각자 로그인해 "배정된 회차"에서 해당 회차와 원문을 봄 → 배정되지 않은 두 번째 회차는 404 안내 → 교체 후 이전 담당자가 즉시 접근 불가, 새 담당자 접근 → 운영자·독자가 `/assigned` 접속 시 안내만, 같은 토큰으로 `/api/my/**`·운영자 API를 호출하면 브라우저에서 403을 읽을 수 있음 → PUT preflight·새로고침 유지·`ASSIGNED` 감사(subject 포함) 확인.

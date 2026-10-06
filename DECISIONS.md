@@ -196,6 +196,14 @@ DemoAuth 승인 결정: D-020~D-024와 CONTRACTS.md 12절이 해당 인증 범�
 - 리뷰에서 V10~V19의 핵심 컬럼이 NULL을 허용해 복합 FK·CHECK가 우회됨을 재현했다. NULL 허용은 5개 컬럼으로 한정하고(CONTRACTS 14.2), 나머지는 NOT NULL로 보정한다. `episode_assignment.assigned_at`을 추가한다(사용자 승인). 적용된 V11~V18은 수정하지 않고 V20~V25로 보정하며, 개발 DB 적용은 검증 통과 후 사용자 확인을 받는다.
 - (보완 2026-10-06) V24·V25는 MySQL 오류 1832 때문에 `SET foreign_key_checks=0/1` 래퍼로 적용한다(사용자 승인). 일회용 MySQL 8.4.11에서 통과·FK 보존·NULL 우회 거부를 확인했다.
 
+### D-040 배정 노드 결정 — APPROVED (2026-10-06, 권장안 그대로)
+- 배정 교체를 허용한다. 작성 중인 번역 초안은 새 번역가가 이어서 편집하고(작성자는 기록으로 남음), 감수 대기 중인 버전은 새 감수자가 이어받는다. 이전 담당자는 교체 즉시 접근할 수 없다.
+- 배정 해제는 이번에 제공하지 않는다(교체만).
+- 번역가·감수자의 배정 회차 목록·원문 읽기 화면을 이 노드에 포함한다.
+
+### D-041 배정 계약 세부 — PROPOSED (CONTRACTS 15절 승인 시 함께 승인)
+- 감사 대상 계정을 위해 `domain_audit.subject_account_id`(NULL 허용, V26)를 추가한다. API: `assignable-accounts`, `episodes/{id}/assignments`, `PUT .../assignments/{role}`(처음 201·교체/동일 200, 동일은 쓰기·감사 없음), `my/episodes`, `my/episodes/{id}`. 미배정·없는 회차는 404, 역할 위반은 403. 후보 목록은 활성 계정의 id·이름·역할만 노출(loginId 미노출).
+
 ## 이월 항목 (업무 노드에서 결정, DemoAuth 확정 부분 제외)
 
 - (갱신 2026-10-06) D-101·D-103은 D-032~D-034로, D-104는 D-035로 구체화되어 승인되었다.
