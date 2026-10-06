@@ -152,49 +152,56 @@ class DemoAuthIntegrationTest {
         var forgedBody=http.postForEntity("/api/auth/login",Map.of("loginId",id,"password",password,"role","OPERATOR"),String.class);
         assertThat(forgedBody.getStatusCode().value()).isEqualTo(400);
     }
-    @Test void failedLoginIsUniformAndLimitBoundariesReset() {
+    @Test void failedLoginIsUniformAndNeverRateLimited() {
+        var before=limitSnapshot();
+        int failuresBefore=auditCount("LOGIN_FAILURE"),successBefore=auditCount("LOGIN_SUCCESS"),limitedBefore=auditCount("LOGIN_LIMITED");
         var unknown=login(missingId(),"wrong"); var wrong=login(id,"wrong");
         assertThat(unknown.getStatusCode().value()).isEqualTo(401);
         assertThat(unknown.getBody()).isEqualTo(wrong.getBody());
-        for(int i=0;i<4;i++) assertThat(login(id,"wrong").getStatusCode().value()).isEqualTo(401);
-        var blocked=login(id,password); assertThat(blocked.getStatusCode().value()).isEqualTo(429);
-        assertThat(blocked.getHeaders().getFirst("Retry-After")).isEqualTo("900");
-        clock.now=clock.now.plusSeconds(899);
-        assertThat(login(id,password).getStatusCode().value()).isEqualTo(429);
-        clock.now=clock.now.plusSeconds(1);
-        token(login(id,password));
-        assertThat(jdbc.queryForObject("SELECT failures FROM auth_login_limit WHERE limit_key=?",Integer.class,AuthService.hash("id:"+id))).isZero();
+        jdbc.update("UPDATE demo_account SET enabled=FALSE WHERE login_id=?",id);
+        assertThat(login(id,password).getBody()).isEqualTo(wrong.getBody());
+        jdbc.update("UPDATE demo_account SET enabled=TRUE WHERE login_id=?",id);
+        for(int i=0;i<35;i++) {
+            var response=login(id,"wrong");
+            assertThat(response.getStatusCode().value()).isEqualTo(401);
+            assertThat(response.getBody()).isEqualTo(wrong.getBody());
+            assertThat(response.getHeaders().getFirst("Retry-After")).isNull();
+        }
+        var success=login(id,password); token(success);
+        assertThat(success.getHeaders().getFirst("Retry-After")).isNull();
+        assertThat(limitSnapshot()).isEqualTo(before);
+        assertThat(auditCount("LOGIN_FAILURE")-failuresBefore).isEqualTo(38);
+        assertThat(auditCount("LOGIN_SUCCESS")-successBefore).isEqualTo(1);
+        assertThat(auditCount("LOGIN_LIMITED")).isEqualTo(limitedBefore);
     }
-    @Test void simultaneousFailuresAreAtomic() throws Exception {
+    @Test void simultaneousFailuresAreNeverRateLimited() throws Exception {
+        var before=limitSnapshot(); int audits=auditCount("LOGIN_FAILURE");
         ExecutorService pool=Executors.newFixedThreadPool(4);
         try {
             List<Callable<Integer>> jobs=new ArrayList<>();
-            for(int i=0;i<8;i++) { final String ip=address(); jobs.add(()->{
-                try { service.loginDemoAccount(new LoginRequest(id,"wrong"),ip); return 200; }
-                catch(AuthFailure failure) {return failure.status;}
-            }); }
-            List<Integer> codes=new ArrayList<>(); for(Future<Integer> f:pool.invokeAll(jobs)) codes.add(f.get(20,TimeUnit.SECONDS));
-            assertThat(codes.stream().filter(c->c==401).count()).isEqualTo(5);
-            assertThat(codes.stream().filter(c->c==429).count()).isEqualTo(3);
-            assertThat(jdbc.queryForObject("SELECT failures FROM auth_login_limit WHERE limit_key=?",Integer.class,AuthService.hash("id:"+id))).isEqualTo(5);
+            for(int i=0;i<8;i++) jobs.add(()->login(id,"wrong").getStatusCode().value());
+            List<Integer> codes=new ArrayList<>(); for(Future<Integer> f:pool.invokeAll(jobs)) codes.add(f.get(30,TimeUnit.SECONDS));
+            assertThat(codes).containsOnly(401).hasSize(8);
+            assertThat(limitSnapshot()).isEqualTo(before);
+            assertThat(auditCount("LOGIN_FAILURE")-audits).isEqualTo(8);
         } finally {pool.shutdownNow();}
     }
-    @Test void ipLimitIsIndependentAndSuccessOnlyClearsId() {
-        String address=address(); byte[] ipKey=AuthService.hash("ip:"+address);
+    @Test void existingBlockedLimitRowsRemainUntouched() {
+        String address=address();
         var now=java.sql.Timestamp.from(clock.now);
-        jdbc.update("INSERT INTO auth_login_limit(limit_key,failures,window_start,updated_at) VALUES (?,29,?,?)",ipKey,now,now);
-        String missing=missingId();
-        assertThatThrownBy(()->service.loginDemoAccount(new LoginRequest(missing,"wrong"),address))
-                .satisfies(e->assertThat(((AuthFailure)e).status).isEqualTo(401));
-        assertThatThrownBy(()->service.loginDemoAccount(new LoginRequest(id,password),address))
-                .satisfies(e->assertThat(((AuthFailure)e).status).isEqualTo(429));
-        clock.now=clock.now.plusSeconds(900);
-        service.loginDemoAccount(new LoginRequest(id,password),address);
-        assertThat(jdbc.queryForObject("SELECT failures FROM auth_login_limit WHERE limit_key=?",Integer.class,ipKey)).isZero();
-        assertThatThrownBy(()->service.loginDemoAccount(new LoginRequest(id,"wrong"),address)).isInstanceOf(AuthFailure.class);
-        service.loginDemoAccount(new LoginRequest(id,password),address);
-        assertThat(jdbc.queryForObject("SELECT failures FROM auth_login_limit WHERE limit_key=?",Integer.class,ipKey)).isEqualTo(1);
-        assertThat(jdbc.queryForObject("SELECT failures FROM auth_login_limit WHERE limit_key=?",Integer.class,AuthService.hash("id:"+id))).isZero();
+        for(String key:List.of("id:"+id,"ip:"+address))
+            jdbc.update("INSERT INTO auth_login_limit(limit_key,failures,window_start,blocked_until,updated_at) VALUES (?,30,?,?,?)",
+                    AuthService.hash(key),now,java.sql.Timestamp.from(clock.now.plusSeconds(900)),now);
+        var before=limitSnapshot();
+        assertThat(login(id,"wrong").getStatusCode().value()).isEqualTo(401);
+        token(login(id,password));
+        assertThat(limitSnapshot()).isEqualTo(before);
+    }
+    private List<Map<String,Object>> limitSnapshot() {
+        return jdbc.queryForList("SELECT HEX(limit_key) AS limit_key,failures,window_start,blocked_until,updated_at FROM auth_login_limit ORDER BY limit_key");
+    }
+    private int auditCount(String event) {
+        return jdbc.queryForObject("SELECT count(*) FROM auth_audit WHERE event=?",Integer.class,event);
     }
     @Test void corsBearerOnlyAndMalformedLogout() {
         HttpHeaders headers=new HttpHeaders(); headers.setOrigin("http://localhost:3000");
@@ -214,7 +221,7 @@ class DemoAuthIntegrationTest {
     }
     @Test void unsupportedLoginMediaTypesDoNotChangeLimitsOrLeakDetails() {
         assertThat(login(id,"wrong").getStatusCode().value()).isEqualTo(401);
-        byte[] idKey=AuthService.hash("id:"+id),ipKey=AuthService.hash("ip:"+fixtureAddress.current);
+        var limitsBefore=limitSnapshot();
         for(MediaType mediaType:List.of(MediaType.TEXT_PLAIN,MediaType.APPLICATION_FORM_URLENCODED)) {
             HttpHeaders headers=new HttpHeaders(); headers.setContentType(mediaType);
             var response=http.exchange("/api/auth/login",HttpMethod.POST,
@@ -223,9 +230,7 @@ class DemoAuthIntegrationTest {
             assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store");
             assertThat(response.getBody()).isEqualTo(Map.of("error",Map.of(
                     "code","INVALID_REQUEST","message","요청 형식을 확인하세요.")));
-            for(byte[] key:List.of(idKey,ipKey)) {
-                assertThat(jdbc.queryForObject("SELECT failures FROM auth_login_limit WHERE limit_key=?",Integer.class,key)).isEqualTo(1);
-            }
+            assertThat(limitSnapshot()).isEqualTo(limitsBefore);
         }
     }
     @Test void unsupportedMethodsKeepExistingStatuses() {

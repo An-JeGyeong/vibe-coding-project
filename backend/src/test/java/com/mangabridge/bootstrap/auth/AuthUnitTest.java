@@ -17,10 +17,9 @@ class AuthUnitTest {
         AuthDao dao=mock(AuthDao.class); PlatformTransactionManager manager=mock(PlatformTransactionManager.class);
         var status=new org.springframework.transaction.support.SimpleTransactionStatus();
         when(manager.getTransaction(any())).thenReturn(status);
-        when(dao.lockLimit(any(),any())).thenAnswer(call->new AuthDao.Limit(call.getArgument(0),0,call.getArgument(1),null));
         doThrow(new DataAccessResourceFailureException("private audit detail")).when(dao).audit(any(),anyString(),anyString(),any());
         AuthService service=new AuthService(dao,new BCryptPasswordEncoder(4),Clock.systemUTC(),3600,manager);
-        assertThatThrownBy(()->service.loginDemoAccount(new LoginRequest("valid.id","wrong"),"127.0.0.1"))
+        assertThatThrownBy(()->service.loginDemoAccount(new LoginRequest("valid.id","wrong")))
                 .satisfies(e->assertThat(((AuthFailure)e).status).isEqualTo(503));
         verify(manager).rollback(status); verify(manager,never()).commit(any());
         when(dao.revoke(any(),any())).thenReturn(1L);
@@ -78,7 +77,7 @@ class AuthUnitTest {
         }
         assertThat(AuthService.hash(token)).hasSize(32);
     }
-    @Test void localIpAndFiniteLifetimeAreRequired() {
+    @Test void finiteLifetimeAndIgnoredClientIpSetting() {
         MockEnvironment env=new MockEnvironment(); env.setActiveProfiles("local");
         assertThat(new AuthSettings().authTokenTtl(env)).isEqualTo(3600);
         for(String ttl:List.of("0","86401","infinite")) {
@@ -86,7 +85,11 @@ class AuthUnitTest {
             assertThatThrownBy(()->new AuthSettings().authTokenTtl(env)).isInstanceOf(IllegalStateException.class);
         }
         env.setProperty("AUTH_TOKEN_TTL_SECONDS","3600"); env.setActiveProfiles("demo");
-        assertThatThrownBy(()->new AuthSettings().authTokenTtl(env)).hasMessageContaining("IP policy");
+        assertThat(new AuthSettings().authTokenTtl(env)).isEqualTo(3600);
+        for(String mode:List.of("DIRECT","unexpected","")) {
+            env.setProperty("AUTH_CLIENT_IP_MODE",mode);
+            assertThat(new AuthSettings().authTokenTtl(env)).isEqualTo(3600);
+        }
     }
     @Test void databaseAndDeniedAuditFailureCannotAllowAccess() {
         AuthDao dao=mock(AuthDao.class); PlatformTransactionManager manager=mock(PlatformTransactionManager.class);
@@ -98,7 +101,7 @@ class AuthUnitTest {
         assertThatThrownBy(()->service.logout("a".repeat(43))).satisfies(e->assertThat(((AuthFailure)e).status).isEqualTo(503));
         assertThatThrownBy(()->service.accessDenied(new CurrentUser(new User("1","name",Role.READER),java.time.Instant.now())))
                 .satisfies(e->assertThat(((AuthFailure)e).status).isEqualTo(503));
-        assertThatThrownBy(()->service.loginDemoAccount(new LoginRequest("valid.id","password"),"127.0.0.1"))
+        assertThatThrownBy(()->service.loginDemoAccount(new LoginRequest("valid.id","password")))
                 .satisfies(e->assertThat(((AuthFailure)e).status).isEqualTo(503));
     }
 }
