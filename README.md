@@ -476,7 +476,7 @@ NULL 거부·정상 값·V19 업그레이드·최종 validate·전체 빌드/int
 | V24/V25 직후 FK 검사 복구 | 통과. Flyway AFTER_EACH_MIGRATE callback이 **실제 마이그레이션 연결**에서 @@foreign_key_checks=1을 각각 확인 |
 | FK·UNIQUE·CHECK·생성 컬럼 보존 | 통과. V19 전후 FK 이름·개수·참조·RESTRICT 규칙, UNIQUE 인덱스·컬럼 순서, CHECK 이름·조건식, open_slot 생성식 비교. CHECK/생성식 ASCII 리터럴 introducer 외 SQL 내용은 그대로 비교 |
 | NULL 거부·정상 삽입·기존 제약 | 통과. 보정 필수 컬럼을 포함한 26개 명시 컬럼 각각 NULL 삽입 시 MySQL 1048 확인, 정상 삽입 허용. 역사적 NULL 우회 5종 모두 거부. assigned_at 정상 삽입, 기존 제약 테스트 전부 유지 |
-| information_schema | 통과. 새 도메인 5개 테이블 NOT NULL 29개, nullable submitted_at/reason/invalidated_at 및 생성 open_slot만 유지. 기존 episode 공개 포인터와 domain_audit 번역 ID는 nullable 유지. 열거 ascii_bin, assigned_at DATETIME(6), FK 총 19개(새 도메인 12개), RESTRICT 유지 |
+| information_schema | 통과. 새 도메인 5개 테이블 NOT NULL 29개, nullable submitted_at/reason/invalidated_at 및 생성 open_slot만 유지. 기존 episode 공개 포인터와 domain_audit 번역 ID는 nullable 유지. 열거 ascii_bin, assigned_at DATETIME(6), FK 총 19개(새 도메인 5개 테이블 12개)의 기존 규칙 유지. 새 도메인 FK 12개와 episode 공개 포인터 FK는 RESTRICT이며 기존 V1~V9 FK의 NO ACTION도 변경 없음 |
 
 | 기존 데이터 | 격리 전체 테스트 전 / 1회 후 / 2회 후 | 개발 DB 검증 전 / 격리 테스트 후 |
 |---|---|---|
@@ -491,4 +491,19 @@ NULL 거부·정상 값·V19 업그레이드·최종 validate·전체 빌드/int
 
 검증 로그·JUnit XML의 실제 DB 비밀번호 일치 0건, Bearer/root 비밀번호 출력 패턴 0건. 운영 JAR의 검증 runner/신규 통합 테스트 클래스 0개. 기존 Flyway의 MySQL 8.4 지원 업그레이드 권고 경고는 남지만 실제 적용·validate·제약 테스트는 통과했습니다. 의존성은 변경하지 않았습니다.
 
-개발 DB 적용은 모든 검증 통과 후 별도 사용자 확인을 요청했으며, 답변 전에는 실행하지 않습니다. 현재 개발 DB V20~V25는 미적용(V19 유지)입니다. 개발 DB 적용·재실행·적용 후 NOT NULL/FK 조회는 미실행이며 승인 응답 후 추가 기록합니다. 11:21 KST에 이번 3310 tmpfs 컨테이너만 저장한 ID와 대조 후 docker stop(--rm 자동 정리)했습니다. 테스트별 일회용 컨테이너도 각 테스트에서 종료했으며 기존 컨테이너·볼륨은 보존했습니다. PROJECT_CONTEXT.md의 기존 줄바꿈 M은 수정·stage·restore하지 않았습니다.
+11:21 기록 시점에는 개발 DB 적용 확인 답변 대기였으며 V20~V25 미적용(V19 유지), 개발 DB 적용·재실행·적용 후 NOT NULL/FK 조회는 미실행이었습니다. 이후 사용자 승인에 따른 결과는 아래에 기록합니다. 11:21 KST에 이번 3310 tmpfs 컨테이너만 저장한 ID와 대조 후 docker stop(--rm 자동 정리)했습니다. 테스트별 일회용 컨테이너도 각 테스트에서 종료했으며 기존 컨테이너·볼륨은 보존했습니다. PROJECT_CONTEXT.md의 기존 줄바꿈 M은 수정·stage·restore하지 않았습니다.
+### V20~V25 개발 DB 적용 완료 (2026-10-06 11:22~11:24 KST, Codex 직접 실행)
+
+사용자의 별도 “개발 DB에 적용” 승인을 받은 뒤 마지막 단계로 localhost:3306/mangabridge에 적용했습니다. 적용 직전 기존 데이터·메타데이터를 다시 조회했고 격리 검증 시작 전 기준과 차이 0을 확인했습니다. PowerShell 5.1.26100.9444에서 README 2절 환경 주입 및 URL 3306 확인 후 다음 명령을 실행했습니다.
+
+| 실제 명령 / 확인 | 결과 |
+|---|---|
+| `gradlew.bat -I build/verification/schema-tool.init.gradle schemaMigrate --no-daemon` | 통과, 종료 0, 11초. V20~V25 6개 적용, current=25, validate=PASS |
+| 같은 명령 재실행 | 통과, 종료 0, 10초. 추가 적용 0개, current=25, validate=PASS |
+| Flyway 읽기 전용 조회 | 성공 이력 25개 / 최대 버전 25 / 실패 이력 0개. V1~V19 checksum 차이 0 |
+| 기존 데이터 적용 전후 | 계정 4→4, 토큰 8→8, 제한 88→88, 인증 감사 130→130. demo.* 4개 유지, 기존 인증 전체 행 정렬 집계 해시 차이 0 |
+| 기존/신규 도메인 행 | episode·원문 버전·블록·domain_audit 및 신규 도메인 5개 테이블 각각 0→0. 개발 DB에 테스트 fixture 삽입·정리 없음 |
+| information_schema | 신규 도메인 NOT NULL 29개, nullable submitted_at/reason/invalidated_at/open_slot만 유지. 기존 두 포인터 nullable 유지. 전체 FK 19개 이름·참조·삭제/갱신 규칙 전후 차이 0, 새 도메인 12개 RESTRICT 유지 |
+| FK 검사 | 조회 연결 @@foreign_key_checks=1, @@GLOBAL.foreign_key_checks=1. 각 V24/V25의 실제 Flyway 연결 복구는 위 일회용 DB callback 테스트에서 별도로 확인 |
+
+마이그레이션·NULL 우회·기존 제약·데이터 보존·전체 회귀 연속 2회·개발 DB 적용의 요청 항목은 모두 실행했고 통과했습니다. 검증 전용 빈 DB와 V19/V9 업그레이드 DB 및 개발 DB3306에 V25까지 적용했습니다. 다른 기존 DB·서비스는 적용하거나 중단하지 않았습니다. 로그/XML의 실제 비밀번호 일치 및 Bearer/root 출력 패턴 0건을 적용 후 다시 확인했습니다. SQL 커밋 `3064624`, 테스트 커밋 `c09b326`, 격리 결과 문서 커밋 `9a8a7df`입니다. 남는 변경은 PROJECT_CONTEXT.md의 기존 줄바꿈 M뿐이며 수정·stage·restore하지 않았습니다. 기존 Flyway MySQL 8.4 권고 경고는 유지됩니다. 이 스키마 검증은 브라우저·외부 배포 검증 결과를 대신하지 않습니다.
