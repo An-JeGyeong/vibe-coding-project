@@ -746,3 +746,56 @@ NOT NULL 규칙은 **모든 도메인·인증 테이블**에 적용한다. NULL 
 - frontend: 변경 없음(기존 테스트 237개 통과 유지는 Claude Code가 확인).
 - 실제 연동(Codex, 격리 환경): 브라우저 /login에서 잘못된 비밀번호를 연속 7회 이상 입력해도 "ID 또는 비밀번호가 올바르지 않습니다" 안내만 나오고 차단되지 않으며, 이어서 올바른 비밀번호로 로그인이 성공해 /demo로 이동한다. 서버 접근 기록에 429가 없다.
 - 파일 소유권: Codex는 backend/src/main·test, README, backend/.env.example을 변경한다. 변경 금지: V1~V31, 12절 외 계약·결정 문서, frontend, PROJECT_CONTEXT.md.
+
+## 20. Publication — 발행과 독자 열람(공개 API) — PROPOSED (2026-10-07, 사용자 승인 대기)
+
+작성: Claude Code. 구현: backend=Codex, frontend=Claude Code. 근거: DECISIONS.md D-034(승인), D-048(이 절과 함께 승인 대기). 인증·역할·오류 형식·CORS는 12절(19절 보정 포함), 회차·원문은 13절, 스키마는 14·16절(`publication`·`episode.published_translation_version_id` 이미 있음), 번역은 17절, 감수는 18절을 따른다. **이 노드는 마이그레이션이 없다.** 발행과 독자 열람을 한 계약으로 묶는다(독자 열람은 읽기 전용이며 같은 상태 전이를 다룬다).
+
+### 범위
+- 포함: 운영자의 발행(승인된 정확한 버전만), 운영자의 발행 상태·이력 조회, 로그인 없는 독자의 공개 회차 목록·상세 열람, 감사.
+- 제외(D-048): 발행 취소·보류·재공개(`ON_HOLD`는 상태값만 예약), 예약 발행, 독자 계정 기능(북마크 등), AI 기능.
+
+### 20.1 API
+시각은 UTC ISO-8601 `Z`, ID는 문자열, 모든 응답 `Cache-Control: no-store`. 경로의 id가 `^[1-9][0-9]{0,17}$`(versionNo는 `{0,8}`)가 아니면 404 NOT_FOUND.
+| API | 권한 | 요청 | 성공 응답 |
+|---|---|---|---|
+| POST /api/episodes/{id}/translations/{versionNo}/publish | OPERATOR | 본문 없음(있으면 400) | 200 {"versionNo","status":"PUBLISHED","publishedAt"} |
+| GET /api/episodes/{id}/publication | OPERATOR | — | 200 {"current":null\|{"versionNo","sourceVersion","publishedAt"},"history":[{"versionNo","sourceVersion","publishedAt"}]} — history는 발행 시각 내림차순(현재 공개본 포함) |
+| GET /api/public/episodes?limit=&offset= | 누구나(로그인 불필요) | limit 1~100(기본 50), offset ≥0 | 200 {"items":[{"episodeId","title","publishedAt"}],"total":n} — 공개 중인 회차만, 회차 id 오름차순 |
+| GET /api/public/episodes/{id} | 누구나 | — | 200 {"episodeId","title","publishedAt","blocks":[{"seq","pageNo","text"}]} — 공개 중인 번역 버전의 블록만, seq 오름차순 |
+- 역할 위반은 403 FORBIDDEN(ACCESS_DENIED 감사), 비로그인 401(운영자 API). 존재하지 않는 회차·버전은 404. 공개 API에서 **공개 중이 아닌 회차**(발행된 적 없음·없는 회차·형식 오류 id)는 모두 같은 404 NOT_FOUND(존재 노출 방지). 오류 형식은 12절과 같고 추가 필드는 `currentStatus`뿐이다. 코드: 400 INVALID_REQUEST, 401, 403, 404, 409 STATE_CONFLICT, 503, 500. 비밀·내부 예외 비노출.
+- **공개 API는 `Authorization` 헤더를 아예 판정하지 않는다**: 헤더가 없거나, 유효하거나, 만료·변조된 토큰이어도 결과가 같다(401 없음). 역할(READER 포함)에 따라 응답이 달라지지 않는다. `/api/public/**`는 `GET`만 허용하고 다른 메서드는 405.
+- **공개 응답에는 번역 텍스트(`text`)·`seq`·`pageNo`·회차 제목·발행 시각만** 넣는다. 원문 텍스트, 초안·검수 중 버전, 번역·승인·발행 계정, 내부 버전 번호·상태, 반려 사유는 어떤 필드로도 반환하지 않는다. 요청 본문이 있는 GET은 무시한다.
+- CORS는 기존 허용 Origin 목록을 그대로 쓴다(공개 API라도 와일드카드 금지). 비허용 Origin은 12절대로 403.
+
+### 20.2 규칙 (발행은 episode 행 `SELECT … FOR UPDATE` 후 하나의 트랜잭션)
+- **발행 조건**: 요청한 번역 버전의 상태가 `APPROVED`이고, 그 버전의 `review_decision`이 있으며 `invalidated_at`이 NULL이고(무효화된 승인 불가), 버전의 `source_version_no`가 최신 원문 버전과 같아야 한다. 하나라도 아니면 409 STATE_CONFLICT(`currentStatus` = 그 버전의 현재 상태). 회차나 버전이 없으면 404. 호출자는 OPERATOR뿐이다(번역가·감수자·독자 403).
+- **효과(한 트랜잭션)**: ① 버전 상태 `PUBLISHED` ② `publication` INSERT(episode_id, translation_version_id, source_version_no, published_by, published_at) ③ `episode.published_translation_version_id`를 그 버전으로 갱신 ④ 감사 `TRANSLATION_PUBLISHED`(actor=운영자, episode_id, source_version, translation_version_id). 하나라도 실패하면 전체 롤백과 503. 이전에 공개 중이던 버전은 `PUBLISHED`로 남고 현재 공개본은 포인터가 정한다(14.3).
+- **재발행·교체(D-048)**: 다른 `APPROVED` 버전을 발행하면 포인터가 그 버전으로 바뀐다(이전 공개본은 `PUBLISHED`로 남는다). 이미 `PUBLISHED`가 된 버전을 다시 발행하는 요청은 409(`currentStatus`=PUBLISHED). 같은 버전에 대한 동시 발행은 정확히 하나만 성공하고 나머지는 409이다.
+- **원문 변경과 공개본(PROJECT_CONTEXT 6절, D-029)**: 원문 저장은 `PUBLISHED` 버전과 포인터를 건드리지 않는다. 공개본은 새 버전이 발행되기 전까지 그대로 유지된다. 공개본이 최신 원문보다 오래된 경우는 정상이다.
+- **독자 열람 규칙**: 공개 응답은 항상 포인터가 가리키는 버전의 블록만 사용한다. 이후 새 DRAFT·검수·승인이 진행되어도 공개 응답은 바뀌지 않는다(초안과 공개본 분리). 포인터가 NULL인 회차는 목록에 나오지 않고 상세는 404이다. `total`은 공개 중인 회차 수이며 `offset`이 total 이상이면 빈 목록이다. `publishedAt`은 현재 공개본의 `publication.published_at`이다.
+- **운영자 조회**: `publication`은 읽기 전용 이력이다. `GET .../publication`의 `current`는 포인터가 가리키는 버전(없으면 null)이다. 회차가 없으면 404.
+- 승인 취소·발행 취소 API는 없다(D-045·D-048). 발행 후에도 번역가·감수자의 기존 API 동작은 바뀌지 않는다(감수자에게 `PUBLISHED` 버전은 18절대로 보이지 않는다).
+- **보안 규칙 순서**: `/api/public/**`는 `permitAll`이며 기존 `/api/**` 인증 규칙·Bearer 필터보다 먼저 평가되어 토큰 판정이 일어나지 않는다. 발행·`publication` 조회는 기존 `/api/episodes/**` OPERATOR 전용 규칙이 이미 덮는다.
+
+### 20.3 처리 함수
+| 이름 | 입력 → 출력 | 권한 | 상태 변경 | 실패 | 필수 테스트 |
+|---|---|---|---|---|---|
+| publishTranslation | 호출자, episodeId, versionNo → 결과 | OPERATOR | 버전→PUBLISHED, publication 1건, 포인터, 감사 | 404/409/403/503 | 정상(publication 1행·포인터·감사 1건), 미승인 버전(DRAFT·REVIEW_PENDING·REJECTED·INVALIDATED) 409, 무효화된 승인(원문 변경 후) 409, 이미 PUBLISHED 409, 승인 후 원문이 바뀐 버전 409, 다른 승인 버전으로 교체(이전 PUBLISHED 유지·포인터 이동), 동시 발행 하나만 성공, 감사 장애 롤백(포인터·publication·상태 불변), 본문 있으면 400, 역할 매트릭스 |
+| getPublication | episodeId → current/history | OPERATOR | 없음 | 404/401/403/503 | 발행 전 current null, 교체 후 history 순서, 없는 회차 404 |
+| listPublicEpisodes / getPublicEpisode | limit, offset / episodeId → 목록/상세 | 없음(공개) | 없음 | 400(limit/offset)/404/503 | 공개본만, 미발행·없는 회차 동일 404, 초안·검수 중·승인만 된 버전 비노출, 응답 필드 정확 일치(원문·계정·상태 없음), 공개본이 새 승인·초안·원문 변경 후에도 불변, 교체 발행 후 새 내용, 정렬·페이지·경계, 모든 역할·비로그인·잘못된 토큰에서 동일 200, POST 등 405 |
+
+### 20.4 프런트 계약 (Claude Code)
+- **운영자** `/episodes/{id}` "번역 현황": "공개 상태"(현재 공개 버전과 발행 시각, 없으면 "공개 중인 번역 없음")와 발행 이력을 보인다. `APPROVED` 버전 행에 "발행" 버튼을 보이고, 되돌릴 수 없는 공개 동작이므로 확인 단계(공개 중인 버전이 있으면 "현재 공개 중인 vN을 대체합니다" 포함)를 거친다. 성공하면 번역 현황과 공개 상태를 다시 불러온다. 409는 현재 상태 안내(이미 발행됨/원문 변경으로 무효화됨/승인되지 않음)와 새로고침, 404·403·401·503·통신 오류는 기존 방식. 중복 제출 방지·늦은 응답 무시.
+- **독자(공개, 로그인 불필요)** 새 경로 그룹: `/read`(공개 회차 목록, 20개씩 페이지 이동, 제목·발행 시각)과 `/read/{id}`(회차 제목과 번역 블록을 페이지·순서대로 표시, 번역 텍스트는 텍스트로만 렌더링). 공개 API 호출에는 **토큰을 붙이지 않는다**(`credentials: "omit"`, Authorization 없음). 404는 "공개되지 않았거나 존재하지 않는 회차입니다.", 503·통신 오류는 재시도. 로그인 상태나 역할로 화면이 달라지지 않는다.
+- `/demo`: READER 메뉴에 "공개 회차 읽기"(`/read`) 링크를 활성화한다. 다른 역할의 메뉴는 바꾸지 않는다. 독자 화면에는 초안·원문·검수 상태를 어떤 형태로도 표시하지 않는다.
+
+### 20.5 파일 소유권
+- Codex 변경: backend/src/main(신규 `publication` 패키지, 보안 규칙 `/api/public/**`, 공통 오류 처리), backend/src/test, README 실행·검증 기록. **마이그레이션 없음.**
+- Claude Code 변경: frontend/src, frontend/tests/ui.
+- 변경 금지: V1~V31, 기존 인증·회차·원문·배정·번역·감수 API의 기존 필드·동작(발행으로 `PUBLISHED`가 된 버전을 번역가 API가 이미 표시하는 방식 포함), PROJECT_CONTEXT.md, 서로의 영역. 계약 변경이 필요하면 구현을 멈추고 제안한다.
+
+### 20.6 필수 테스트·완료 조건
+- backend(실제 MySQL): 20.3 표의 테스트, 역할 매트릭스(발행·publication 조회 × 4개 역할 + 비로그인, 역할 위조·본문 role 포함), 공개 API의 인증 무관 동작(헤더 없음·유효·만료·변조 토큰·READER 모두 200), 승인된 버전을 발행하면 감사 `TRANSLATION_PUBLISHED` 정확히 1건과 publication 1행·포인터 정합, 발행 후 운영자의 원문 변경이 공개 응답을 바꾸지 않음, 공개 응답에 원문·계정·상태·반려 사유가 없음, 기존 EpisodeSource·Assignment·Translation·Review·인증 통합 테스트는 수정 없이 통과(필드 추가가 없으므로 단언 변경 없음), 오류 비노출·비JSON 400, 기존 회귀·빌드. 통합 테스트가 만든 행만 정확히 정리하고 데모 계정·기존 데이터를 바꾸지 않으며 연속 2회 통과·전후 행 수를 비교한다.
+- frontend: 20.4 전부(운영자의 공개 상태·발행 확인·409 처리·중복 제출 방지, 독자 목록·상세·페이지 이동, 토큰 미첨부 확인, 404·503·통신 오류, 역할별 메뉴, 독자 화면의 비노출), 기존 회귀, 타입·빌드. 모킹 테스트 통과는 실제 연동 성공이 아니다.
+- **최종 통합 실제 연동(Codex, 격리 환경, 한 번에 수행 — 2026-10-07 사용자 결정으로 검증을 마지막에 합친다)**: ① Review 프런트 수정 4건(번역가 목록의 사유 요약, 원문 저장 후 운영자 번역 현황 갱신, 409+404 안내 병기, 교체된 감수자의 즉시 404 화면) ② 로그인 제한 제거(오입력 7회 이상 후에도 차단 없이 로그인 성공, 429 없음, 19절) ③ 발행: 운영자가 승인된 버전 발행(확인 단계) → 공개 상태 표시 → 비로그인 브라우저에서 `/read` 목록과 `/read/{id}`에 번역 블록만 보이고 원문·초안·상태가 없음 → 번역가가 새 번역을 제출·승인·미발행 상태일 때 공개 화면은 그대로 → 운영자가 원문을 수정해도 공개 화면은 그대로 → 새 승인본을 발행하면 공개 내용이 교체되고 이전 버전은 `PUBLISHED`로 남음 → 미발행 회차 URL은 404 안내 → 번역가·감수자·독자 계정으로 발행 시도 403(콘솔 fetch) → 만료·잘못된 토큰으로도 공개 API 200 → 감사 `TRANSLATION_PUBLISHED`와 publication 행·포인터 정합을 확인한다.
