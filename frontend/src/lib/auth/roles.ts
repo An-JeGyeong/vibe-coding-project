@@ -35,6 +35,6 @@ export const DEMO_ACCOUNTS: ReadonlyArray<{ role: Role; loginId: string }> = [
 export const ROLE_MENU_LINKS: Readonly<Record<Role, Readonly<Record<string, string>>>> = {
   OPERATOR: { "회차·원문 관리": "/episodes" },
   TRANSLATOR: { "배정된 회차": "/assigned" },
-  REVIEWER: { "배정된 회차": "/assigned" },
+  REVIEWER: { "배정된 회차": "/assigned", "검수 대기 목록": "/reviews" },
   READER: {},
 };

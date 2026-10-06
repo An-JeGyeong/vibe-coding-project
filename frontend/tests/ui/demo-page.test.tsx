@@ -38,7 +38,8 @@ describe("protected /demo screen", () => {
     const menu = within(screen.getByRole("region", { name: "업무 메뉴" }));
     // Implemented menus: the operator's episodes, and the translator's / reviewer's assigned episodes. Everything else stays disabled.
     const links: Record<string, string> = role === "OPERATOR" ? { "회차·원문 관리": "/episodes" }
-      : role === "READER" ? {} : { "배정된 회차": "/assigned" };
+      : role === "READER" ? {}
+      : role === "REVIEWER" ? { "배정된 회차": "/assigned", "검수 대기 목록": "/reviews" } : { "배정된 회차": "/assigned" };
     const implemented = Object.keys(links);
     for (const label of info.menus) {
       if (implemented.includes(label)) {

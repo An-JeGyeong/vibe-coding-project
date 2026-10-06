@@ -7,6 +7,7 @@ import type { EpisodeFailure } from "@/lib/episodes/types";
 import { createTranslation, getTranslation, listTranslations, saveTranslation, submitTranslation } from "@/lib/translation/client";
 import { STATUS_LABEL, type TranslationDetail, type TranslationList } from "@/lib/translation/types";
 import { validateTranslationText } from "@/lib/translation/validation";
+import { DecisionBox, decisionLabel } from "./ReviewParts";
 
 type Notice = { tone: "success" | "info" | "danger" | "warning"; text: string };
 type Busy = "save" | "submit" | "create" | null;
@@ -152,13 +153,14 @@ export function TranslationWorkspace({ episodeId, onLatestSourceVersion }: { epi
       {list.items.length === 0
         ? <p className="text-secondary">아직 번역이 없습니다. 새 번역을 시작하면 최신 원문(v{list.latestSourceVersion}) 기준으로 작성할 수 있습니다.</p>
         : <table className="table align-middle">
-          <thead><tr><th>버전</th><th>상태</th><th>기준 원문</th><th>제출 시각 (UTC)</th><th /></tr></thead>
+          <thead><tr><th>버전</th><th>상태</th><th>기준 원문</th><th>제출 시각 (UTC)</th><th>결정</th><th /></tr></thead>
           <tbody>
             {list.items.map((item) => <tr key={item.versionNo}>
               <td>v{item.versionNo}</td>
               <td>{STATUS_LABEL[item.status]}</td>
               <td>{item.sourceVersion === list.latestSourceVersion ? `원문 v${item.sourceVersion} (최신)` : `원문 v${item.sourceVersion} (이전)`}</td>
               <td>{item.submittedAt ? <time>{item.submittedAt}</time> : "—"}</td>
+              <td>{decisionLabel(item.decision)}</td>
               <td><button type="button" className="btn btn-outline-secondary btn-sm" disabled={loading || dirty || detail?.versionNo === item.versionNo}
                 onClick={() => void load(item.versionNo)}>v{item.versionNo} 보기</button></td>
             </tr>)}
@@ -177,6 +179,7 @@ export function TranslationWorkspace({ episodeId, onLatestSourceVersion }: { epi
 
     {detail && <section aria-label="원문과 번역" className="card card-body shadow-sm">
       <h2 className="h5">v{detail.versionNo} · {STATUS_LABEL[detail.status]}</h2>
+      <DecisionBox decision={detail.decision} />
       <p className="text-secondary small">
         {detail.editable ? "왼쪽 원문을 보고 오른쪽에 번역을 입력합니다. 저장한 뒤에 제출할 수 있으며, 제출하면 수정할 수 없습니다."
           : detail.status === "INVALIDATED" ? "원문이 바뀌어 무효화된 번역입니다. 읽기 전용이며, 새 번역을 시작할 수 있습니다."

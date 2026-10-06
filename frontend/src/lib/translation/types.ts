@@ -1,7 +1,9 @@
+import type { Decision } from "./decision";
+
 export type TranslationStatus = "DRAFT" | "REVIEW_PENDING" | "REJECTED" | "APPROVED" | "PUBLISHED" | "INVALIDATED" | "ON_HOLD";
 
 export type TranslationSummary = {
-  versionNo: number; status: TranslationStatus; sourceVersion: number; revision: number; createdAt: string; submittedAt: string | null;
+  versionNo: number; status: TranslationStatus; sourceVersion: number; revision: number; createdAt: string; submittedAt: string | null; decision: Decision | null;
 };
 export type TranslationList = { latestSourceVersion: number; items: TranslationSummary[] };
 export type TranslationBlock = { seq: number; pageNo: number | null; source: string; text: string | null };

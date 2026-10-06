@@ -7,6 +7,7 @@ import { getMyEpisode, listMyEpisodes } from "@/lib/assignment/client";
 import { ASSIGNEE_LABEL, type MyEpisodeDetail, type MyEpisodeList } from "@/lib/assignment/types";
 import { episodeFailureMessage } from "@/lib/episodes/messages";
 import type { EpisodeFailure } from "@/lib/episodes/types";
+import { ReviewVersionsPanel } from "./ReviewViews";
 import { TranslationWorkspace } from "./TranslationWorkspace";
 
 const PAGE_SIZE = 20;
@@ -116,6 +117,7 @@ export function AssignedDetailView({ episodeId }: { episodeId: string }) {
     <h1 className="h2 mb-1">{detail.title}</h1>
     <p className="text-secondary">내 담당: <strong>{ASSIGNEE_LABEL[detail.assignedRole]}</strong> ·
       {detail.source ? ` 최신 원문 v${Math.max(detail.source.version, liveSourceVersion ?? 0)}` : " 아직 저장된 원문이 없습니다."}</p>
+    {detail.assignedRole === "REVIEWER" && <ReviewVersionsPanel episodeId={episodeId} />}
     {detail.assignedRole === "TRANSLATOR" && detail.source !== null
       ? <TranslationWorkspace episodeId={episodeId} onLatestSourceVersion={setLiveSourceVersion} />
       : <section aria-label="원문 (읽기 전용)" className="card card-body shadow-sm">

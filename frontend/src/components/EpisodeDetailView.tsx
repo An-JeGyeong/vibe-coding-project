@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AssignmentPanel } from "@/components/AssignmentPanel";
+import { TranslationOverviewPanel } from "@/components/TranslationOverviewPanel";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { getEpisode, getVersion, listVersions, saveSource } from "@/lib/episodes/client";
 import { episodeFailureMessage } from "@/lib/episodes/messages";
@@ -142,6 +143,7 @@ export function EpisodeDetailView({ episodeId }: { episodeId: string }) {
     {loadFailure && <div className="alert alert-warning" role="alert">{episodeFailureMessage(loadFailure)}</div>}
 
     <AssignmentPanel episodeId={episodeId} />
+    <TranslationOverviewPanel episodeId={episodeId} />
 
     <section aria-label="원문 편집" className="card card-body shadow-sm mb-3">
       <h2 className="h5">원문 편집</h2>

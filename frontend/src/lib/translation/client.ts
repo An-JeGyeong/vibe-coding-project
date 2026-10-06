@@ -1,5 +1,6 @@
 import { errorCode, isRecord } from "@/lib/auth/client";
 import { call, fail, INVALID_RESPONSE, isInt, isStr, isTime } from "@/lib/episodes/client";
+import { parseDecision } from "./decision";
 import type { EpisodeFailure, EpisodeResult } from "@/lib/episodes/types";
 import type {
   CreatedTranslation, SaveTranslationOutcome, SubmitOutcome, TranslationDetail, TranslationDraftBlock, TranslationList,
@@ -10,7 +11,7 @@ const STATUSES: readonly string[] = ["DRAFT", "REVIEW_PENDING", "REJECTED", "APP
 const isStatus = (value: unknown): value is TranslationStatus => isStr(value) && STATUSES.includes(value);
 
 // Translation-specific error bodies (CONTRACTS 17.3): extra fields live inside the error object.
-function translationError(status: number, body: unknown): EpisodeFailure | null {
+export function translationError(status: number, body: unknown): EpisodeFailure | null {
   const code = errorCode(body);
   const error = isRecord(body) && isRecord(body.error) ? body.error : {};
   if (status === 400 && code === "INCOMPLETE_TRANSLATION") {
@@ -25,8 +26,10 @@ function translationError(status: number, body: unknown): EpisodeFailure | null 
 function summary(value: unknown): TranslationSummary | null {
   if (!isRecord(value) || !isInt(value.versionNo) || !isStatus(value.status) || !isInt(value.sourceVersion) || !isInt(value.revision)
     || !isTime(value.createdAt) || !(value.submittedAt === null || isTime(value.submittedAt))) return null;
+  const decision = parseDecision(value.decision);
+  if (!decision.ok) return null;
   return { versionNo: value.versionNo, status: value.status, sourceVersion: value.sourceVersion, revision: value.revision,
-    createdAt: value.createdAt, submittedAt: value.submittedAt as string | null };
+    createdAt: value.createdAt, submittedAt: value.submittedAt as string | null, decision: decision.value };
 }
 
 const base = (episodeId: string) => `/api/my/episodes/${encodeURIComponent(episodeId)}/translations`;

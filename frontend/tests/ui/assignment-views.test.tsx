@@ -30,6 +30,7 @@ function server(role: Role, routes: Record<string, H> = {}) {
   return mockFetch((call) => {
     if (call.path === "/api/auth/me") return json(200, meBody(role));
     const key = `${call.method} ${call.path}`;
+    if (!routes[key] && key === "GET /api/my/episodes/7/reviews") return json(200, { latestSourceVersion: 2, items: [] });
     const handler = routes[key];
     if (handler) return handler(call);
     throw new Error(`unexpected ${key}`);
