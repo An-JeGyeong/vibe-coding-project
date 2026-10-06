@@ -563,3 +563,37 @@ SET foreign_key_checks=1;
 - backend(실제 MySQL): 위 처리 함수 테스트, 4개 역할 × 5개 API의 401/403/성공 매트릭스(역할 위조 헤더·본문 포함), V26 적용·기존 감사 행 보존, 역할 불일치가 서비스 검사와 DB 복합 FK 양쪽에서 막힘, 오류 비노출·비JSON 400, 기존 회귀·빌드. 통합 테스트가 만든 회차·배정·감사·계정 행만 정확히 정리하고 데모 계정·기존 데이터·제한 행을 늘리거나 줄이지 않으며 연속 2회 통과·전후 행 수를 비교한다.
 - frontend: 배정 영역(조회·지정·교체·오류), `/assigned` 목록·상세(404 포함), 비해당 역할 안내와 API 미호출, `/demo` 메뉴 변경, 중복 제출·늦은 응답 무시, 기존 회귀, 타입·빌드. 모킹 테스트 통과는 실제 연동 성공이 아니다.
 - 최종 실제 연동(Codex, 격리 환경 권장 — 삭제 API가 없어 만든 회차·배정이 남음): 운영자가 회차에 번역가·감수자를 배정 → 번역가·감수자가 각자 로그인해 "배정된 회차"에서 해당 회차와 원문을 봄 → 배정되지 않은 두 번째 회차는 404 안내 → 교체 후 이전 담당자가 즉시 접근 불가, 새 담당자 접근 → 운영자·독자가 `/assigned` 접속 시 안내만, 같은 토큰으로 `/api/my/**`·운영자 API를 호출하면 브라우저에서 403을 읽을 수 있음 → PUT preflight·새로고침 유지·`ASSIGNED` 감사(subject 포함) 확인.
+
+## 16. 스키마 보정 2 — V6~V9 NOT NULL (PROPOSED, 사용자 계약 승인 후 마이그레이션 적용)
+
+작성: Claude Code. 근거: DECISIONS.md D-039(NOT NULL 규칙)·D-042(이 계약 승인 시 함께 승인). 14.2의 NOT NULL 규칙은 V10~V19 테이블에만 적용되어 있어, 더 일찍 만든 테이블(V6~V9)에 같은 NULL 허용 컬럼이 남았다(개발 DB `information_schema`로 확인). 애플리케이션은 항상 값을 넣어 지금 동작에는 영향이 없지만, DB 수준에서는 작성자 없는 회차·원문 버전, 본문이 NULL인 원문 블록, 이벤트가 없는 감사 행이 들어갈 수 있다. 번역 노드가 `source_block`·`domain_audit`에 의존하므로 구현 전에 맞춘다.
+
+### 16.1 규칙 확장
+NOT NULL 규칙은 **모든 도메인·인증 테이블**에 적용한다. NULL 허용은 아래 목록뿐이다(이유가 있는 선택적 값).
+- `auth_audit.account_id`, `auth_login_limit.blocked_until`, `auth_token.revoked_at`
+- `source_block.page_no`, `episode.published_translation_version_id`, `translation_version.submitted_at`
+- `review_decision.reason`, `review_decision.invalidated_at`
+- `domain_audit.episode_id`, `domain_audit.source_version`, `domain_audit.translation_version_id`, `domain_audit.subject_account_id`
+- 생성 컬럼 `translation_version.open_slot`(정의상 NULL)
+새 마이그레이션이 이 목록 밖의 NULL 허용 컬럼을 만들면 위반이다.
+
+### 16.2 보정 마이그레이션 (V27~V30, 파일당 DDL 하나, V1~V26 수정 금지)
+적용된 컬럼 정의(타입·charset·collation)는 **기존과 동일하게** 다시 쓴다(원문은 V6~V9). 대상 테이블은 개발 DB에서 행이 0개이며, NULL 행이 있으면 NOT NULL 변경 자체가 실패하므로 데이터를 숨기지 않는다.
+| 파일 | 변경 | 방식 |
+|---|---|---|
+| V27 | episode: title, created_by, created_at, updated_at NOT NULL | `SET foreign_key_checks=0;` → ALTER → `SET foreign_key_checks=1;` (created_by가 FK 컬럼, 오류 1832 회피, D-039 보완과 동일) |
+| V28 | episode_source_version: created_by, created_at, block_count NOT NULL | 같은 래퍼 |
+| V29 | source_block: body NOT NULL (page_no는 NULL 유지) | 래퍼 불필요(FK 컬럼 아님) |
+| V30 | domain_audit: occurred_at, event NOT NULL | 래퍼 불필요 |
+- 기존 FK·CHECK·UNIQUE·인덱스는 그대로 유지한다. MySQL 8.4가 변경을 막으면 우회하지 말고 구현을 멈추고 변경 제안을 보고한다.
+
+### 16.3 필수 테스트 (실제 MySQL, 건너뛰기 불가)
+- 위 컬럼마다 NULL 삽입이 거부(1048 또는 기본값 없음 1364)되고 정상 값은 허용된다.
+- **스키마 검사 테스트**: `information_schema`에서 현재 NULL 허용 컬럼 집합이 16.1 목록과 **정확히 일치**하는지 확인한다(이후 마이그레이션이 규칙을 어기면 실패).
+- 적용 경로 2가지: 빈 DB(V1~V30)와 **데이터가 있는 V26 DB**(회차·원문 버전·블록·감사 행이 있는 상태)에 V27~V30을 올리는 경로. 기존 행 수·내용 보존, V1~V26 체크섬 불변, Flyway validate 통과, FK 개수·이름·규칙(전체 19개 이상) 변경 전과 동일, `@@foreign_key_checks`가 1로 복구됨.
+- 기존 EpisodeSource·Assignment·인증 통합 테스트와 전체 회귀가 수정 없이 통과한다(애플리케이션 코드는 이미 값을 넣는다). 기존 Flyway 마이그레이션 테스트의 기대 버전은 30으로 갱신한다.
+- 테스트 위생: 만든 행만 정확히 정리, 데모 계정·기존 데이터·제한 행 수 불변, 연속 2회 통과·전후 행 수 비교.
+
+### 16.4 개발 DB 적용·파일 소유권
+- 개발 DB(3306) 적용은 일회용 DB 검증이 모두 통과한 뒤 마지막에, **적용 전 사용자 확인**을 받는다. 적용 후 Flyway 이력 30 성공, 재실행 추가 적용 0개, 기존 행 수 유지, NULL 허용 컬럼이 16.1 목록과 일치함을 읽기 전용으로 확인한다.
+- Codex 변경: db/migration V27~V30, backend/src/test, README 검증 기록. 금지: V1~V26, Java 운영 코드, frontend/, 문서 3종, PROJECT_CONTEXT.md.
