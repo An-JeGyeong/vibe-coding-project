@@ -201,7 +201,7 @@ DemoAuth 승인 결정: D-020~D-024와 CONTRACTS.md 12절이 해당 인증 범�
 - 배정 해제는 이번에 제공하지 않는다(교체만).
 - 번역가·감수자의 배정 회차 목록·원문 읽기 화면을 이 노드에 포함한다.
 
-### D-041 배정 계약 세부 — PROPOSED (CONTRACTS 15절 승인 시 함께 승인)
+### D-041 배정 계약 세부 — APPROVED (2026-10-06, CONTRACTS 15절과 함께 사용자 승인)
 - 감사 대상 계정을 위해 `domain_audit.subject_account_id`(NULL 허용, V26)를 추가한다. API: `assignable-accounts`, `episodes/{id}/assignments`, `PUT .../assignments/{role}`(처음 201·교체/동일 200, 동일은 쓰기·감사 없음), `my/episodes`, `my/episodes/{id}`. 미배정·없는 회차는 404, 역할 위반은 403. 후보 목록은 활성 계정의 id·이름·역할만 노출(loginId 미노출).
 
 ## 이월 항목 (업무 노드에서 결정, DemoAuth 확정 부분 제외)

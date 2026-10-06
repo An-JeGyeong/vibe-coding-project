@@ -1,7 +1,7 @@
 # CONTRACTS.md
 
 관리: ProjectBootstrap·EpisodeSource는 Claude Code, DemoAuth 공통 계약은 Codex / 최종 승인: 사용자
-범위: ProjectBootstrap, 승인된 DemoAuth, 13절 EpisodeSource(APPROVED 2026-10-05), 14절 전체 도메인 스키마(APPROVED 2026-10-06), 15절 Assignment(PROPOSED: 사용자 계약 승인 전 구현 금지). 아래 DemoAuth 절은 인증 제외·단일 API·빈 스키마 등 Bootstrap 단계 제한을 해당 기능에 한해 대체한다.
+범위: ProjectBootstrap, 승인된 DemoAuth, 13절 EpisodeSource(APPROVED 2026-10-05), 14절 전체 도메인 스키마(APPROVED 2026-10-06), 15절 Assignment(APPROVED 2026-10-06). 아래 DemoAuth 절은 인증 제외·단일 API·빈 스키마 등 Bootstrap 단계 제한을 해당 기능에 한해 대체한다.
 근거: `DECISIONS.md` D-001~D-003, D-006~D-008, D-010, D-012~D-018 (D-011, D-004의 DB 엔진 부분은 D-018로 대체)
 DB 엔진: MySQL 8.4 LTS (D-018). 이전 PostgreSQL 기준 문구는 모두 대체되었다.
 미결정(계약 대상 아님): D-004 관리형 MySQL 제품, D-005 백엔드 호스팅 제품, D-009 인증 방식
@@ -509,9 +509,9 @@ SET foreign_key_checks=1;
 ### 14.7 이후 노드 (각각 별도 계약, 스키마 변경이 필요하면 구현을 멈추고 14절 변경을 제안)
 1. 배정 — 운영자의 배정·조회, 번역가·감수자의 배정 회차 목록. 2. 번역 — 버전 생성(복사)·편집·제출, 원문 변경 시 무효화(saveSourceVersion 수정 포함). 3. 감수 — 대기 목록·원문 대조 조회·승인·반려. 4. 발행 — 승인본 발행과 공개본 고정. 5. 독자 열람 — 공개 목록·상세. 각 노드는 CONTRACTS 계약 → 사용자 승인 → Codex 백엔드 / Claude Code 프런트 → 실제 연동 검증 → 리뷰 순서를 따른다.
 
-## 15. Assignment — 담당자 배정·배정 회차 조회 (PROPOSED, 사용자 계약 승인 후 구현)
+## 15. Assignment — 담당자 배정·배정 회차 조회 — APPROVED (2026-10-06, 사용자 승인)
 
-작성: Claude Code. 구현: backend=Codex, frontend=Claude Code. 근거: DECISIONS.md D-031(배정)·D-038(접근 범위)·D-040(승인)·D-041(이 계약 승인 시 함께 승인). 인증·역할·오류 형식·CORS·Bearer 규칙은 12절, 회차 API 규칙은 13절을 그대로 따른다. 스키마는 14절(`episode_assignment`)을 쓰며 이 노드에서 마이그레이션 V26 하나만 추가한다.
+작성: Claude Code. 구현: backend=Codex, frontend=Claude Code. 근거: DECISIONS.md D-031(배정)·D-038(접근 범위)·D-040(승인)·D-041(계약과 함께 2026-10-06 승인). 인증·역할·오류 형식·CORS·Bearer 규칙은 12절, 회차 API 규칙은 13절을 그대로 따른다. 스키마는 14절(`episode_assignment`)을 쓰며 이 노드에서 마이그레이션 V26 하나만 추가한다.
 
 ### 범위
 - 포함: 운영자의 번역가·감수자 지정·교체와 현재 배정 조회, 지정 후보 계정 목록, 번역가·감수자의 "내 배정 회차" 목록과 원문 읽기(읽기 전용), 감사 `ASSIGNED`.
