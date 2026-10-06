@@ -747,7 +747,7 @@ NOT NULL 규칙은 **모든 도메인·인증 테이블**에 적용한다. NULL 
 - 실제 연동(Codex, 격리 환경): 브라우저 /login에서 잘못된 비밀번호를 연속 7회 이상 입력해도 "ID 또는 비밀번호가 올바르지 않습니다" 안내만 나오고 차단되지 않으며, 이어서 올바른 비밀번호로 로그인이 성공해 /demo로 이동한다. 서버 접근 기록에 429가 없다.
 - 파일 소유권: Codex는 backend/src/main·test, README, backend/.env.example을 변경한다. 변경 금지: V1~V31, 12절 외 계약·결정 문서, frontend, PROJECT_CONTEXT.md.
 
-## 20. Publication — 발행과 독자 열람(공개 API) — PROPOSED (2026-10-07, 사용자 승인 대기)
+## 20. Publication — 발행과 독자 열람(공개 API) — APPROVED (2026-10-07, 사용자 승인)
 
 작성: Claude Code. 구현: backend=Codex, frontend=Claude Code. 근거: DECISIONS.md D-034(승인), D-048(이 절과 함께 승인 대기). 인증·역할·오류 형식·CORS는 12절(19절 보정 포함), 회차·원문은 13절, 스키마는 14·16절(`publication`·`episode.published_translation_version_id` 이미 있음), 번역은 17절, 감수는 18절을 따른다. **이 노드는 마이그레이션이 없다.** 발행과 독자 열람을 한 계약으로 묶는다(독자 열람은 읽기 전용이며 같은 상태 전이를 다룬다).
 
