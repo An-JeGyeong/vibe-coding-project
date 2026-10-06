@@ -18,7 +18,7 @@ import java.util.Map;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import static com.mangabridge.bootstrap.auth.AuthModels.*;
 
-@RestControllerAdvice(assignableTypes={AuthController.class,EpisodeController.class,AssignmentController.class,TranslationController.class,com.mangabridge.bootstrap.review.ReviewController.class})
+@RestControllerAdvice(assignableTypes={AuthController.class,EpisodeController.class,AssignmentController.class,TranslationController.class,com.mangabridge.bootstrap.review.ReviewController.class,com.mangabridge.bootstrap.publication.PublicationController.class})
 public class AuthErrors {
     static ErrorResponse body(String code) {
         String message=switch(code) {
@@ -62,6 +62,13 @@ public class AuthErrors {
         return ResponseEntity.status(failure.status).header("Cache-Control","no-store").body(Map.of("error",error));
     }
     @ExceptionHandler(com.mangabridge.bootstrap.review.ReviewFailure.class) ResponseEntity<?> reviewFailure(com.mangabridge.bootstrap.review.ReviewFailure failure) {
+        var error=new LinkedHashMap<String,Object>();
+        error.put("code",failure.code);
+        error.put("message",failure.code.equals("STATE_CONFLICT")?"현재 번역 상태에서는 요청을 처리할 수 없습니다.":body(failure.code).error().message());
+        if(failure.currentStatus!=null) error.put("currentStatus",failure.currentStatus);
+        return ResponseEntity.status(failure.status).header("Cache-Control","no-store").body(Map.of("error",error));
+    }
+    @ExceptionHandler(com.mangabridge.bootstrap.publication.PublicationFailure.class) ResponseEntity<?> publicationFailure(com.mangabridge.bootstrap.publication.PublicationFailure failure) {
         var error=new LinkedHashMap<String,Object>();
         error.put("code",failure.code);
         error.put("message",failure.code.equals("STATE_CONFLICT")?"현재 번역 상태에서는 요청을 처리할 수 없습니다.":body(failure.code).error().message());

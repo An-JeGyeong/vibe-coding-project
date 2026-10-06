@@ -30,6 +30,7 @@ public class AuthSecurity {
             .logout(logout->logout.disable())
             .authorizeHttpRequests(auth->auth
                 .requestMatchers(org.springframework.http.HttpMethod.OPTIONS,"/**").permitAll()
+                .requestMatchers("/api/public","/api/public/**").permitAll()
                 .requestMatchers("/api/health","/api/auth/login","/api/auth/logout","/error").permitAll()
                 .requestMatchers("/api/episodes","/api/episodes/**").hasRole("OPERATOR")
                 .requestMatchers("/api/assignable-accounts").hasRole("OPERATOR")
@@ -53,7 +54,8 @@ public class AuthSecurity {
         private final AuthService service; private final ObjectMapper mapper;
         BearerFilter(AuthService service,ObjectMapper mapper) {this.service=service;this.mapper=mapper;}
         @Override protected boolean shouldNotFilter(HttpServletRequest r) {
-            return r.getMethod().equals("OPTIONS") || List.of("/api/health","/api/auth/login","/api/auth/logout","/error").contains(r.getServletPath());
+            return r.getMethod().equals("OPTIONS") || r.getServletPath().equals("/api/public") || r.getServletPath().startsWith("/api/public/")
+                    || List.of("/api/health","/api/auth/login","/api/auth/logout","/error").contains(r.getServletPath());
         }
         @Override protected void doFilterInternal(HttpServletRequest request,HttpServletResponse response,FilterChain chain) throws IOException,ServletException {
             try {
