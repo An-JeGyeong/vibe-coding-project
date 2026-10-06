@@ -5,12 +5,12 @@ import type {
   SourceBlock, SourceView, VersionSummary,
 } from "./types";
 
-const INVALID_RESPONSE: EpisodeFailure = { kind: "invalid_response" };
-const fail = (failure: EpisodeFailure): { ok: false; failure: EpisodeFailure } => ({ ok: false, failure });
+export const INVALID_RESPONSE: EpisodeFailure = { kind: "invalid_response" };
+export const fail = (failure: EpisodeFailure): { ok: false; failure: EpisodeFailure } => ({ ok: false, failure });
 
-const isInt = (value: unknown): value is number => typeof value === "number" && Number.isInteger(value);
-const isStr = (value: unknown): value is string => typeof value === "string";
-const isTime = (value: unknown): value is string => isStr(value) && /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(value) && !Number.isNaN(Date.parse(value));
+export const isInt = (value: unknown): value is number => typeof value === "number" && Number.isInteger(value);
+export const isStr = (value: unknown): value is string => typeof value === "string";
+export const isTime = (value: unknown): value is string => isStr(value) && /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(value) && !Number.isNaN(Date.parse(value));
 
 function savedBy(value: unknown): SavedBy | null {
   return isRecord(value) && isStr(value.id) && isStr(value.displayName) ? { id: value.id, displayName: value.displayName } : null;
@@ -38,15 +38,16 @@ function summary(value: unknown): EpisodeSummary | null {
   return { id: value.id, title: value.title, latestSourceVersion: value.latestSourceVersion, updatedAt: value.updatedAt };
 }
 
-type Call = { path: string; method: string; body?: unknown; signal?: AbortSignal; ok: number[] };
+export type CallResult = { ok: true; value: unknown; status: number } | { ok: false; failure: EpisodeFailure };
+export type Call = { path: string; method: string; body?: unknown; signal?: AbortSignal; ok: number[] };
 
 // The bearer token is read from sessionStorage at call time; without one no request is sent.
-async function call(request: Call): Promise<EpisodeResult<unknown>> {
+export async function call(request: Call): Promise<CallResult> {
   const stored = readToken();
   if (!stored.ok || stored.token === null) return fail({ kind: "unauthorized", code: "AUTH_REQUIRED" });
   const sent = await send(request.path, { method: request.method, token: stored.token, body: request.body, signal: request.signal });
   if (sent.kind === "failure") return fail(sent.failure);
-  if (request.ok.includes(sent.status)) return { ok: true, value: parseJson(sent.text) };
+  if (request.ok.includes(sent.status)) return { ok: true, value: parseJson(sent.text), status: sent.status };
   if (sent.status === 404) return fail({ kind: "not_found" });
   if (sent.status === 409) {
     const body = parseJson(sent.text);
