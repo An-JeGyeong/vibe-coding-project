@@ -1,7 +1,7 @@
 # CONTRACTS.md
 
 관리: ProjectBootstrap·EpisodeSource는 Claude Code, DemoAuth 공통 계약은 Codex / 최종 승인: 사용자
-범위: ProjectBootstrap, 승인된 DemoAuth, 13절 EpisodeSource(APPROVED 2026-10-05), 14절 전체 도메인 스키마(APPROVED 2026-10-06), 15절 Assignment(APPROVED 2026-10-06), 16절 스키마 보정 2(APPROVED), 17절 Translation(APPROVED 2026-10-06), 18절 Review(PROPOSED: 사용자 계약 승인 전 구현 금지). 아래 DemoAuth 절은 인증 제외·단일 API·빈 스키마 등 Bootstrap 단계 제한을 해당 기능에 한해 대체한다.
+범위: ProjectBootstrap, 승인된 DemoAuth, 13절 EpisodeSource(APPROVED 2026-10-05), 14절 전체 도메인 스키마(APPROVED 2026-10-06), 15절 Assignment(APPROVED 2026-10-06), 16절 스키마 보정 2(APPROVED), 17절 Translation(APPROVED 2026-10-06), 18절 Review(APPROVED 2026-10-06). 아래 DemoAuth 절은 인증 제외·단일 API·빈 스키마 등 Bootstrap 단계 제한을 해당 기능에 한해 대체한다.
 근거: `DECISIONS.md` D-001~D-003, D-006~D-008, D-010, D-012~D-018 (D-011, D-004의 DB 엔진 부분은 D-018로 대체)
 DB 엔진: MySQL 8.4 LTS (D-018). 이전 PostgreSQL 기준 문구는 모두 대체되었다.
 미결정(계약 대상 아님): D-004 관리형 MySQL 제품, D-005 백엔드 호스팅 제품, D-009 인증 방식
@@ -656,9 +656,9 @@ NOT NULL 규칙은 **모든 도메인·인증 테이블**에 적용한다. NULL 
 - frontend: 17.5 전부(생성·병기 편집·저장·제출·누락 표시·409 두 종류·401·403·404·503·통신 오류·중복 제출·늦은 응답 무시·감수자의 번역 API 미호출·읽기 전용 상태), 기존 회귀, 타입·빌드. 모킹 테스트 통과는 실제 연동 성공이 아니다.
 - 최종 실제 연동(Codex, 격리 환경): 운영자가 회차·원문·배정 → 번역가가 새 번역 시작·편집·저장·새로고침 유지·다른 탭/API로 리비전을 올린 뒤 저장해 충돌 → 일부 번역만 있는 상태에서 제출해 누락 표시 → 완성 후 제출(REVIEW_PENDING·읽기 전용) → 운영자가 원문을 수정해 번역 버전이 INVALIDATED가 되고 번역가 화면이 안내 → 새 번역 시작 시 이전 내용이 seq 기준으로 복사됨 → 번역가 교체 후 이전 번역가 404·새 번역가가 DRAFT를 이어받음 → 감수자·운영자·독자의 실제 브라우저 403(콘솔 fetch)·PUT/POST preflight·감사(TRANSLATION_CREATED·TRANSLATION_SUBMITTED·APPROVAL_INVALIDATED는 테스트 픽스처로 승인 상태를 만든 뒤)를 확인한다. 삭제 API가 없어 만든 행이 남으므로 격리 환경에서만 수행한다.
 
-## 18. Review — 감수(검수 대기·대조·승인·반려)와 운영자의 번역 조회 (PROPOSED, 사용자 계약 승인 후 구현)
+## 18. Review — 감수(검수 대기·대조·승인·반려)와 운영자의 번역 조회 — APPROVED (2026-10-06, 사용자 승인)
 
-작성: Claude Code. 구현: backend=Codex, frontend=Claude Code. 근거: DECISIONS.md D-032·D-033·D-035·D-036·D-038(승인), D-045(승인), D-046(이 계약 승인 시 함께 승인). 인증·역할·오류 형식·CORS는 12절, 회차·원문은 13절, 스키마는 14·16절, 배정은 15절, 번역은 17절을 따른다. **이 노드는 마이그레이션이 없다**(`review_decision`·감사 이벤트는 14절에 이미 있다).
+작성: Claude Code. 구현: backend=Codex, frontend=Claude Code. 근거: DECISIONS.md D-032·D-033·D-035·D-036·D-038(승인), D-045(승인), D-046(계약과 함께 2026-10-06 승인). 인증·역할·오류 형식·CORS는 12절, 회차·원문은 13절, 스키마는 14·16절, 배정은 15절, 번역은 17절을 따른다. **이 노드는 마이그레이션이 없다**(`review_decision`·감사 이벤트는 14절에 이미 있다).
 
 ### 범위
 - 포함: 배정된 감수자의 검수 대기 목록, 원문·번역 대조 조회, 승인, 반려(사유 필수), 운영자의 번역 버전 읽기(목록·상세), 번역가의 반려 사유 조회(기존 17절 응답에 필드 추가).
