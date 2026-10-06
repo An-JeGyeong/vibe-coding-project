@@ -292,6 +292,6 @@ class EpisodeSourceIntegrationTest {
         assertThatThrownBy(()->jdbc.update("INSERT INTO domain_audit(actor_account_id) VALUES (999999999999999999)")).isInstanceOf(DataAccessException.class);
         assertThatThrownBy(()->jdbc.update("INSERT INTO domain_audit(actor_account_id) VALUES (NULL)")).isInstanceOf(DataAccessException.class);
         assertThat(jdbc.queryForList("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='domain_audit'",String.class))
-                .containsExactlyInAnyOrder("id","occurred_at","actor_account_id","event","episode_id","source_version");
+                .containsExactlyInAnyOrder("id","occurred_at","actor_account_id","event","episode_id","source_version","translation_version_id");
     }
 }
