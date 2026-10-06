@@ -217,12 +217,11 @@ git diff --cached --check
 
 ## 7. DemoAuth 실행·검증
 
-역할별 ID는 `demo.operator`, `demo.translator`, `demo.reviewer`, `demo.reader`입니다. 비밀번호는 화면·소스·NEXT_PUBLIC 변수에 포함하지 않습니다. local 직접 접속만 이번 검증 대상이며 Vercel/API 외부 배포와 프록시 IP 정책은 별도 승인 전 미검증입니다.
+역할별 ID는 `demo.operator`, `demo.translator`, `demo.reviewer`, `demo.reader`입니다. 비밀번호는 화면·소스·NEXT_PUBLIC 변수에 포함하지 않습니다. 로그인 실패 제한과 AUTH_CLIENT_IP_MODE는 제거됐습니다(D-047). 외부 공개 배포 전 비밀번호 강도와 제한 재도입 여부를 별도로 승인받아야 하며 Vercel/API 외부 배포는 미검증입니다. 아래 과거 검증 기록의 IP 설정·실패 제한 결과는 당시 동작에 대한 이력입니다.
 
 2절처럼 DB·CORS 환경을 주입한 backend PowerShell 5.1 창에서 다음 초기화를 한 번 실행합니다. 기존 계정은 덮어쓰지 않으며 재실행은 같은 비밀번호를 입력해야 합니다. 실제 비밀번호를 셸 명령이나 Git에 기록하지 않습니다.
 
 ```powershell
-$env:AUTH_CLIENT_IP_MODE = 'DIRECT'
 $env:DEMO_AUTH_SEED_ENABLED = 'true'
 try {
   foreach ($name in @('DEMO_OPERATOR_PASSWORD','DEMO_TRANSLATOR_PASSWORD','DEMO_REVIEWER_PASSWORD','DEMO_READER_PASSWORD')) {
@@ -298,11 +297,10 @@ DB 집계는 컨테이너 앱 계정의 MYSQL_PWD 환경으로 실행했으며 �
 
 ```powershell
 Set-Location C:\Project_File\vibe-coding-project\backend
-Get-Content .env.example | Where-Object { $_ -match '^(DB_URL|DB_USERNAME|DB_PASSWORD|CORS_ALLOWED_ORIGINS|SPRING_PROFILES_ACTIVE|PORT|AUTH_CLIENT_IP_MODE)=' } | ForEach-Object {
+Get-Content .env.example | Where-Object { $_ -match '^(DB_URL|DB_USERNAME|DB_PASSWORD|CORS_ALLOWED_ORIGINS|SPRING_PROFILES_ACTIVE|PORT)=' } | ForEach-Object {
   $pair = $_ -split '=', 2
   [Environment]::SetEnvironmentVariable($pair[0], $pair[1], 'Process')
 }
-$env:AUTH_CLIENT_IP_MODE = 'DIRECT'
 $env:PORT = '8084'
 $env:CORS_ALLOWED_ORIGINS = 'http://localhost:3000'
 .\gradlew.bat bootRun --no-daemon
@@ -836,3 +834,32 @@ DevTools 콘솔 명령 자체 및 Network 패널 관찰은 **미실행**입니�
 Claude Code가 알려 준 격리 API 점검(역할 매트릭스·404·사유400·동시 결정·승인 무효화/감사)은 **Claude Code 직접 실행(API, Codex 재실행 아님)**으로만 구분합니다. 이번 브라우저 미검증 항목을 그 결과로 통과 처리하지 않았습니다.
 
 정리: 이번 소유 Java/API·격리 Next·자격증명 보조 Node PID와 실행 명령을 대조해 종료했고, 소유 컨테이너 ID를 대조해 종료했습니다. 3006/3007/8087/3316 리스너 각0, 기존 개발 MySQL healthy 유지. 개발 DB 전후 계정4/토큰8/제한88/인증 감사130, 도메인9개 각0 및 기존 내용 집계 해시 차이0. 원본 next-env.d.ts 해시와 .next/BUILD_ID 동일. 기존 8080/8081/3000 PID 전후 동일성은 최초 실행 중 PID 증빙이 없어 미검증이며 해당 포트 프로세스를 조작하지 않았습니다. 실제 비밀번호·토큰은 채팅/README/Git에 기록하지 않았습니다. 저장소 변경은 이 README 기록뿐이며 PROJECT_CONTEXT.md의 줄바꿈 M은 그대로입니다. 남은 검증은 표의 미실행 항목, 제품 수정은 위 표시 문제입니다. 외부 배포/Vercel·프록시 IP 정책은 미검증 유지입니다.
+
+### 로그인 제한 제거 검증 — CONTRACTS 19절 / D-047
+
+Codex 직접 실행, 2026-10-07 07:12~07:24 KST. 승인 기준 ef060f5이며 후속 0cb736c(발행 계약)와 9b828dd(Claude Code 프런트)이 추가된 상태에서도 이번 백엔드 변경 범위는 로그인 제한 제거뿐입니다. 코드 dbb21e3, 테스트 커밋은 이 기록 직전 커밋입니다. Review 프런트 4건 재검증은 A~D 실행 전 중단·소유 환경 정리했고, 브라우저 로그인 제한 검증과 함께 마지막 통합 검증으로 이월했습니다.
+
+격리 MySQL 8.4.11, 127.0.0.1:3317/login_no_limit, --rm/tmpfs 사용. 개발 DB 3306과 기존 8080/8081/3000 서비스는 사용하거나 조작하지 않았습니다. PowerShell 5.1.26100.9444에서 환경변수를 프로세스에만 주입했습니다. 데모 계정 4개는 무작위 임시 비밀번호로 시드했고 즉시 비밀번호 환경변수를 정리했습니다. 기존 MySqlIntegrationTest의 compose ps/exec 회귀를 그대로 실행하기 위해 ignored 검증용 Compose 설정과 프로젝트 레이블로 이번 컨테이너만 조회하도록 지정했습니다. 앱 계정 SELECT 1과 Docker healthy를 확인했습니다.
+
+| 실제 실행 명령 | 결과 |
+|---|---|
+| gradlew.bat -I build/verification/schema-tool.init.gradle schemaMigrate --no-daemon | V1~V31 적용, Flyway validate 통과. 신규 마이그레이션 없음 |
+| gradlew.bat build integrationTest --no-daemon --rerun-tasks (1회, AUTH_CLIENT_IP_MODE 미설정) | 20 단위 + 76 통합 = 96개 통과, 실패/오류/건너뛰기 0, exit 0, 2분36초 |
+| 동일 명령 (2회, AUTH_CLIENT_IP_MODE=ARBITRARY_IGNORED) | 96개 연속 통과, 실패/오류/건너뛰기 0, exit 0, 2분33초 |
+| gradlew.bat integrationTest --tests '*DemoAuthIntegrationTest.failedLoginIsUniformAndNeverRateLimited' --no-daemon --rerun-tasks | 별도 API 반복 검증 1개 통과, exit 0. 실제 HTTP 동일 ID/출처로 35회 연속 실패 모두 401 INVALID_CREDENTIALS, Retry-After 없음, 직후 정상 비밀번호 200. 실패 감사 38건(없는 계정·오입력·비활성 3건 포함), 성공 감사 1건, LOGIN_LIMITED 증가 0 |
+
+병렬 HTTP 실패 8건 모두 401·5xx 없음. 기존 차단 행 2개를 테스트 고유 키로 삽입한 경우에도 로그인 가능하고 제한 행 전체 내용 불변. 실제 MySQL 트랜잭션에서 DAO 감사 저장 장애를 주입해 실패·성공 로그인 모두 503 AUTH_UNAVAILABLE이며 토큰·감사 전체 롤백을 확인했습니다. CORS Retry-After 노출 헤더, 토큰·만료·로그아웃·권한·시드·수동 cleanup은 유지했습니다.
+
+읽기 전용 비교: auth_login_limit 0→0→0→0(전/1회/2회/API), 데모 계정 4→4→4→4 및 계정 내용 집계 동일. 토큰·인증 감사·회차·원문 버전·블록·도메인 감사·배정·번역 버전·번역 블록·결정·발행 각각 0 유지. Flyway 성공 31 유지. 테스트 행만 정확히 정리했습니다. 기존 비어 있지 않은 제한 행 불변은 고유 키 픽스처 테스트로 별도 확인했고 개발 DB의 기존 88행은 조회·수정하지 않았습니다.
+
+변경·삭제한 기존 단언(제한 정책 대체만):
+- AuthUnitTest.localIpAndFiniteLifetimeAreRequired → finiteLifetimeAndIgnoredClientIpSetting: IP 정책 미승인 기동 거부를 미설정/임의 값 허용으로 대체, TTL 경계 유지. auditFailureRollsBackFailedLoginAndLogout 및 databaseAndDeniedAuditFailureCannotAllowAccess는 login 함수의 remoteAddress 제거에 따른 호출 변경과 더 이상 존재하지 않는 lockLimit mock 제거뿐이며 503/롤백 단언 유지.
+- DemoAuthIntegrationTest.failedLoginIsUniformAndLimitBoundariesReset → failedLoginIsUniformAndNeverRateLimited: 5회 차단·429·Retry-After=900·899/900초 경계·성공 ID 카운터 초기화를 반복 401/직후200·제한 행 불변·요청별 감사로 대체. 기존 없는 계정/오입력 응답 동일 검증 유지.
+- simultaneousFailuresAreAtomic → simultaneousFailuresAreNeverRateLimited: 5건401+3건429·ID 카운터5를 8건 모두401·제한 행 불변·실패 감사8로 대체.
+- ipLimitIsIndependentAndSuccessOnlyClearsId → existingBlockedLimitRowsRemainUntouched: IP30회 차단·시간 창·성공 시 ID만 초기화 단언을 기존 차단 행 무시 및 내용 불변으로 대체.
+- unsupportedLoginMediaTypesDoNotChangeLimitsOrLeakDetails: ID/IP 카운터가1이라는 단언을 제한 테이블 전체 스냅샷 불변으로 대체. 비JSON400·정확한 오류JSON·no-store 단언 유지.
+- 그 밖의 인증 단언과 EpisodeSource·Assignment·Translation·Review 테스트는 변경 없음. 신규 LoginAuditFailureIntegrationTest는 감사 장애503 및 실제 DB 롤백 검증.
+
+초기 실행 실패도 구분합니다: 2026-10-06 사전 스키마 적용 누락으로 제약 테스트 11건 실패, 2026-10-07 재개 초기에는 Docker 데몬 연결 실패, 이후 첫 준비 실행은 MySqlIntegrationTest의 격리 Compose 대상 미지정으로 1건 실패했습니다. 검증 환경을 보정한 뒤 위 전체 명령이 연속 2회 통과했으며, 실패를 통과로 대체하지 않았습니다. 로그·XML·집계는 ignored backend/build/verification/login-no-limit-ef060f5에 보관했습니다. 비밀번호·토큰을 출력·README·Git에 기록하지 않았습니다. PROJECT_CONTEXT.md 줄바꿈 M과 상대 변경은 보존했습니다.
+
+정리: 소유 컨테이너 ID를 대조해 docker stop --timeout 10으로 종료했으며 --rm으로 남은 컨테이너 0입니다. 별도 API·프런트 프로세스는 기동하지 않았습니다. 브라우저 검증은 사용자 결정에 따라 미실행·최종 통합으로 이월합니다.
