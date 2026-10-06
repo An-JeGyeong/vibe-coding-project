@@ -3,6 +3,7 @@ package com.mangabridge.bootstrap.episode;
 import static com.mangabridge.bootstrap.episode.EpisodeModels.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.mangabridge.bootstrap.auth.AuthModels.CurrentUser;
+import com.mangabridge.bootstrap.translation.TranslationDao;
 import java.math.BigInteger;
 import java.time.Clock;
 import java.time.Instant;
@@ -20,10 +21,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class EpisodeService {
     private final EpisodeDao dao;
+    private final TranslationDao translations;
     private final Clock clock;
     private final TransactionTemplate write,read;
-    public EpisodeService(EpisodeDao dao,Clock clock,PlatformTransactionManager manager) {
-        this.dao=dao; this.clock=clock;
+    public EpisodeService(EpisodeDao dao,TranslationDao translations,Clock clock,PlatformTransactionManager manager) {
+        this.dao=dao; this.translations=translations; this.clock=clock;
         write=new TransactionTemplate(manager); read=new TransactionTemplate(manager); read.setReadOnly(true);
     }
     public Created createEpisode(CreateRequest request,CurrentUser actor) {
@@ -75,6 +77,7 @@ public class EpisodeService {
             int version=Math.addExact(row.latest(),1); Instant now=now();
             dao.insertSource(id,version,actorId(actor),now,blocks);
             dao.audit(actorId(actor),"SOURCE_SAVED",id,version,now);
+            translations.invalidateOnSourceSave(id,version,actorId(actor),now);
             return Map.of("version",version,"changed",true,"savedAt",now);
         });
     }

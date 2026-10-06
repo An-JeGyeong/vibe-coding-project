@@ -33,6 +33,7 @@ public class AuthSecurity {
                 .requestMatchers("/api/health","/api/auth/login","/api/auth/logout","/error").permitAll()
                 .requestMatchers("/api/episodes","/api/episodes/**").hasRole("OPERATOR")
                 .requestMatchers("/api/assignable-accounts").hasRole("OPERATOR")
+                .requestMatchers("/api/my/episodes/*/translations","/api/my/episodes/*/translations/**").hasRole("TRANSLATOR")
                 .requestMatchers("/api/my/**").hasAnyRole("TRANSLATOR","REVIEWER")
                 .anyRequest().authenticated())
             .exceptionHandling(errors->errors

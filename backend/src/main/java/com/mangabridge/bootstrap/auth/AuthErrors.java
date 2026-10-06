@@ -11,11 +11,14 @@ import com.mangabridge.bootstrap.episode.EpisodeController;
 import com.mangabridge.bootstrap.episode.EpisodeFailure;
 import com.mangabridge.bootstrap.assignment.AssignmentController;
 import com.mangabridge.bootstrap.assignment.AssignmentFailure;
+import com.mangabridge.bootstrap.translation.TranslationController;
+import com.mangabridge.bootstrap.translation.TranslationFailure;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import static com.mangabridge.bootstrap.auth.AuthModels.*;
 
-@RestControllerAdvice(assignableTypes={AuthController.class,EpisodeController.class,AssignmentController.class})
+@RestControllerAdvice(assignableTypes={AuthController.class,EpisodeController.class,AssignmentController.class,TranslationController.class})
 public class AuthErrors {
     static ErrorResponse body(String code) {
         String message=switch(code) {
@@ -47,6 +50,18 @@ public class AuthErrors {
     }
     @ExceptionHandler(AssignmentFailure.class) ResponseEntity<ErrorResponse> assignmentFailure(AssignmentFailure failure) {
         return ResponseEntity.status(failure.status).header("Cache-Control","no-store").body(body(failure.code));
+    }
+    @ExceptionHandler(TranslationFailure.class) ResponseEntity<?> translationFailure(TranslationFailure failure) {
+        String message=switch(failure.code) {
+            case "NOT_FOUND" -> "배정되지 않았거나 존재하지 않는 회차 또는 번역 버전입니다.";
+            case "STATE_CONFLICT" -> "현재 번역 상태에서는 요청을 처리할 수 없습니다.";
+            case "VERSION_CONFLICT" -> "번역이 변경되었습니다. 최신 내용을 확인하세요.";
+            case "INCOMPLETE_TRANSLATION" -> "모든 원문 블록의 번역을 작성하세요.";
+            default -> body(failure.code).error().message();
+        };
+        var error=new LinkedHashMap<String,Object>();
+        error.put("code",failure.code); error.put("message",message); error.putAll(failure.details);
+        return ResponseEntity.status(failure.status).header("Cache-Control","no-store").body(Map.of("error",error));
     }
     @ExceptionHandler(Exception.class) ResponseEntity<ErrorResponse> internal() {
         return ResponseEntity.internalServerError().header("Cache-Control","no-store").body(body("INTERNAL_ERROR"));
