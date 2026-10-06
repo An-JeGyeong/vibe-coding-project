@@ -388,3 +388,60 @@ $env:CORS_ALLOWED_ORIGINS = 'http://localhost:3000'
 정리: 마지막 독자 로그아웃 확인 후 이번 브라우저 탭을 닫았습니다. 검증용 8085/3004 PID와 스크립트 소유 런처만 종료하고 컨테이너 ID 대조 후 `docker stop --time 10 <이번 ID>` 실행(--rm 자동 정리). 기존 3000/3306/8080/8081/8084 PID 유지 및 기존 MySQL healthy 확인. 원본 frontend/.next·코드·승인 문서 내용 변경 없음. 수집한 API/프런트 로그·시드 결과의 Bearer/비밀번호 대입/root 비밀번호 패턴 0건, 실제 .env 추적 0개. 입력한 비밀번호 값을 보관하지 않았으므로 값 자체의 전체 로그 대조 검사는 미실행입니다. PROJECT_CONTEXT.md의 기존 M은 그대로 보존했습니다.
 
 전체 실제 연동 완료는 아직 미충족입니다. 시나리오 7·8, 비운영자 서버 403/네트워크 증빙을 실제 브라우저 DevTools 사용 가능 환경에서 재검증하고, 비활성 메뉴 차이를 Claude Code에 전달해야 합니다. 외부 배포/Vercel·프록시 IP 정책도 미검증입니다. 코드 수정·push·이력 재작성·기존 컨테이너/볼륨 삭제는 하지 않았습니다.
+
+## 9. 전체 도메인 스키마 V10~V19 검증 (2026-10-06 KST)
+
+승인 기준은 CONTRACTS.md 14절, DECISIONS.md D-031~D-038, 시작 HEAD `0e1bd92e048e4a2fdf2cc6aaefd5e4fbfc1d2095`입니다. Codex가 직접 실행했습니다. 마이그레이션 커밋 `e9610cf`, 실제 MySQL 테스트 커밋 `22925d6`. 변경은 신규 SQL 10개, 신규 테스트 2개, 기존 스키마 기대값 테스트 2개, 이 검증 기록뿐입니다. 운영 Java·API·서비스·frontend·승인 문서·V1~V9는 변경하지 않았습니다. 서비스가 강제할 상태 전이·원문 변경 시 무효화는 이번에 구현하지 않았습니다.
+
+### 실행 환경과 명령
+
+Windows PowerShell 5.1.26100.9444, Java 17/기존 Gradle Wrapper, Docker Server 29.5.3 Linux, 실제 MySQL 8.4.11. 검증용 DB는 `mangabridge-schema-0e1bd92`의 localhost:3310/schema_verify(--rm, /var/lib/mysql tmpfs)입니다. 별도 빈 DB·V9 데이터 업그레이드 테스트는 테스트마다 무작위 localhost 포트의 --rm/tmpfs MySQL을 생성하고 해당 컨테이너 ID만 종료합니다. Docker 이미지 mysql:8.4.11은 기존 로컬 이미지이며 --pull=never를 사용했습니다. 기존 컨테이너·볼륨은 삭제하지 않았습니다.
+
+환경은 README 2절처럼 .env.example에서 프로세스에 주입하고, 전체 테스트에는 DB_URL=jdbc:mysql://localhost:3310/schema_verify, AUTH_CLIENT_IP_MODE=DIRECT를 지정했습니다. 비밀번호 값은 인자·출력에 넣지 않았습니다. 네 역할의 demo.* 기준 행은 격리 DB에만 삽입한 로그인용이 아닌 테스트 데이터입니다. 사용자 데모 계정이나 비밀번호를 재시드하지 않았습니다.
+
+| 실제 실행 명령·검사 | 결과 |
+|---|---|
+| `gradlew.bat -I build/verification/schema-tool.init.gradle schemaMigrate --no-daemon` (격리 3310) | 통과, 종료 0, 9초. 빈 DB V1~V19 적용, current=19, validate=PASS. socketTimeout=3000ms 유지 |
+| 초기 전체 명령 시도 | 미완료, PS5.1의 ErrorActionPreference=Stop이 기존 javac unchecked 경고를 NativeCommandError로 처리해 중단. 네이티브 명령 구간만 Continue로 실행하고 즉시 LASTEXITCODE 보존하도록 검증 스크립트 수정 |
+| 그다음 `gradlew.bat build integrationTest --no-daemon --rerun-tasks` | 실패, 종료 1, 1분 8초. 테스트 4개 실패: FK 케이스에 PK 중복이 먼저 발생한 1개, Docker inspect 포트 템플릿 인자 오류 2개, V19 감사 컬럼을 반영하지 않은 기존 기대값 1개. 테스트만 수정. 실행 후 기준 행·집계 차이 0 |
+| 같은 전체 명령, 수정 후 성공 1회차 | 통과, 종료 0, 1분 3초. 기본 20 + 실제 MySQL 통합 34 = 54개, 실패/오류/건너뛰기 0 |
+| 같은 전체 명령, 코드 변경 없이 연속 성공 2회차 | 통과, 종료 0, 1분 5초. 같은 54개, 실패/오류/건너뛰기 0 |
+| 빈 DB 마이그레이션 테스트 | 통과. 실제 일회용 MySQL에 19개 적용, validate, 재실행 0개, 다시 validate. 기존 테이블 비어 있음 확인 |
+| 데이터 있는 V9 업그레이드 테스트 | 통과. 별도 일회용 DB에 V1~V9 적용 후 계정 4·토큰 1·제한 1·인증 감사 1·회차 1·원문 버전 1·블록 2·도메인 감사 1 삽입. V10~V19 적용 후 모든 기존 컬럼의 정렬 내용 SHA-256·행 수·V1~V9 Flyway 체크섬 동일. 새 테이블 5개 비어 있음, 새 기본값 0/NULL, 기존 domain_audit 행 보존. validate·재실행 0개 확인 |
+| 배정·번역 버전 제약 | 통과. 역할 불일치 FK·역할 중복 PK·배정 계정 role 변경 거부. 둘째 DRAFT/REVIEW_PENDING 거부(기존 열린 상태 각각 확인), REJECTED/INVALIDATED 다수·나머지 승인된 상태 정상 허용. 원문 참조 FK·상태 값/대소문자 CHECK·버전 0/중복 거부 |
+| 번역 블록·감수 결정 제약 | 통과. 원문에 없는 seq·다른 원문 버전/회차 복합 FK 거부, 빈/NULL/4001자 body 거부 및 1/4000자 허용. 결정 두 번째 거부, 반려 reason NULL/빈 값/501자 거부 및 1/500자 허용. 승인 reason·반려 invalidated_at·결정 대소문자 CHECK 거부, 승인 reason NULL/invalidated_at 정상 허용 |
+| 발행·메타데이터 | 통과. 다른 회차 버전 publication/공개 포인터 및 없는 원문 FK 거부, 같은 버전 반복 발행 이력·NULL 포인터 허용. 새 테이블 InnoDB/utf8mb4, 열거 ascii_bin, DATETIME(6), 명시 RESTRICT, 감사 nullable 컬럼 확인 |
+
+제약 테스트는 JDBC 한 트랜잭션에서 고유 테스트 계정·회차·원문·번역·감수·발행 행을 만들고 @AfterEach에서 rollback합니다. 실제 MySQL 오류 코드(1062 UNIQUE, 1452/1451 FK, 3819 CHECK, 1048 NOT NULL, 1406 길이)를 확인하여 다른 원인으로 실패한 것을 통과 처리하지 않습니다. 기존 HTTP 테스트는 기존의 서버 측 고유 fixture 주소와 정확한 생성 행 정리를 유지합니다. auth_login_limit 공유 키나 기존 계정·토큰은 삭제하지 않습니다. 롤백에 따라 AUTO_INCREMENT 번호에 공백이 생길 수 있지만 기존 행 내용은 변경하지 않습니다.
+
+| 기존 테이블 | 격리 전체 테스트 전/1회 후/2회 후 | 개발 DB 적용 전/후 |
+|---|---|---|
+| demo_account | 4 / 4 / 4 | 4 / 4 |
+| auth_login_limit | 0 / 0 / 0 | 88 / 88 |
+| auth_token | 0 / 0 / 0 | 8 / 8 |
+| auth_audit | 0 / 0 / 0 | 130 / 130 |
+| episode / episode_source_version / source_block / domain_audit | 각각 0 / 0 / 0 | 각각 0 / 0 |
+
+조회는 앱 계정의 MYSQL_PWD 환경과 stdin → `docker exec -i <이번 컨테이너> sh -s` 또는 `docker compose exec -T mysql sh -s`로 수행했습니다. 인증 네 테이블의 전체 행 정렬 집계 해시도 전후 동일합니다. 첫 격리 기준 행 삽입은 CRLF로 heredoc 종료 구분자 오류가 발생했으나 INSERT 4행은 수행됐습니다. 중복 삽입 없이 조회로 확인하고 기존 한 줄 stdin 방식으로 기준 집계를 저장한 뒤 테스트를 실행했습니다.
+
+### 개발 DB 적용 (모든 격리 검증 통과 후 사용자 승인에 따라 마지막 실행)
+
+README 2절의 기존 DB 환경을 주입하고 URL이 localhost/127.0.0.1:3306인지 검사한 뒤 위 schemaMigrate 명령을 실행했습니다. 10:11:36 KST에 V10~V19 10개 적용, 종료 0, current=19, validate=PASS(9초). 10:12:34 재실행은 0개 적용, 종료 0, validate=PASS(9초). 개발 DB에는 제약 테스트나 새 테스트 행 삽입을 실행하지 않았습니다. 적용 직전/직후/재실행 후 기존 행 집계 차이 0, V1~V9 Flyway 체크섬 차이 0, 신규 다섯 테이블 각각 0행입니다.
+
+schemaMigrate는 운영 클래스가 아닌 `DomainSchemaMigrationIntegrationTest.main`을 테스트 classpath에서 실행하는 로컬 검증 작업입니다. 기존 build.gradle은 수정하지 않았으며 ignored build/verification/schema-tool.init.gradle의 내용은 아래와 같습니다. 실행 시 PS5.1의 네이티브 stderr 경고에서 중단되지 않도록 해당 명령 구간에만 ErrorActionPreference=Continue를 사용하고, 네이티브 명령 직후 LASTEXITCODE를 보존했습니다.
+
+```groovy
+allprojects {
+    afterEvaluate {
+        tasks.register('schemaMigrate', JavaExec) {
+            dependsOn tasks.named('testClasses')
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass = 'com.mangabridge.bootstrap.DomainSchemaMigrationIntegrationTest'
+        }
+    }
+}
+```
+
+검증 후 이번 3310 컨테이너 ID를 대조해 docker stop(--rm 자동 정리)했고 테스트마다 만든 컨테이너도 정리됐습니다. 기존 MySQL healthy 및 3000/8080/8081 리스너 PID 유지 확인. 운영 JAR에 신규 테스트/검증 runner 클래스 0개. V1~V9 파일 해시 차이 0, 운영 Java/frontend/승인 문서 내용 diff 0. 수집한 Gradle 로그·JUnit XML의 실제 DB 비밀번호 일치와 Bearer/root 비밀번호 패턴 0건. PROJECT_CONTEXT.md의 기존 줄바꿈 M은 수정·stage·restore하지 않았고 push·이력 재작성은 하지 않았습니다.
+
+이번 14.6 마이그레이션 노드의 미검증·미적용 항목은 없습니다. 기존 Flyway가 MySQL 8.4 지원 업그레이드를 권고하는 경고는 남지만 실제 8.4.11 적용·제약·validate 검증은 통과했습니다. 의존성을 변경하지 않았습니다. API·배정·번역·감수·발행·독자 서비스는 다음 승인 계약의 범위입니다. 이전 EpisodeSource 브라우저 미검증 항목은 이번 스키마 검증으로 대체하지 않습니다.
