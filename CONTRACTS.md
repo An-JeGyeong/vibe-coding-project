@@ -1,7 +1,7 @@
 # CONTRACTS.md
 
 관리: ProjectBootstrap·EpisodeSource는 Claude Code, DemoAuth 공통 계약은 Codex / 최종 승인: 사용자
-범위: ProjectBootstrap, 승인된 DemoAuth, 13절 EpisodeSource(APPROVED 2026-10-05), 14절 전체 도메인 스키마(APPROVED 2026-10-06), 15절 Assignment(APPROVED 2026-10-06). 아래 DemoAuth 절은 인증 제외·단일 API·빈 스키마 등 Bootstrap 단계 제한을 해당 기능에 한해 대체한다.
+범위: ProjectBootstrap, 승인된 DemoAuth, 13절 EpisodeSource(APPROVED 2026-10-05), 14절 전체 도메인 스키마(APPROVED 2026-10-06), 15절 Assignment(APPROVED 2026-10-06), 16절 스키마 보정 2(APPROVED), 17절 Translation(PROPOSED: 사용자 계약 승인 전 구현 금지). 아래 DemoAuth 절은 인증 제외·단일 API·빈 스키마 등 Bootstrap 단계 제한을 해당 기능에 한해 대체한다.
 근거: `DECISIONS.md` D-001~D-003, D-006~D-008, D-010, D-012~D-018 (D-011, D-004의 DB 엔진 부분은 D-018로 대체)
 DB 엔진: MySQL 8.4 LTS (D-018). 이전 PostgreSQL 기준 문구는 모두 대체되었다.
 미결정(계약 대상 아님): D-004 관리형 MySQL 제품, D-005 백엔드 호스팅 제품, D-009 인증 방식
@@ -597,3 +597,61 @@ NOT NULL 규칙은 **모든 도메인·인증 테이블**에 적용한다. NULL 
 ### 16.4 개발 DB 적용·파일 소유권
 - 개발 DB(3306) 적용은 일회용 DB 검증이 모두 통과한 뒤 마지막에, **적용 전 사용자 확인**을 받는다. 적용 후 Flyway 이력 30 성공, 재실행 추가 적용 0개, 기존 행 수 유지, NULL 허용 컬럼이 16.1 목록과 일치함을 읽기 전용으로 확인한다.
 - Codex 변경: db/migration V27~V30, backend/src/test, README 검증 기록. 금지: V1~V26, Java 운영 코드, frontend/, 문서 3종, PROJECT_CONTEXT.md.
+
+## 17. Translation — 번역 작성·제출과 원문 변경 시 무효화 (PROPOSED, 사용자 계약 승인 후 구현)
+
+작성: Claude Code. 구현: backend=Codex, frontend=Claude Code. 근거: DECISIONS.md D-032·D-033·D-035·D-038·D-040(승인), D-043(승인), D-044(이 계약 승인 시 함께 승인). 인증·역할·오류 형식·CORS는 12절, 회차·원문은 13절, 스키마·NOT NULL 규칙은 14·16절, 배정은 15절을 따른다. 이 노드는 마이그레이션 V31 하나와 기존 `saveSourceVersion` 수정을 포함한다.
+
+### 범위
+- 포함: 번역가의 번역 버전 생성(복사), DRAFT 편집(전체 교체 저장), 검수 제출, 번역 버전 목록·상세 조회, 원문 저장 시 미발행 번역 버전 무효화.
+- 제외: 감수(승인·반려)·발행·독자 열람(다음 노드), 운영자·감수자의 번역 조회(감수·발행 노드), 제출 철회(D-043: 두지 않음), AI 번역 초안(선택 기능), 번역 버전 삭제.
+
+### 17.1 마이그레이션 (V31, DDL 하나)
+`ALTER TABLE translation_version ADD COLUMN draft_revision INT NOT NULL DEFAULT 1` — DRAFT 저장의 충돌 방지용 리비전(14.2 NOT NULL 규칙·16.1 NULL 허용 목록 변경 없음). V1~V30 수정 금지, 기존 데이터 보존, 스키마 검사 테스트의 기대 버전은 31로 갱신한다.
+
+### 17.2 API (모두 TRANSLATOR 전용이며 호출자는 그 회차의 **현재 배정된** 번역가여야 한다)
+버전은 회차 안의 `versionNo`(정수)로 식별하며 DB id는 노출하지 않는다. 시각은 UTC ISO-8601 `Z`, `Cache-Control: no-store`.
+| API | 요청 | 성공 응답 |
+|---|---|---|
+| GET /api/my/episodes/{id}/translations | — | 200 {"latestSourceVersion":n,"items":[{"versionNo","status","sourceVersion","revision","createdAt","submittedAt"\|null}]} (versionNo 내림차순) |
+| POST /api/my/episodes/{id}/translations | 본문 없음 | 201 {"versionNo","status":"DRAFT","sourceVersion","revision":1} |
+| GET /api/my/episodes/{id}/translations/{versionNo} | — | 200 {"versionNo","status","sourceVersion","revision","createdAt","submittedAt"\|null,"editable":bool,"blocks":[{"seq","pageNo","source":"원문","text":"번역"\|null}]} (그 번역 버전이 묶인 원문 버전의 모든 블록, seq 오름차순) |
+| PUT /api/my/episodes/{id}/translations/{versionNo} | {"expectedRevision":1,"blocks":[{"seq":1,"text":"…"}]} | 200 {"revision":n,"changed":true\|false} |
+| POST /api/my/episodes/{id}/translations/{versionNo}/submit | {"expectedRevision":n} | 200 {"versionNo","status":"REVIEW_PENDING","submittedAt"} |
+- 경로의 id·versionNo가 `^[1-9][0-9]{0,17}$`(versionNo는 `^[1-9][0-9]{0,8}$`)가 아니거나, 존재하지 않거나, **배정되지 않은 회차**이면 404 NOT_FOUND(D-038). 역할 위반(운영자·감수자·독자)은 403 FORBIDDEN(ACCESS_DENIED 감사), 비로그인 401. 새 번역가로 교체되면 이전 번역가는 즉시 404, 새 번역가는 기존 DRAFT를 이어서 편집할 수 있다(D-040).
+- 미정의 필드·깨진 JSON·비JSON Content-Type은 400 INVALID_REQUEST. 번역가에게 작성자·내부 ID는 노출하지 않는다.
+
+### 17.3 규칙 (모든 변경은 episode 행 `SELECT … FOR UPDATE` 후 하나의 트랜잭션)
+- **생성(POST)**: 원문이 있고(`latest_source_version ≥ 1`) 열린 버전(DRAFT·REVIEW_PENDING)이 없어야 한다(아니면 409 STATE_CONFLICT). `version_no=latest_translation_version+1`, `source_version_no=latest_source_version`, status `DRAFT`, `draft_revision=1`. 직전 번역 버전(상태 무관, 가장 큰 versionNo)이 있으면 그 번역 텍스트를 **새 원문 버전에도 존재하는 같은 `source_seq` 블록에만** 복사한다. 감사 `TRANSLATION_CREATED`(translation_version_id).
+- **저장(PUT)**: status가 DRAFT여야 한다(아니면 409 STATE_CONFLICT, `currentStatus` 포함 — 예: 원문 변경으로 INVALIDATED). `expectedRevision`이 현재 리비전과 같아야 한다(아니면 409 VERSION_CONFLICT, `latestRevision` 포함). 요청의 `blocks`는 그 버전의 원문 버전에 있는 `seq`만(중복·없는 seq는 400)이며 **번역 블록 전체를 교체**한다(요청에 없는 seq는 번역 없음). 빈 배열은 허용한다(모든 번역 지움). 저장 결과가 현재와 같으면 200 `changed:false`(리비전·쓰기 없음), 다르면 리비전 +1로 200 `changed:true`. DRAFT 저장은 감사를 남기지 않는다.
+- **제출(POST submit)**: DRAFT이고 `expectedRevision`이 일치하며 `source_version_no`가 최신 원문 버전과 같아야 한다. **모든 원문 블록에 번역이 있어야** 한다(공백만 불가). 부족하면 400 INCOMPLETE_TRANSLATION(error 객체에 `missingSeqs` 배열). 성공하면 status `REVIEW_PENDING`, `submitted_at`=지금, 감사 `TRANSLATION_SUBMITTED`. 제출 후에는 번역 블록·상태를 바꾸는 번역가 API가 없다(불변). 감사 저장 실패는 전체 롤백과 503.
+- **입력 규칙(변환 없음, 프런트 동일 검증)**: 번역 텍스트 1~4000 코드포인트, 공백만 불가, 제어문자는 탭·개행(\t \n \r)만 허용, trim·정규화 금지. `expectedRevision`은 1 이상의 정수.
+- **원문 변경 시 무효화(D-033, 기존 `saveSourceVersion`에 포함)**: 새 원문 버전을 저장하는 같은 트랜잭션에서 그 회차의 `DRAFT`·`REVIEW_PENDING`·`APPROVED` 번역 버전을 `INVALIDATED`로 바꾼다. 그중 `APPROVED`이던 버전마다 `review_decision.invalidated_at`을 지금으로 설정하고 감사 `APPROVAL_INVALIDATED`(episode_id, source_version=새 버전, translation_version_id)를 기록한다. `REJECTED`·`INVALIDATED`·`PUBLISHED`·`ON_HOLD`와 공개 포인터는 건드리지 않는다. 원문 내용이 같아 새 버전을 만들지 않는 저장(`changed:false`)은 아무것도 무효화하지 않는다. 무효화·감사 중 하나라도 실패하면 **원문 저장 전체를 롤백**하고 503이다. 기존 원문 저장 API의 요청·응답 형식과 기존 동작은 바뀌지 않는다.
+- 같은 회차에 대한 번역 변경과 원문 저장은 episode 행 잠금으로 직렬화된다: 원문 저장이 먼저 커밋되면 이후 번역 저장·제출은 409 STATE_CONFLICT(INVALIDATED)이고, 번역 제출이 먼저면 그 REVIEW_PENDING 버전이 원문 저장으로 INVALIDATED가 된다.
+- 오류 형식은 12·13절과 같다(`{"error":{"code","message"}}` + 위에 명시한 추가 필드만). 코드: 400 INVALID_REQUEST·INCOMPLETE_TRANSLATION, 401, 403, 404, 409 VERSION_CONFLICT·STATE_CONFLICT, 503 SERVICE_UNAVAILABLE, 500 INTERNAL_ERROR. 비밀·내부 예외·DB 식별 정보 비노출.
+
+### 17.4 처리 함수
+| 이름 | 입력 → 출력 | 권한 | 상태 변경 | 실패 | 필수 테스트 |
+|---|---|---|---|---|---|
+| listTranslations | 호출자, episodeId → 목록 | 배정된 TRANSLATOR | 없음 | 404/401/403/503 | 본인 배정 회차만, 미배정·교체 후 404 |
+| createTranslation | 호출자, episodeId → DRAFT | 배정된 TRANSLATOR | translation_version INSERT, latest_translation_version+1, 블록 복사, 감사 | 404/409/503 | 첫 생성(빈), 이후 생성(seq 복사·삭제된 seq 제외), 열린 버전이 있으면 409, 원문 없음 409, 동시 생성 하나만 성공, 감사 장애 롤백 |
+| getTranslation | 호출자, episodeId, versionNo → 상세 | 배정된 TRANSLATOR | 없음 | 404/401/403/503 | 원문+번역 병기 내용, editable 값, 없는 버전 404 |
+| saveTranslationDraft | 호출자, versionNo, expectedRevision, blocks → 결과 | 배정된 TRANSLATOR | 블록 전체 교체, draft_revision+1 | 400/404/409/503 | 정상·동일 내용 changed:false, 리비전 충돌, DRAFT 아님 409, 없는 seq·중복 seq·검증 위반 400, 동시 저장 하나만 성공 |
+| submitTranslation | 호출자, versionNo, expectedRevision → 결과 | 배정된 TRANSLATOR | status→REVIEW_PENDING, submitted_at, 감사 | 400/404/409/503 | 완전한 번역 제출 성공, 누락 seq 400+목록, 공백만 번역 불가, 리비전 불일치 409, 제출 후 저장·재제출 409, 감사 장애 롤백 |
+| invalidateOnSourceSave | 회차, 새 원문 버전 → 없음 | 시스템(운영자의 원문 저장 안) | DRAFT·REVIEW_PENDING·APPROVED→INVALIDATED, 승인 무효화·감사 | 503(원문 저장 롤백) | 상태별 효과(REJECTED·PUBLISHED는 불변), 승인 무효화·감사, 번역 없는 회차 영향 없음, 변경 없는 저장은 무효화 없음, 장애 시 원문 저장도 롤백 |
+
+### 17.5 프런트 계약 (Claude Code)
+- 번역가의 `/assigned/{id}`를 확장한다. 서버가 확인한 역할이 TRANSLATOR일 때만 번역 API를 호출하고(감수자는 기존 읽기 전용 화면 그대로, 번역 API 미호출), 모든 판정은 편의 기능이며 서버가 강제한다.
+- 번역 버전 목록(상태·원문 버전·시각)과 현재 열린 버전 안내. 열린 버전이 없고 원문이 있으면 "새 번역 시작" 버튼. DRAFT는 **원문과 번역 병기 편집기**(블록마다 원문 읽기 전용 + 번역 입력, 페이지 번호 표시)와 "저장"·"검수에 제출" 버튼. 입력 검증은 17.3과 동일(변환 없음), 제출 전 누락 블록을 표시하고 서버의 `missingSeqs`도 같은 방식으로 표시한다.
+- 오류 처리: 401은 인증 정리, 403은 권한 안내(로그인 유지), 404는 "배정되지 않았거나 존재하지 않는 회차", 409 VERSION_CONFLICT는 충돌 안내와 "최신 내용 불러오기"(초안은 불러오기 전까지 유지), 409 STATE_CONFLICT는 현재 상태 안내(INVALIDATED면 원문이 바뀌어 무효화되었음을 알리고 새 번역 시작을 안내)와 새로고침, 503·통신 오류는 초안을 유지한 재시도. 중복 제출 방지, 늦은 응답 무시.
+- REVIEW_PENDING·REJECTED·INVALIDATED 등 DRAFT 아닌 버전은 읽기 전용(`editable:false`)으로 병기 표시. 초안은 서버 저장 전까지 메모리에만 두고 localStorage 등에 저장하지 않는다. 운영자 화면은 이 노드에서 바뀌지 않는다.
+
+### 17.6 파일 소유권
+- Codex 변경: db/migration V31, backend/src/main(신규 `translation` 패키지, 기존 `EpisodeService.saveSourceVersion`의 무효화 추가, 보안 규칙에 `/api/my/episodes/*/translations/**` TRANSLATOR 전용 추가(기존 `/api/my/**` 규칙은 번역가·감수자 공용이므로 더 좁은 규칙이 먼저 적용되어야 한다), 공통 오류 처리 재사용), backend/src/test, README 실행·검증 기록.
+- Claude Code 변경: frontend/src, frontend/tests/ui.
+- 변경 금지: V1~V30, 기존 인증·회차·원문·배정 API의 요청·응답·동작(원문 저장의 무효화 부수 효과 제외), PROJECT_CONTEXT.md, 서로의 영역. 계약 변경이 필요하면 구현을 멈추고 제안한다.
+
+### 17.7 필수 테스트·완료 조건
+- backend(실제 MySQL): 17.4 표의 테스트, 4개 역할 × 5개 API의 401/403/성공 매트릭스(역할 위조·본문 role 포함), 배정 범위(미배정 번역가·교체된 이전 번역가 404, 새 번역가의 DRAFT 이어받기, 감수자가 배정 회차에서도 번역 API 403), V31 적용·기존 데이터 보존·스키마 검사 통과, 기존 EpisodeSource·Assignment·인증 통합 테스트가 **수정 없이** 통과, 오류 비노출·비JSON 400, 기존 회귀·빌드. 통합 테스트가 만든 회차·배정·번역·감사·계정 행만 정리하고 연속 2회 통과·전후 행 수를 비교한다.
+- frontend: 17.5 전부(생성·병기 편집·저장·제출·누락 표시·409 두 종류·401·403·404·503·통신 오류·중복 제출·늦은 응답 무시·감수자의 번역 API 미호출·읽기 전용 상태), 기존 회귀, 타입·빌드. 모킹 테스트 통과는 실제 연동 성공이 아니다.
+- 최종 실제 연동(Codex, 격리 환경): 운영자가 회차·원문·배정 → 번역가가 새 번역 시작·편집·저장·새로고침 유지·다른 탭/API로 리비전을 올린 뒤 저장해 충돌 → 일부 번역만 있는 상태에서 제출해 누락 표시 → 완성 후 제출(REVIEW_PENDING·읽기 전용) → 운영자가 원문을 수정해 번역 버전이 INVALIDATED가 되고 번역가 화면이 안내 → 새 번역 시작 시 이전 내용이 seq 기준으로 복사됨 → 번역가 교체 후 이전 번역가 404·새 번역가가 DRAFT를 이어받음 → 감수자·운영자·독자의 실제 브라우저 403(콘솔 fetch)·PUT/POST preflight·감사(TRANSLATION_CREATED·TRANSLATION_SUBMITTED·APPROVAL_INVALIDATED는 테스트 픽스처로 승인 상태를 만든 뒤)를 확인한다. 삭제 API가 없어 만든 행이 남으므로 격리 환경에서만 수행한다.
