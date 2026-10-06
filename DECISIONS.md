@@ -210,7 +210,7 @@ DemoAuth 승인 결정: D-020~D-024와 CONTRACTS.md 12절이 해당 인증 범�
 ### D-043 번역 노드 결정 — APPROVED (2026-10-06, 권장안 그대로)
 - 번역 블록은 한 번의 저장 요청으로 DRAFT를 통째로 교체한다(PUT, 낙관적 충돌 방지). 제출 후에는 수정·철회가 모두 불가하며 감수자의 반려로만 다시 작성할 수 있다(제출 철회 없음). 번역가의 `/assigned/{id}`를 원문·번역 병기 편집 화면으로 확장한다.
 
-### D-044 번역 계약 세부 — PROPOSED (CONTRACTS 17절 승인 시 함께 승인)
+### D-044 번역 계약 세부 — APPROVED (2026-10-06, CONTRACTS 17절과 함께 사용자 승인)
 - 충돌 방지를 위해 `translation_version.draft_revision INT NOT NULL DEFAULT 1`(V31)을 추가한다(`expectedRevision`, 409 VERSION_CONFLICT). 버전은 회차 내 `versionNo`로 식별하고 DB id는 노출하지 않는다.
 - API 5개: 목록, 생성(직전 번역을 같은 `source_seq`로 복사), 상세(원문·번역 병기), 저장(PUT), 제출. 번역 텍스트 4000자 이하, 제출은 모든 원문 블록 번역 필수(400 INCOMPLETE_TRANSLATION + `missingSeqs`), 상태 위반은 409 STATE_CONFLICT(`currentStatus`). DRAFT 저장은 감사를 남기지 않는다. 운영자·감수자의 번역 조회는 감수·발행 노드로 미룬다.
 - 원문 저장은 같은 트랜잭션에서 DRAFT·REVIEW_PENDING·APPROVED 번역을 INVALIDATED로 바꾸고 승인 무효화·`APPROVAL_INVALIDATED` 감사를 기록하며, 실패하면 원문 저장도 롤백한다(기존 API 형식 불변).

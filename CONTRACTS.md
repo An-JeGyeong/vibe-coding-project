@@ -1,7 +1,7 @@
 # CONTRACTS.md
 
 관리: ProjectBootstrap·EpisodeSource는 Claude Code, DemoAuth 공통 계약은 Codex / 최종 승인: 사용자
-범위: ProjectBootstrap, 승인된 DemoAuth, 13절 EpisodeSource(APPROVED 2026-10-05), 14절 전체 도메인 스키마(APPROVED 2026-10-06), 15절 Assignment(APPROVED 2026-10-06), 16절 스키마 보정 2(APPROVED), 17절 Translation(PROPOSED: 사용자 계약 승인 전 구현 금지). 아래 DemoAuth 절은 인증 제외·단일 API·빈 스키마 등 Bootstrap 단계 제한을 해당 기능에 한해 대체한다.
+범위: ProjectBootstrap, 승인된 DemoAuth, 13절 EpisodeSource(APPROVED 2026-10-05), 14절 전체 도메인 스키마(APPROVED 2026-10-06), 15절 Assignment(APPROVED 2026-10-06), 16절 스키마 보정 2(APPROVED), 17절 Translation(APPROVED 2026-10-06). 아래 DemoAuth 절은 인증 제외·단일 API·빈 스키마 등 Bootstrap 단계 제한을 해당 기능에 한해 대체한다.
 근거: `DECISIONS.md` D-001~D-003, D-006~D-008, D-010, D-012~D-018 (D-011, D-004의 DB 엔진 부분은 D-018로 대체)
 DB 엔진: MySQL 8.4 LTS (D-018). 이전 PostgreSQL 기준 문구는 모두 대체되었다.
 미결정(계약 대상 아님): D-004 관리형 MySQL 제품, D-005 백엔드 호스팅 제품, D-009 인증 방식
@@ -598,9 +598,9 @@ NOT NULL 규칙은 **모든 도메인·인증 테이블**에 적용한다. NULL 
 - 개발 DB(3306) 적용은 일회용 DB 검증이 모두 통과한 뒤 마지막에, **적용 전 사용자 확인**을 받는다. 적용 후 Flyway 이력 30 성공, 재실행 추가 적용 0개, 기존 행 수 유지, NULL 허용 컬럼이 16.1 목록과 일치함을 읽기 전용으로 확인한다.
 - Codex 변경: db/migration V27~V30, backend/src/test, README 검증 기록. 금지: V1~V26, Java 운영 코드, frontend/, 문서 3종, PROJECT_CONTEXT.md.
 
-## 17. Translation — 번역 작성·제출과 원문 변경 시 무효화 (PROPOSED, 사용자 계약 승인 후 구현)
+## 17. Translation — 번역 작성·제출과 원문 변경 시 무효화 — APPROVED (2026-10-06, 사용자 승인)
 
-작성: Claude Code. 구현: backend=Codex, frontend=Claude Code. 근거: DECISIONS.md D-032·D-033·D-035·D-038·D-040(승인), D-043(승인), D-044(이 계약 승인 시 함께 승인). 인증·역할·오류 형식·CORS는 12절, 회차·원문은 13절, 스키마·NOT NULL 규칙은 14·16절, 배정은 15절을 따른다. 이 노드는 마이그레이션 V31 하나와 기존 `saveSourceVersion` 수정을 포함한다.
+작성: Claude Code. 구현: backend=Codex, frontend=Claude Code. 근거: DECISIONS.md D-032·D-033·D-035·D-038·D-040(승인), D-043(승인), D-044(계약과 함께 2026-10-06 승인). 인증·역할·오류 형식·CORS는 12절, 회차·원문은 13절, 스키마·NOT NULL 규칙은 14·16절, 배정은 15절을 따른다. 이 노드는 마이그레이션 V31 하나와 기존 `saveSourceVersion` 수정을 포함한다.
 
 ### 범위
 - 포함: 번역가의 번역 버전 생성(복사), DRAFT 편집(전체 교체 저장), 검수 제출, 번역 버전 목록·상세 조회, 원문 저장 시 미발행 번역 버전 무효화.
