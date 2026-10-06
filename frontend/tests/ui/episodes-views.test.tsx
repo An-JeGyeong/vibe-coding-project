@@ -198,6 +198,23 @@ describe("episode detail and editor", () => {
     await waitFor(() => expect(calls.filter((call) => call.method === "GET" && call.path === "/api/episodes/7")).toHaveLength(2));
   });
 
+  test("a source save reloads the operator's translation overview and drops an opened detail", async () => {
+    const { calls } = await openDetail();
+    const overview = () => calls.filter((call) => call.method === "GET" && call.path === "/api/episodes/7/translations");
+    expect(overview()).toHaveLength(1);
+    change("블록 1 텍스트", "수정");
+    click("원문 저장");
+    await screen.findByText("원문 버전 3으로 저장했습니다.");
+    await waitFor(() => expect(overview()).toHaveLength(2));
+  });
+
+  test("an unchanged save does not reload the translation overview", async () => {
+    const { calls } = await openDetail({ put: () => json(200, { version: 2, changed: false }) });
+    click("원문 저장");
+    await screen.findByText(/변경 사항이 없어/);
+    expect(calls.filter((call) => call.path === "/api/episodes/7/translations")).toHaveLength(1);
+  });
+
   test("an unchanged save reports that no version was created", async () => {
     await openDetail({ put: () => json(200, { version: 2, changed: false }) });
     click("원문 저장");

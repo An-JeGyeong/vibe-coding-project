@@ -7,7 +7,7 @@ import type { EpisodeFailure } from "@/lib/episodes/types";
 import { createTranslation, getTranslation, listTranslations, saveTranslation, submitTranslation } from "@/lib/translation/client";
 import { STATUS_LABEL, type TranslationDetail, type TranslationList } from "@/lib/translation/types";
 import { validateTranslationText } from "@/lib/translation/validation";
-import { DecisionBox, decisionLabel } from "./ReviewParts";
+import { DecisionBox, decisionLabel, decisionSummary } from "./ReviewParts";
 
 type Notice = { tone: "success" | "info" | "danger" | "warning"; text: string };
 type Busy = "save" | "submit" | "create" | null;
@@ -160,7 +160,7 @@ export function TranslationWorkspace({ episodeId, onLatestSourceVersion }: { epi
               <td>{STATUS_LABEL[item.status]}</td>
               <td>{item.sourceVersion === list.latestSourceVersion ? `원문 v${item.sourceVersion} (최신)` : `원문 v${item.sourceVersion} (이전)`}</td>
               <td>{item.submittedAt ? <time>{item.submittedAt}</time> : "—"}</td>
-              <td>{decisionLabel(item.decision)}</td>
+              <td>{decisionLabel(item.decision)}{decisionSummary(item.decision) && <div className="small text-secondary">{decisionSummary(item.decision)}</div>}</td>
               <td><button type="button" className="btn btn-outline-secondary btn-sm" disabled={loading || dirty || detail?.versionNo === item.versionNo}
                 onClick={() => void load(item.versionNo)}>v{item.versionNo} 보기</button></td>
             </tr>)}

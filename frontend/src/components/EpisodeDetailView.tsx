@@ -28,6 +28,7 @@ export function EpisodeDetailView({ episodeId }: { episodeId: string }) {
   const [conflict, setConflict] = useState<number | null | false>(false);
   const [viewing, setViewing] = useState<SourceView | null>(null);
   const [viewError, setViewError] = useState<string | null>(null);
+  const [sourceSaves, setSourceSaves] = useState(0);
   const keyCounter = useRef(1);
   const savingRef = useRef(false);
   const activeLoad = useRef<AbortController | null>(null);
@@ -105,6 +106,7 @@ export function EpisodeDetailView({ episodeId }: { episodeId: string }) {
       setNotice(result.value.changed
         ? { tone: "success", text: `원문 버전 ${result.value.version}으로 저장했습니다.` }
         : { tone: "info", text: "변경 사항이 없어 새 버전을 만들지 않았습니다." });
+      if (result.value.changed) setSourceSaves((count) => count + 1);
       await load();
       return;
     }
@@ -143,7 +145,7 @@ export function EpisodeDetailView({ episodeId }: { episodeId: string }) {
     {loadFailure && <div className="alert alert-warning" role="alert">{episodeFailureMessage(loadFailure)}</div>}
 
     <AssignmentPanel episodeId={episodeId} />
-    <TranslationOverviewPanel episodeId={episodeId} />
+    <TranslationOverviewPanel episodeId={episodeId} refreshKey={sourceSaves} />
 
     <section aria-label="원문 편집" className="card card-body shadow-sm mb-3">
       <h2 className="h5">원문 편집</h2>

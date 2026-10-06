@@ -130,6 +130,14 @@ export function ReviewDetailView({ episodeId, versionNo }: { episodeId: string; 
       return;
     }
     if (result.failure.kind === "unauthorized") { handleUnauthorized(); return; }
+    if (result.failure.kind === "not_found") {
+      // the assignment or the version is gone: stop showing the translation and its decision buttons right away
+      setMode("idle");
+      setNotice(null);
+      setDetail(null);
+      setFailure(result.failure);
+      return;
+    }
     setNotice({ tone: result.failure.kind === "state_conflict" ? "warning" : "danger", text: reviewFailureMessage(result.failure) });
     if (result.failure.kind === "state_conflict") { setMode("idle"); await load(); }
   }
@@ -137,6 +145,7 @@ export function ReviewDetailView({ episodeId, versionNo }: { episodeId: string; 
   if (loading && !detail) return <p role="status">불러오는 중…</p>;
   if (failure && !detail) {
     return <div className="alert alert-warning" role="alert">
+      {notice && <p><strong>{notice.text}</strong></p>}
       <p>{reviewFailureMessage(failure)}</p>
       {failure.kind === "not_found"
         ? <Link href="/reviews" className="btn btn-outline-secondary">검수 대기 목록으로</Link>

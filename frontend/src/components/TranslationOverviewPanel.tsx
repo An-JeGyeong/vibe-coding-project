@@ -10,7 +10,7 @@ import { STATUS_LABEL } from "@/lib/translation/types";
 import { DecisionBox, decisionLabel, SideBySide } from "./ReviewParts";
 
 // Operator-only, read-only overview of every translation version of an episode (all states, drafts included).
-export function TranslationOverviewPanel({ episodeId }: { episodeId: string }) {
+export function TranslationOverviewPanel({ episodeId, refreshKey = 0 }: { episodeId: string; refreshKey?: number }) {
   const { handleUnauthorized } = useAuth();
   const [list, setList] = useState<OperatorTranslationList | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,9 +36,12 @@ export function TranslationOverviewPanel({ episodeId }: { episodeId: string }) {
   }, [episodeId, handleUnauthorized]);
 
   useEffect(() => {
+    viewTicket.current++; // a source save changes every version's standing: drop any opened (now stale) detail
+    setView(null);
+    setViewError(null);
     void load();
     return () => activeLoad.current?.abort();
-  }, [load]);
+  }, [load, refreshKey]);
 
   async function onView(versionNo: number) {
     const ticket = ++viewTicket.current;

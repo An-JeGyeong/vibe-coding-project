@@ -27,4 +27,11 @@ export function DecisionBox({ decision }: { decision: Decision | null }) {
   </div>;
 }
 
+/** One-line summary of a rejection reason for list rows (plain text, truncated by code points). */
+export function decisionSummary(decision: Decision | null) {
+  if (!decision || decision.decision !== "REJECTED" || !decision.reason) return null;
+  const points = Array.from(decision.reason.replace(/\s+/g, " ").trim());
+  return `사유: ${points.slice(0, 40).join("")}${points.length > 40 ? "…" : ""}`;
+}
+
 export const decisionLabel = (decision: Decision | null) => (decision ? (decision.decision === "APPROVED" ? "승인" : "반려") : "—");

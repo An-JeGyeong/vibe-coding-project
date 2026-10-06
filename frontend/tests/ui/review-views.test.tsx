@@ -209,6 +209,31 @@ describe("review page: deciding", () => {
     expect(screen.queryByText(/새 번역을 시작하세요/)).toBeNull();
   });
 
+  test("after a conflict the reload is a 404: the conflict explanation stays visible next to the neutral notice", async () => {
+    let invalid = false;
+    await open({
+      [`POST ${REV}/approve`]: () => { invalid = true; return json(409, { error: { code: "STATE_CONFLICT", message: "x", currentStatus: "INVALIDATED" } }); },
+      [`GET ${REV}`]: () => (invalid ? json(404, errorBody("NOT_FOUND")) : json(200, review("REVIEW_PENDING"))),
+    });
+    click("승인");
+    click("승인 확정");
+    expect(await screen.findByText(/원문이 변경되어 이 번역은 무효화되었습니다/)).toBeTruthy();
+    expect(screen.getByText("배정되지 않았거나 존재하지 않는 항목입니다.")).toBeTruthy();
+    expect(screen.queryByText("원문 하나")).toBeNull();
+    expect(screen.queryByRole("button", { name: "승인" })).toBeNull();
+  });
+
+  test("a 404 on the decision (e.g. replaced reviewer) removes the translation and the buttons at once, without a reload", async () => {
+    const { calls } = await open({ [`POST ${REV}/reject`]: () => json(404, errorBody("NOT_FOUND")) });
+    click("반려");
+    fireEvent.change(screen.getByLabelText(/반려 사유/), { target: { value: "사유" } });
+    click("반려 확정");
+    expect(await screen.findByText("배정되지 않았거나 존재하지 않는 항목입니다.")).toBeTruthy();
+    expect(screen.queryByText("원문 하나")).toBeNull();
+    expect(screen.queryByRole("button", { name: /반려|승인/ })).toBeNull();
+    expect(calls.filter((call) => call.method === "GET" && call.path === REV)).toHaveLength(1);
+  });
+
   test("an already processed version (409) points to the result", async () => {
     await open({ [`POST ${REV}/reject`]: () => json(409, { error: { code: "STATE_CONFLICT", message: "x", currentStatus: "APPROVED" } }) });
     click("반려");
@@ -353,6 +378,7 @@ describe("translator sees the decision", () => {
     renderWithAuth(<AssignedDetailPage />);
     expect(await screen.findByText(/반려 사유: 3번 블록 번역이/)).toBeTruthy();
     expect(screen.getByText("반려", { selector: "td" })).toBeTruthy();
+    expect(screen.getByText("사유: 3번 블록 번역이 어색합니다")).toBeTruthy(); // one-line summary in the version table
     expect(screen.getByRole("button", { name: "새 번역 시작" })).toBeTruthy();
     expect(screen.queryByRole("textbox")).toBeNull();
   });
