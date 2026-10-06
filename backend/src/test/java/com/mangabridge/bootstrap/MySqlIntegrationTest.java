@@ -37,7 +37,7 @@ class MySqlIntegrationTest {
         assertThat(response.getBody().status()).isEqualTo("UP");
         assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store");
         java.time.Instant.parse(response.getBody().time());
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("30");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("31");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE version = '1' AND success = 1", Integer.class)).isEqualTo(1);
         String body = http.getForObject("/api/health", String.class);
         assertThat(new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(response.getBody()).size()).isEqualTo(3);
