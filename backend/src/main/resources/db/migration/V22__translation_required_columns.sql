@@ -1,0 +1,7 @@
+ALTER TABLE translation_version
+    MODIFY COLUMN episode_id BIGINT NOT NULL,
+    MODIFY COLUMN version_no INT NOT NULL,
+    MODIFY COLUMN source_version_no INT NOT NULL,
+    MODIFY COLUMN status VARCHAR(16) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    MODIFY COLUMN created_by BIGINT NOT NULL,
+    MODIFY COLUMN created_at DATETIME(6) NOT NULL;
