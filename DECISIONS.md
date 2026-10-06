@@ -204,7 +204,7 @@ DemoAuth 승인 결정: D-020~D-024와 CONTRACTS.md 12절이 해당 인증 범�
 ### D-041 배정 계약 세부 — APPROVED (2026-10-06, CONTRACTS 15절과 함께 사용자 승인)
 - 감사 대상 계정을 위해 `domain_audit.subject_account_id`(NULL 허용, V26)를 추가한다. API: `assignable-accounts`, `episodes/{id}/assignments`, `PUT .../assignments/{role}`(처음 201·교체/동일 200, 동일은 쓰기·감사 없음), `my/episodes`, `my/episodes/{id}`. 미배정·없는 회차는 404, 역할 위반은 403. 후보 목록은 활성 계정의 id·이름·역할만 노출(loginId 미노출).
 
-### D-042 V6~V9 NOT NULL 보정 — PROPOSED (CONTRACTS 16절 승인 시 함께 승인)
+### D-042 V6~V9 NOT NULL 보정 — APPROVED (2026-10-06, CONTRACTS 16절과 함께 사용자 승인)
 - D-039의 NOT NULL 규칙을 모든 테이블로 확장하고(NULL 허용은 16.1의 목록뿐), V6~V9의 남은 NULL 허용 컬럼을 V27~V30으로 보정한다. FK 컬럼(`episode.created_by`, `episode_source_version.created_by`)은 D-039 보완과 같은 `foreign_key_checks` 래퍼를 쓴다. 이후 마이그레이션이 규칙을 어기면 실패하는 스키마 검사 테스트를 둔다. 번역 노드 전에 적용한다.
 
 ## 이월 항목 (업무 노드에서 결정, DemoAuth 확정 부분 제외)
