@@ -507,3 +507,58 @@ NULL 거부·정상 값·V19 업그레이드·최종 validate·전체 빌드/int
 | FK 검사 | 조회 연결 @@foreign_key_checks=1, @@GLOBAL.foreign_key_checks=1. 각 V24/V25의 실제 Flyway 연결 복구는 위 일회용 DB callback 테스트에서 별도로 확인 |
 
 마이그레이션·NULL 우회·기존 제약·데이터 보존·전체 회귀 연속 2회·개발 DB 적용의 요청 항목은 모두 실행했고 통과했습니다. 검증 전용 빈 DB와 V19/V9 업그레이드 DB 및 개발 DB3306에 V25까지 적용했습니다. 다른 기존 DB·서비스는 적용하거나 중단하지 않았습니다. 로그/XML의 실제 비밀번호 일치 및 Bearer/root 출력 패턴 0건을 적용 후 다시 확인했습니다. SQL 커밋 `3064624`, 테스트 커밋 `c09b326`, 격리 결과 문서 커밋 `9a8a7df`입니다. 남는 변경은 PROJECT_CONTEXT.md의 기존 줄바꿈 M뿐이며 수정·stage·restore하지 않았습니다. 기존 Flyway MySQL 8.4 권고 경고는 유지됩니다. 이 스키마 검증은 브라우저·외부 배포 검증 결과를 대신하지 않습니다.
+## 10. Assignment 담당자 배정 API 실행·검증 (2026-10-06 KST)
+
+승인 계약 CONTRACTS.md 15절 및 D-031/D-038/D-040/D-041, 시작 기준 `e25131740fc68848147abf4158245535ce672fc2`. 시작 git status는 PROJECT_CONTEXT.md의 기존 줄바꿈 M뿐이었습니다. Codex가 backend만 구현했고 frontend와 승인 문서 3종은 변경하지 않았습니다. SQL 커밋 `9dba89d`, 백엔드 구현 `83cc243`, 테스트 `27b05fc`입니다.
+
+README 2절의 PowerShell 환경 주입·Spring 실행, 7절의 기존 데모 계정 시드 방법을 그대로 사용합니다. 새 환경변수·의존성·Compose 변경은 없습니다. V26은 `ALTER TABLE domain_audit ADD COLUMN subject_account_id BIGINT NULL` 하나이며 FK를 추가하지 않습니다. Spring 실행 시 Flyway가 적용하므로, 개발 DB 적용 전에는 이번 검증처럼 격리 DB_URL을 사용해야 합니다. 이번 개발 DB 적용은 모든 격리 검증 통과 후 사용자에게 별도로 확인받았습니다.
+
+| API | 허용 역할 / 동작 |
+|---|---|
+| `GET /api/assignable-accounts?role=TRANSLATOR` 또는 `REVIEWER` | OPERATOR. 활성 계정 id·displayName·role만, id 오름차순 |
+| `GET /api/episodes/{id}/assignments` | OPERATOR. 번역가·감수자 현재 칸 또는 null |
+| `PUT /api/episodes/{id}/assignments/translator` 또는 `reviewer` | OPERATOR. JSON accountId 문자열. 신규 201, 교체·동일 200 |
+| `GET /api/my/episodes?limit=50&offset=0` | TRANSLATOR/REVIEWER. 본인 배정만, 회차 id 내림차순 |
+| `GET /api/my/episodes/{id}` | TRANSLATOR/REVIEWER. 현재 본인 배정의 최신 원문만. 미배정·없는 회차 404 |
+
+모든 응답은 기존 Bearer·no-store·오류 JSON 계약을 따릅니다. 역할 위반 403은 기존 ACCESS_DENIED 감사에 기록합니다. 서버 인증 사용자·역할로 배정을 매번 DB에서 확인하며 작성자·loginId·비밀번호 해시는 새 조회 응답에 없습니다. 교체만 제공하고 DELETE는 405입니다. 같은 계정 지정은 쓰기·감사 없이 기존 assignedAt을 반환합니다. 지정·교체는 episode FOR UPDATE → 대상 검사 → UPSERT → ASSIGNED(subject_account_id 포함)를 한 트랜잭션으로 수행합니다. 감사 실패는 전체 롤백/503입니다. CORS의 기존 PUT/Content-Type/Authorization 허용·credentials=false를 유지했습니다.
+
+### Codex 직접 실행 결과 (12:19~12:30 KST)
+
+실행 환경 Windows PowerShell **5.1.26100.9444**, Docker **29.5.3 Linux**, MySQL **8.4.11**. 이미지 digest `mysql@sha256:6ea90827b1100f8f2ae306a539f86d2c264a26ed435a2a9f75551dd5c3aeb242`. 주 검증 DB는 이번 소유 --rm/tmpfs 컨테이너 localhost:3310/assignment_verify였고, 마이그레이션 경로 테스트도 각각 별도 일회용 MySQL을 사용했습니다. 환경변수와 stdin으로 자격증명을 전달했으며 값을 출력하지 않았습니다. 격리 기준 4계정은 로그인용 시드가 아닌 데이터 보존 fixture이고, HTTP 테스트는 고유 로그인 ID·무작위 비밀번호·BCrypt로 만든 테스트 계정을 실제 로그인시켜 실행했습니다.
+
+| 실제 명령 / 검증 | 통과·실패·미검증 |
+|---|---|
+| `gradlew.bat -I build/verification/schema-tool.init.gradle schemaMigrate --no-daemon` (빈 격리 DB) | 통과, 종료 0, 12초. V1~V26 26개 적용, validate=PASS |
+| 최초 `gradlew.bat build integrationTest --no-daemon --rerun-tasks` | 실패, 종료 1, 1분 42초. 신규 배정 10개·마이그레이션 4개는 통과했으나 기존 EpisodeSource 감사 컬럼 기대 목록이 subject_account_id를 포함하지 않아 1건 실패. 해당 테스트 기대 컬럼만 갱신. 실행 후 데이터 차이 0 |
+| 같은 전체 명령, 수정 후 연속 성공 1회 | 통과, 종료 0, 1분 45초. 기본 20 + 실제 MySQL 통합 49 = 69개, 실패·오류·건너뛰기 0 |
+| 같은 전체 명령, 코드 변경 없이 연속 성공 2회 | 통과, 종료 0, 1분 53초. 같은 69개, 실패·오류·건너뛰기 0 |
+| 후보·지정·조회 처리 함수 | 통과. 역할별 활성 후보·id 정렬·최소 필드·잘못된 role 400. 미배정 null, 신규 201·교체 200·동일 200/changed:false. 동일 요청은 실제 행·시각 유지 및 UPSERT/감사 호출 0 확인 |
+| 대상 검사·DB 복합 FK | 통과. 역할 불일치·비활성·없는 계정은 동일 400 본문. 서비스를 우회한 역할 불일치 직접 INSERT는 실제 MySQL 1452로 거부 |
+| 내 배정·최신 원문 | 통과. 본인 것만, 다른 담당자 제외, 정렬·페이지·큰 offset·입력 경계. source:null 및 최신 v2 본문·pageNo 일치, 작성자·내부 계정 필드 비노출. 미배정·없는 회차 404. 번역가/감수자 모두 교체 후 이전 담당자 즉시 404·새 담당자 200 |
+| 4역할×5API 보안 | 통과. 각 API 무토큰 401, 허용 역할 200/201, 나머지 403 및 ACCESS_DENIED 실제 행 확인. X-Role/X-User-Id·본문 role 위조 거부, 입력 accountId 숫자·미정의 필드 400 |
+| 동시 교체·감사 장애 | 통과. 같은 칸 두 교체 모두 200, 행 1개·감사 2개 추가·마지막 감사 대상=현재 담당자. 신규/교체 감사 장애 시 503 및 전체 롤백·이전 담당자 접근 유지 |
+| 오류·프로토콜·CORS | 통과. 깨진 JSON·빈 본문·text/plain·form 요청 400, 잘못된 경로 404, DELETE 405. 실제 연결 불가 쿼리 503, 오류 본문에 내부 예외·비밀값 없음. PUT preflight의 허용 Origin·Authorization/Content-Type·credentials 미허용 확인. CORS 설정 변경 없음 |
+| V26 기존 감사 보존 | 통과. 별도 V25 DB에 계정·토큰·제한·회차·원문·감사 fixture를 넣은 뒤 V26 1개 적용. 모든 기존 컬럼 정렬 내용 해시·행 수·V1~V25 Flyway checksum 동일. subject_account_id는 BIGINT nullable, 기존 감사 1행 NULL, FK 없음. validate·재실행 추가 0개 |
+| 기존 회귀 | 통과. 기존 auth/health/episode/도메인 제약과 V19→V25 보정 검증 유지. 빈 DB 최신 버전 기대는 26으로 갱신 |
+
+PS5.1 네이티브 명령 구간만 ErrorActionPreference=Continue로 기존 javac/VM 경고를 허용하고, 명령 직후 LASTEXITCODE를 보존해 판정했습니다. schemaMigrate는 9절에 기록한 test classpath 전용 init script와 runner를 사용합니다. 운영 JAR에는 AssignmentController가 포함되고 통합 테스트·fixture·runner 클래스는 0개입니다.
+
+| 테이블 | 격리 테스트 전 / 1회 후 / 2회 후 | 개발 DB 적용 전 / 후 |
+|---|---|---|
+| demo_account / demo.* 계정 수 | 4 / 4 / 4 | 4 / 4 |
+| auth_token | 0 / 0 / 0 | 8 / 8 |
+| auth_login_limit | 0 / 0 / 0 | 88 / 88 |
+| auth_audit | 0 / 0 / 0 | 130 / 130 |
+| episode / episode_source_version / source_block / domain_audit | 각각 0 / 0 / 0 | 각각 0 / 0 |
+| episode_assignment / translation_version / translation_block / review_decision / publication | 각각 0 / 0 / 0 | 각각 0 / 0 |
+
+앱 계정의 읽기 전용 조회로 비교했고 기존 인증 전체 행 정렬 집계 해시도 동일합니다. 새 HTTP 테스트는 fixture.assignment.<고유값> 서버 측 주소를 사용합니다. 생성한 회차·배정·원문·감사·계정·토큰과 정확한 로그인 ID/IP 제한 해시만 정리하고 공유 127.0.0.1 키나 기존 행은 정리하지 않습니다. 마이그레이션 fixture는 일회용 DB에만 있습니다. AUTO_INCREMENT 번호 공백은 생길 수 있습니다.
+
+### 개발 DB V26 적용 (사용자 별도 승인 후 마지막 단계)
+
+PowerShell 5.1에서 기존 환경 주입과 localhost:3306 URL 검사를 거쳐 위 schemaMigrate 명령을 실행했습니다. 12:28:41 KST에 V26 **1개 적용**, 종료 0, 9초, current=26/validate=PASS. 12:29:04 같은 명령 재실행은 **0개 적용**, 종료 0, 9초, validate=PASS. 실제 Flyway 성공 이력 26개·실패 0개, 기존 V1~V25 checksum 차이 0, 기존 감사 컬럼은 유지되고 subject_account_id BIGINT NULL만 추가됐으며 해당 컬럼 FK 0개입니다. 개발 DB에 테스트 행은 삽입하지 않았습니다.
+
+12:30 KST에 이번 3310 tmpfs 컨테이너만 저장한 ID를 대조 후 docker stop(--rm 자동 정리)했습니다. 테스트별 컨테이너도 각 테스트에서 종료됐습니다. 기존 MySQL healthy, 기존 컨테이너·볼륨·서버는 보존했습니다. 수집한 Gradle 로그·JUnit XML의 실제 DB 비밀번호 일치 및 Bearer/root 출력 패턴 0건, V1~V25 파일 SHA-256 차이 0입니다. PROJECT_CONTEXT.md의 기존 M은 수정·stage·restore하지 않았고 push·이력 재작성도 하지 않았습니다.
+
+백엔드 구현·자동 테스트·격리/개발 DB 마이그레이션은 완료했습니다. **Assignment 프런트 구현과 실제 브라우저 연동은 미검증**이며 Claude Code의 같은 계약 구현 후 Codex가 격리 환경에서 15.7 시나리오를 수행합니다. 외부 배포·Vercel·프록시 IP 정책 검증도 이번 범위 밖입니다. 기존 Flyway의 MySQL 8.4 지원 업그레이드 권고 경고는 남으며 의존성을 변경하지 않았습니다.
