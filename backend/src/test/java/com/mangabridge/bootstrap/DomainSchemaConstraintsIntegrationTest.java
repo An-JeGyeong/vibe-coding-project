@@ -107,10 +107,24 @@ class DomainSchemaConstraintsIntegrationTest {
         rejected(1048,()->update("INSERT INTO publication(episode_id,translation_version_id,source_version_no,published_by,published_at) VALUES (NULL,NULL,NULL,NULL,NULL)"));
         rejected(1048,()->update("INSERT INTO episode_assignment(episode_id,assignee_role,account_id,assigned_by,assigned_at) VALUES (?,'TRANSLATOR',NULL,?,UTC_TIMESTAMP(6))",episode,operator));
     }
-    @Test void onlyApprovedNullableDomainColumnsAndGeneratedSlotRemain() throws Exception {
-        String sql="SELECT CONCAT(TABLE_NAME,'.',COLUMN_NAME) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND IS_NULLABLE='YES' AND TABLE_NAME IN ('episode_assignment','translation_version','translation_block','review_decision','publication') ORDER BY TABLE_NAME,COLUMN_NAME";
+    @Test void sourceAndAuditRequiredColumnsRejectNullAndNormalRowsRemainValid() throws Exception {
+        Timestamp time=Timestamp.valueOf("2026-01-01 00:00:00");
+        nullColumnsRejected("episode",values("title","required fixture","created_by",operator,
+                "created_at",time,"updated_at",time));
+        nullColumnsRejected("episode_source_version",values("episode_id",episode,"version_no",3,
+                "created_by",operator,"created_at",time,"block_count",1));
+        nullColumnsRejected("source_block",values("episode_id",episode,"version_no",3,"seq",1,"body","normal source"));
+        nullColumnsRejected("domain_audit",values("occurred_at",time,"actor_account_id",operator,"event","SOURCE_SAVED"));
+        assertThat(count("SELECT COUNT(*) FROM source_block WHERE episode_id=? AND version_no=3 AND page_no IS NULL",episode)).isEqualTo(1);
+    }
+    @Test void onlyContractApprovedNullableColumnsAndGeneratedSlotRemainAcrossEntireSchema() throws Exception {
+        String sql="SELECT CONCAT(TABLE_NAME,'.',COLUMN_NAME) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND IS_NULLABLE='YES' AND TABLE_NAME<>'flyway_schema_history' ORDER BY TABLE_NAME,COLUMN_NAME";
         var names=new ArrayList<String>(); try(var s=statement(sql);var rows=s.executeQuery()) {while(rows.next()) names.add(rows.getString(1));}
-        assertThat(names).containsExactlyInAnyOrder("translation_version.submitted_at","translation_version.open_slot","review_decision.reason","review_decision.invalidated_at");
+        assertThat(names).containsExactlyInAnyOrder("auth_audit.account_id","auth_login_limit.blocked_until",
+                "auth_token.revoked_at","source_block.page_no","episode.published_translation_version_id",
+                "translation_version.submitted_at","translation_version.open_slot","review_decision.reason",
+                "review_decision.invalidated_at","domain_audit.episode_id","domain_audit.source_version",
+                "domain_audit.translation_version_id","domain_audit.subject_account_id");
         assertThat(count("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND (TABLE_NAME,COLUMN_NAME) IN (('episode','published_translation_version_id'),('domain_audit','translation_version_id')) AND IS_NULLABLE='YES'")).isEqualTo(2);
         assertThat(count("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='episode_assignment' AND COLUMN_NAME='assigned_at' AND DATA_TYPE='datetime' AND DATETIME_PRECISION=6 AND IS_NULLABLE='NO'")).isEqualTo(1);
         assertThat(count("SELECT @@foreign_key_checks")).isEqualTo(1);

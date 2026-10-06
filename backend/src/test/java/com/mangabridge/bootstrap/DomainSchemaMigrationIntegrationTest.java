@@ -31,17 +31,17 @@ class DomainSchemaMigrationIntegrationTest {
     }
     private static final List<String> OLD_TABLES=List.of("demo_account","auth_token","auth_login_limit","auth_audit",
             "episode","episode_source_version","source_block","domain_audit");
-    @Test void emptyDatabaseMigratesAllTwentySixAndValidatesTwice() throws Exception {
+    @Test void emptyDatabaseMigratesAllThirtyAndValidatesTwice() throws Exception {
         try(var mysql=new DisposableMySql()) {
             var restored=new ChecksRestored();
             var flyway=Flyway.configure().dataSource(mysql.source).callbacks(restored).load();
-            assertThat(flyway.migrate().migrationsExecuted).isEqualTo(26);
-            assertThat(restored.versions).containsExactlyInAnyOrder("24","25");
+            assertThat(flyway.migrate().migrationsExecuted).isEqualTo(30);
+            assertThat(restored.versions).containsExactlyInAnyOrder("24","25","27","28");
             flyway.validate();
             assertThat(flyway.migrate().migrationsExecuted).isZero();
             flyway.validate();
             for(String table:OLD_TABLES) assertThat(mysql.jdbc.queryForObject("SELECT COUNT(*) FROM "+table,Integer.class)).isZero();
-            assertThat(mysql.jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class)).isEqualTo(26);
+            assertThat(mysql.jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class)).isEqualTo(30);
         }
     }
     @Test void populatedV9UpgradePreservesEveryOldColumnAndChecksum() throws Exception {
@@ -59,7 +59,7 @@ class DomainSchemaMigrationIntegrationTest {
             }
             var checksums=mysql.jdbc.queryForList("SELECT version,checksum FROM flyway_schema_history ORDER BY installed_rank");
             var upgrade=Flyway.configure().dataSource(mysql.source).load();
-            assertThat(upgrade.migrate().migrationsExecuted).isEqualTo(17);
+            assertThat(upgrade.migrate().migrationsExecuted).isEqualTo(21);
             upgrade.validate();
             assertThat(upgrade.migrate().migrationsExecuted).isZero();
             upgrade.validate();
@@ -81,7 +81,7 @@ class DomainSchemaMigrationIntegrationTest {
         @Override public String getCallbackName() {return "verify-fk-checks-restored";}
         @Override public void handle(Event event,Context context) {
             String version=context.getMigrationInfo().getVersion().getVersion();
-            if(!Set.of("24","25").contains(version)) return;
+            if(!Set.of("24","25","27","28").contains(version)) return;
             // Observe the actual migration connection, before Flyway closes/restores it.
             try(var statement=context.getConnection().createStatement();var rows=statement.executeQuery("SELECT @@foreign_key_checks")) {
                 assertThat(rows.next()).isTrue(); assertThat(rows.getInt(1)).isEqualTo(1); versions.add(version);
@@ -136,7 +136,7 @@ class DomainSchemaMigrationIntegrationTest {
                 counts.put(table,mysql.jdbc.queryForObject("SELECT COUNT(*) FROM "+table,Integer.class));
             }
             var checksums=mysql.jdbc.queryForList("SELECT version,checksum FROM flyway_schema_history ORDER BY installed_rank");
-            var upgrade=Flyway.configure().dataSource(mysql.source).load();
+            var upgrade=Flyway.configure().dataSource(mysql.source).target("26").load();
             assertThat(upgrade.migrate().migrationsExecuted).isEqualTo(1);
             upgrade.validate(); assertThat(upgrade.migrate().migrationsExecuted).isZero(); upgrade.validate();
             assertThat(mysql.jdbc.queryForList("SELECT version,checksum FROM flyway_schema_history WHERE CAST(version AS UNSIGNED)<=25 ORDER BY installed_rank")).isEqualTo(checksums);
@@ -147,6 +147,49 @@ class DomainSchemaMigrationIntegrationTest {
             assertThat(mysql.jdbc.queryForObject("SELECT COUNT(*) FROM domain_audit WHERE subject_account_id IS NULL",Integer.class)).isEqualTo(1);
             assertThat(mysql.jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='domain_audit' AND COLUMN_NAME='subject_account_id' AND DATA_TYPE='bigint' AND IS_NULLABLE='YES'",Integer.class)).isEqualTo(1);
             assertThat(mysql.jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='domain_audit' AND COLUMN_NAME='subject_account_id' AND REFERENCED_TABLE_NAME IS NOT NULL",Integer.class)).isZero();
+        }
+    }
+    @Test void populatedV26CorrectionPreservesRowsChecksumsAndAllConstraintDefinitions() throws Exception {
+        try(var mysql=new DisposableMySql()) {
+            var baseline=Flyway.configure().dataSource(mysql.source).target("26").load();
+            assertThat(baseline.migrate().migrationsExecuted).isEqualTo(26);
+            populate(mysql.jdbc);
+            var tables=new ArrayList<>(OLD_TABLES);
+            tables.addAll(List.of("episode_assignment","translation_version","translation_block","review_decision","publication"));
+            var columns=new TreeMap<String,List<String>>(); var counts=new TreeMap<String,Integer>();
+            var contents=new TreeMap<String,String>();
+            for(String table:tables) {
+                columns.put(table,mysql.jdbc.queryForList("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? ORDER BY ORDINAL_POSITION",String.class,table));
+                counts.put(table,mysql.jdbc.queryForObject("SELECT COUNT(*) FROM "+table,Integer.class));
+                contents.put(table,digest(mysql.source,table,columns.get(table)));
+            }
+            String fkSql="SELECT CONSTRAINT_NAME,TABLE_NAME,REFERENCED_TABLE_NAME,UPDATE_RULE,DELETE_RULE FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() ORDER BY TABLE_NAME,CONSTRAINT_NAME";
+            String fkColumnsSql="SELECT TABLE_NAME,CONSTRAINT_NAME,COLUMN_NAME,ORDINAL_POSITION,REFERENCED_TABLE_NAME,REFERENCED_COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND REFERENCED_TABLE_NAME IS NOT NULL ORDER BY TABLE_NAME,CONSTRAINT_NAME,ORDINAL_POSITION";
+            String indexSql="SELECT TABLE_NAME,INDEX_NAME,NON_UNIQUE,SEQ_IN_INDEX,COLUMN_NAME,SUB_PART,INDEX_TYPE FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() ORDER BY TABLE_NAME,INDEX_NAME,SEQ_IN_INDEX";
+            String checkSql="SELECT CONSTRAINT_NAME,CHECK_CLAUSE FROM information_schema.CHECK_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() ORDER BY CONSTRAINT_NAME";
+            String columnSql="SELECT TABLE_NAME,COLUMN_NAME,COLUMN_TYPE,CHARACTER_SET_NAME,COLLATION_NAME,COLUMN_DEFAULT,DATETIME_PRECISION,EXTRA,GENERATION_EXPRESSION FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() ORDER BY TABLE_NAME,ORDINAL_POSITION";
+            var foreignKeys=mysql.jdbc.queryForList(fkSql); var fkColumns=mysql.jdbc.queryForList(fkColumnsSql);
+            var indexes=mysql.jdbc.queryForList(indexSql); var checks=canonicalChecks(mysql.jdbc.queryForList(checkSql));
+            var definitions=mysql.jdbc.queryForList(columnSql);
+            assertThat(foreignKeys).hasSize(19);
+            // Preserve the exact existing rules, including legacy V1/V6~V9 NO ACTION definitions.
+            var checksums=mysql.jdbc.queryForList("SELECT version,checksum FROM flyway_schema_history ORDER BY installed_rank");
+            var restored=new ChecksRestored();
+            var upgrade=Flyway.configure().dataSource(mysql.source).callbacks(restored).load();
+            assertThat(upgrade.migrate().migrationsExecuted).isEqualTo(4);
+            assertThat(restored.versions).containsExactlyInAnyOrder("27","28");
+            upgrade.validate(); assertThat(upgrade.migrate().migrationsExecuted).isZero(); upgrade.validate();
+            assertThat(mysql.jdbc.queryForList("SELECT version,checksum FROM flyway_schema_history WHERE CAST(version AS UNSIGNED)<=26 ORDER BY installed_rank")).isEqualTo(checksums);
+            assertThat(mysql.jdbc.queryForList(fkSql)).isEqualTo(foreignKeys);
+            assertThat(mysql.jdbc.queryForList(fkColumnsSql)).isEqualTo(fkColumns);
+            assertThat(mysql.jdbc.queryForList(indexSql)).isEqualTo(indexes);
+            assertThat(canonicalChecks(mysql.jdbc.queryForList(checkSql))).isEqualTo(checks);
+            assertThat(mysql.jdbc.queryForList(columnSql)).isEqualTo(definitions);
+            for(String table:tables) {
+                assertThat(mysql.jdbc.queryForObject("SELECT COUNT(*) FROM "+table,Integer.class)).as(table+" count").isEqualTo(counts.get(table));
+                assertThat(digest(mysql.source,table,columns.get(table))).as(table+" content").isEqualTo(contents.get(table));
+            }
+            assertThat(mysql.jdbc.queryForObject("SELECT @@foreign_key_checks",Integer.class)).isEqualTo(1);
         }
     }
     private String canonicalAsciiExpression(String expression) {
