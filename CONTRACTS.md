@@ -461,8 +461,15 @@ demo_account ─┬─< episode_assignment >─ episode            (번역가·�
 | V21 | episode_assignment: assigned_at DATETIME(6) NOT NULL 추가(배정 시각) |
 | V22 | translation_version: episode_id, version_no, source_version_no, status, created_by, created_at NOT NULL |
 | V23 | translation_block: episode_id, source_version_no NOT NULL |
-| V24 | review_decision: translation_version_id, decision, reviewer_id, source_version_no, decided_at NOT NULL |
-| V25 | publication: episode_id, translation_version_id, source_version_no, published_by, published_at NOT NULL |
+| V24 | review_decision: translation_version_id, decision, reviewer_id, source_version_no, decided_at NOT NULL (foreign_key_checks 래퍼 필요) |
+| V25 | publication: episode_id, translation_version_id, source_version_no, published_by, published_at NOT NULL (foreign_key_checks 래퍼 필요) |
+- **V24·V25의 적용 방식(2026-10-06 변경, D-039 보완)**: MySQL 8.4는 FK 검사가 켜진 상태에서 FK 컬럼을 NOT NULL로 바꾸면 오류 1832로 거부한다(`review_decision.reviewer_id`·`translation_version_id`로 재현, `ALGORITHM=COPY`로도 불가). 일회용 DB에서 아래 형태가 통과하고 FK·CHECK·UNIQUE가 보존되며 NULL 우회가 모두 거부됨을 확인했다. V24·V25 파일은 다음 구조로 쓴다(ALTER 문은 표의 컬럼 정의 그대로).
+```sql
+SET foreign_key_checks=0;
+ALTER TABLE <table> MODIFY COLUMN ... NOT NULL, ...;
+SET foreign_key_checks=1;
+```
+  `SET`은 DDL이 아니므로 "파일당 DDL 하나"를 지킨다. 이미 NULL 행이 있으면 NOT NULL 변경 자체가 실패하므로 데이터를 숨기지 않는다. 다른 방식(FK 삭제·재생성 등)이 필요하면 구현을 멈추고 변경 제안을 보고한다. 검증 때 파일 실행 후 `@@foreign_key_checks`가 1로 돌아왔는지, FK 개수·이름이 변경 전과 같은지 확인한다.
 - 기존 FK·CHECK·UNIQUE·생성 컬럼(open_slot)은 그대로 유지하고, 컬럼 변경이 MySQL 8.4에서 막히면(예: 생성 컬럼이 참조하는 status) 우회하지 말고 변경 제안을 보고한다.
 
 ### 14.3 상태 전이 (서비스가 강제, 모든 전이는 episode 행 `FOR UPDATE` 후 기대 상태 확인, 불일치 409)

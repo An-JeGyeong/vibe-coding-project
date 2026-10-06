@@ -194,6 +194,7 @@ DemoAuth 승인 결정: D-020~D-024와 CONTRACTS.md 12절이 해당 인증 범�
 
 ### D-039 NOT NULL 규칙·배정 시각·보정 마이그레이션 — APPROVED (2026-10-06)
 - 리뷰에서 V10~V19의 핵심 컬럼이 NULL을 허용해 복합 FK·CHECK가 우회됨을 재현했다. NULL 허용은 5개 컬럼으로 한정하고(CONTRACTS 14.2), 나머지는 NOT NULL로 보정한다. `episode_assignment.assigned_at`을 추가한다(사용자 승인). 적용된 V11~V18은 수정하지 않고 V20~V25로 보정하며, 개발 DB 적용은 검증 통과 후 사용자 확인을 받는다.
+- (보완 2026-10-06) V24·V25는 MySQL 오류 1832 때문에 `SET foreign_key_checks=0/1` 래퍼로 적용한다(사용자 승인). 일회용 MySQL 8.4.11에서 통과·FK 보존·NULL 우회 거부를 확인했다.
 
 ## 이월 항목 (업무 노드에서 결정, DemoAuth 확정 부분 제외)
 
