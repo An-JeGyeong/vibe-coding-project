@@ -445,3 +445,15 @@ allprojects {
 검증 후 이번 3310 컨테이너 ID를 대조해 docker stop(--rm 자동 정리)했고 테스트마다 만든 컨테이너도 정리됐습니다. 기존 MySQL healthy 및 3000/8080/8081 리스너 PID 유지 확인. 운영 JAR에 신규 테스트/검증 runner 클래스 0개. V1~V9 파일 해시 차이 0, 운영 Java/frontend/승인 문서 내용 diff 0. 수집한 Gradle 로그·JUnit XML의 실제 DB 비밀번호 일치와 Bearer/root 비밀번호 패턴 0건. PROJECT_CONTEXT.md의 기존 줄바꿈 M은 수정·stage·restore하지 않았고 push·이력 재작성은 하지 않았습니다.
 
 이번 14.6 마이그레이션 노드의 미검증·미적용 항목은 없습니다. 기존 Flyway가 MySQL 8.4 지원 업그레이드를 권고하는 경고는 남지만 실제 8.4.11 적용·제약·validate 검증은 통과했습니다. 의존성을 변경하지 않았습니다. API·배정·번역·감수·발행·독자 서비스는 다음 승인 계약의 범위입니다. 이전 EpisodeSource 브라우저 미검증 항목은 이번 스키마 검증으로 대체하지 않습니다.
+
+### V20~V25 보정 적용 차단 기록 (2026-10-06 10:31 KST)
+
+시작 HEAD `ca4b69ca57abff6bf8d78a08e2ce4305eda730b4`, CONTRACTS.md 14.2/14.6 및 D-039 기준입니다. 시작 상태는 PROJECT_CONTEXT.md의 기존 M뿐이었습니다. Codex가 승인된 컬럼 정의 그대로 V20~V25 초안을 작성하고, 테스트 수정 전에 일회용 MySQL 8.4.11(--rm/tmpfs, localhost:3310/schema_verify)에서 문법·적용 가능 여부를 직접 확인했습니다.
+
+PowerShell 5.1.26100.9444에서 `gradlew.bat -I build/verification/schema-tool.init.gradle schemaMigrate --no-daemon` 실행: **실패**, 종료 1, 11초. V1~V23 성공 후 V24__review_required_columns.sql에서 MySQL SQLSTATE HY000 / 오류 1832: `Cannot change column 'reviewer_id': used in a foreign key constraint 'fk_review_reviewer'`. 읽기 전용 Flyway 이력 확인 결과 V20~V23 success=1, V24 success=0, V25 이력 없음입니다. FK 제거·검사 비활성화·알고리즘 변경 등 우회를 실행하지 않고 계약 지시에 따라 중단했습니다.
+
+NULL 거부·정상 값·V19 업그레이드·최종 validate·전체 빌드/integrationTest 연속 2회는 **미실행/미검증**입니다. 컴파일 작업은 수행됐지만 전체 빌드 통과로 기록하지 않습니다. V1~V19 파일 해시 차이 0, 운영 Java·기존 테스트·frontend·승인 문서 내용 diff 0. V20~V25 파일은 실패 원인을 검토할 미커밋 초안으로 남겼으며, 적용 완료 마이그레이션 커밋을 만들지 않았습니다.
+
+개발 DB(3306)는 이번 작업에서 변경하지 않았고 V20~V25 **미적용**입니다. 현시점 읽기 전용 조회: Flyway 최대 버전 19/성공 19개, 계정 4·토큰 8·제한 88·인증 감사 130, 회차·원문 버전·블록·도메인 감사 각각 0. 이번 시도는 개발 DB의 적용 전후 비교 단계에 도달하지 않았습니다. 이번 임시 컨테이너만 저장한 ID와 대조 후 docker stop(--rm 자동 정리)했고 기존 컨테이너·볼륨은 보존했습니다. PROJECT_CONTEXT.md는 수정·stage·restore하지 않았습니다.
+
+승인 필요한 제안: V24에서 fk_review_reviewer를 제거하고 NOT NULL 보정 후 기존 이름·참조·RESTRICT 정의로 다시 생성하는 절차를 계약에 명시합니다. 한 ALTER TABLE 안에서 가능한지는 별도 일회용 DB 검증이 필요하며, 불가능하면 파일당 DDL 하나 원칙에 맞게 추가 버전/적용 순서 변경 승인이 필요합니다. V25에서도 유사 제한이 발생하는지 현재는 미검증입니다. 제안은 승인된 결정으로 기록하지 않았으며 승인 전 추가 구현·개발 DB 적용을 진행하지 않습니다.
