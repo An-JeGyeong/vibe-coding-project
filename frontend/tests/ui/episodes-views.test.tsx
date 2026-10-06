@@ -40,6 +40,7 @@ function server(handlers: Handlers = {}, role: Role = "OPERATOR") {
     if (call.path === "/api/episodes/7/source/versions") return (handlers.versions ?? (() => json(200, versionsBody)))(call);
     if (call.path.startsWith("/api/episodes/7/source/versions/")) return (handlers.version ?? (() => json(200, source(1, [{ pageNo: null, text: "옛 버전 내용" }]))))(call);
     if (call.path === "/api/episodes/7/translations") return json(200, { latestSourceVersion: 2, items: [] });
+    if (call.path === "/api/episodes/7/publication") return json(200, { current: null, history: [] });
     if (call.path === "/api/episodes/7/assignments") return json(200, { translator: null, reviewer: null });
     if (call.path === "/api/assignable-accounts") return json(200, { items: [] });
     if (call.path === "/api/episodes/7") return (handlers.detail ?? (() => json(200, detailBody())))(call);

@@ -38,7 +38,7 @@ describe("protected /demo screen", () => {
     const menu = within(screen.getByRole("region", { name: "업무 메뉴" }));
     // Implemented menus: the operator's episodes, and the translator's / reviewer's assigned episodes. Everything else stays disabled.
     const links: Record<string, string> = role === "OPERATOR" ? { "회차·원문 관리": "/episodes" }
-      : role === "READER" ? {}
+      : role === "READER" ? { "공개 회차 읽기": "/read" }
       : role === "REVIEWER" ? { "배정된 회차": "/assigned", "검수 대기 목록": "/reviews" } : { "배정된 회차": "/assigned" };
     const implemented = Object.keys(links);
     for (const label of info.menus) {
@@ -48,7 +48,7 @@ describe("protected /demo screen", () => {
         expect((menu.getByRole("button", { name: label }) as HTMLButtonElement).disabled).toBe(true);
       }
     }
-    expect(menu.getAllByRole("button")).toHaveLength(info.menus.length - implemented.length);
+    expect(menu.queryAllByRole("button")).toHaveLength(info.menus.length - implemented.length);
     expect(menu.queryAllByRole("link")).toHaveLength(implemented.length);
     expect(screen.getByText(/후속 단계에서 제공됩니다/)).toBeTruthy();
     expect(screen.getByText(/접근 권한은 서버가 판단합니다/)).toBeTruthy();

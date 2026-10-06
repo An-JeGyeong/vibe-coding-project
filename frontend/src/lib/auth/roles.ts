@@ -20,7 +20,7 @@ export const ROLE_INFO: Record<Role, { label: string; summary: string; menus: st
   READER: {
     label: "독자",
     summary: "발행된 공개본을 열람합니다.",
-    menus: ["발행된 회차 열람"],
+    menus: ["공개 회차 읽기"],
   },
 };
 
@@ -36,5 +36,5 @@ export const ROLE_MENU_LINKS: Readonly<Record<Role, Readonly<Record<string, stri
   OPERATOR: { "회차·원문 관리": "/episodes" },
   TRANSLATOR: { "배정된 회차": "/assigned" },
   REVIEWER: { "배정된 회차": "/assigned", "검수 대기 목록": "/reviews" },
-  READER: {},
+  READER: { "공개 회차 읽기": "/read" },
 };

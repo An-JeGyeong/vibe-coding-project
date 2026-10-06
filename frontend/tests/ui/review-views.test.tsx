@@ -306,7 +306,7 @@ describe("operator's translation overview", () => {
     ({ versionNo, status: "REJECTED", sourceVersion: 1, createdAt: T, submittedAt: T, decision: rejected, invalidatedAt: null, blocks, ...extra });
 
   async function open(routes: Record<string, H> = {}, role: Role = "OPERATOR") {
-    const api = server(role, { "GET /api/episodes/7/translations": () => json(200, list), ...routes });
+    const api = server(role, { "GET /api/episodes/7/translations": () => json(200, list), "GET /api/episodes/7/publication": () => json(200, { current: null, history: [] }), ...routes });
     renderWithAuth(<OperatorGate><TranslationOverviewPanel episodeId="7" /></OperatorGate>);
     return api;
   }
@@ -356,7 +356,7 @@ describe("operator's translation overview", () => {
   });
 
   test("failures are fixed messages; a non-operator never mounts the panel", async () => {
-    server("OPERATOR", { "GET /api/episodes/7/translations": () => json(503, errorBody("SERVICE_UNAVAILABLE")) });
+    server("OPERATOR", { "GET /api/episodes/7/translations": () => json(503, errorBody("SERVICE_UNAVAILABLE")), "GET /api/episodes/7/publication": () => json(200, { current: null, history: [] }) });
     const view = renderWithAuth(<OperatorGate><TranslationOverviewPanel episodeId="7" /></OperatorGate>);
     expect(await screen.findByText(/서비스를 사용할 수 없습니다/)).toBeTruthy();
     view.unmount();
