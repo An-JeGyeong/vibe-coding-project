@@ -929,3 +929,38 @@ NOT NULL 규칙은 **모든 도메인·인증 테이블**에 적용한다. NULL 
 - 변경: frontend/src, frontend/tests/ui(신규 컴포넌트·순수 함수·페이지). 변경 금지: backend 전체, V1~V32, CONTRACTS의 다른 절, 기존 API의 요청·응답 형식, PROJECT_CONTEXT.md.
 - 테스트(Vitest): ① 순수 함수 — 블록 비교 분류(같음·변경·추가·삭제·null 텍스트·원문 버전 차이), 진행률(공백만 블록·0블록·반올림), 대시보드 칩 계산, 읽던 위치 저장 규칙(`publishedAt` 불일치 폐기·저장소 예외 무시). ② 컴포넌트 — 각 화면의 정상·빈 상태·오류·재시도·늦은 응답 무시·중복 요청 방지, 비교 화면이 역할별로 자기 API만 호출하는지, 독자 화면에 토큰이 붙지 않고 원문·상태가 보이지 않는지, 검색의 페이지 모두 로드·상한, 이웃 링크 실패 시 본문 유지, 역할 외 카드의 미렌더·미호출. ③ 기존 296개 회귀·타입·빌드 통과, 핵심 보호 장치는 변이 검사로 테스트가 잡는지 확인한다. 모킹 테스트 통과는 실제 연동 성공이 아니다.
 - **실제 브라우저 검증은 한 번만, 마지막 통합 검증(10/12)에 합친다**: 감수자가 코멘트로 반려 → 번역가가 새 버전을 쓰며 진행률 변화 확인 → 번역가·운영자·감수자 화면에서 두 버전 비교(변경 블록과 이전 의견 표시) → 발행 후 비로그인 `/read` 검색·이전/다음 회차·"여기까지 읽음"·이어 읽기(공개본 교체 후 저장값 폐기) → 네 역할의 `/demo` 대시보드 카드.
+
+## 24. 작업 이력 조회 — 운영자의 업무 감사 이력 읽기 — PROPOSED (2026-10-07, 사용자 승인 대기)
+
+작성: Claude Code. 구현: backend=Codex(읽기 API), frontend=Claude Code. 근거: PROJECT_CONTEXT.md 4절 선택 기능 5번(작업 이력 조회 화면)과 3.6절의 감사 기록, DECISIONS.md D-052(이 절과 함께 승인 대기). 인증·역할·오류 형식은 12·19절을 따른다. **이 노드는 마이그레이션이 없다**(`domain_audit`는 읽기만 하며 새 인덱스도 만들지 않는다 — 데모 규모를 가정하고 기존 `ix_domain_audit_time`만 쓴다).
+
+### 범위
+- 포함: 운영자가 업무 이벤트(회차·원문·배정·번역·감수·발행)의 이력을 최신순으로 읽는 API와 화면, 회차·이벤트 종류별 거르기, 페이지 이동.
+- 제외: 로그인·접근 거부 등 **인증 감사(`auth_audit`)**, 이력의 수정·삭제·내보내기, 번역가·감수자·독자의 이력 조회, 실시간 갱신, 이벤트 상세(요청 본문·텍스트) 조회.
+
+### 24.1 API (읽기 전용)
+시각은 UTC ISO-8601 `Z`, ID는 문자열, `Cache-Control: no-store`.
+| API | 권한 | 요청 | 성공 응답 |
+|---|---|---|---|
+| GET /api/history?episodeId=&event=&limit=&offset= | OPERATOR | `episodeId`(선택, `^[1-9][0-9]{0,17}$`), `event`(선택, 아래 허용 값 중 하나), limit 1~100(기본 50), offset ≥0 | 200 {"items":[{"id","occurredAt","event","actor":{"id","displayName"},"episodeId","episodeTitle","sourceVersion","translationVersionNo","subject"}],"total":n} |
+- `items`는 `occurredAt` 내림차순, 같으면 `id` 내림차순(안정 정렬). `total`은 거르기를 적용한 전체 건수이며 `offset`이 `total` 이상이면 빈 목록이다.
+- 필드: `actor`는 행위자 계정(`domain_audit.actor_account_id`)의 `id`·`displayName`. `sourceVersion`은 정수 또는 null, `translationVersionNo`는 그 이벤트가 가리키는 번역 버전의 **회차 안 버전 번호**(정수, 번역 이벤트가 아니면 null — 내부 `translation_version_id`는 반환하지 않는다). `subject`는 배정 이벤트의 대상 계정 `{"id","displayName"}` 또는 null. `episodeTitle`은 그 회차의 현재 제목.
+- `event` 허용 값(현재 `domain_audit`가 기록하는 것): `EPISODE_CREATED`, `SOURCE_SAVED`, `ASSIGNED`, `TRANSLATION_CREATED`, `TRANSLATION_SUBMITTED`, `REVIEW_APPROVED`, `REVIEW_REJECTED`, `APPROVAL_INVALIDATED`, `TRANSLATION_PUBLISHED`, `PUBLICATION_HELD`, `PUBLICATION_RESUMED`. 목록에 없는 `event`, 형식이 틀린 `episodeId`, 범위 밖 `limit`·`offset`, 반복·미정의 쿼리 값은 400 INVALID_REQUEST. 존재하지 않는 `episodeId`는 오류가 아니라 빈 목록(200)이다.
+- 응답 필드는 정확히 위 목록이며 **반려 사유·블록별 의견·번역/원문 텍스트·제목 외 회차 내용·토큰·IP·인증 이벤트·내부 ID(번역 버전·감사 행 외)는 어떤 경로로도 반환하지 않는다**(`id`는 감사 행 ID).
+- 권한: OPERATOR만. 번역가·감수자·독자는 403 FORBIDDEN(ACCESS_DENIED 감사), 비로그인은 401, 역할 위조(헤더·본문)는 무시한다. 보안 규칙은 `/api/history`를 OPERATOR 전용으로 명시한다(기존 `/api/episodes/**` 규칙에 의존하지 않는다). 오류 코드: 400, 401, 403, 503, 500. 오류 형식은 12절과 같고 비밀·내부 예외는 노출하지 않는다. 본문이 있는 GET은 무시한다.
+
+### 24.2 처리 함수
+| 이름 | 입력 → 출력 | 권한 | 상태 변경 | 실패 | 필수 테스트 |
+|---|---|---|---|---|---|
+| listHistory | 호출자, 거르기, limit, offset → items·total | OPERATOR | 없음 | 400/401/403/503 | 정렬(시각 내림차순·동률 id 내림차순), 페이지·경계·offset 초과 빈 목록, `episodeId`·`event` 거르기와 조합, 없는 회차 빈 목록, 허용 밖 event·잘못된 쿼리 400, 모든 이벤트 종류가 정확한 필드로 나옴(배정의 subject, 번역 이벤트의 translationVersionNo, 원문 이벤트의 sourceVersion), 응답 필드 정확 일치, 사유·의견·텍스트·인증 이벤트 비노출, 역할 매트릭스(4개 역할 + 비로그인, 역할 위조), 읽기 전용(전후 감사 행 수 불변) |
+
+### 24.3 프런트 계약 (Claude Code)
+- **운영자** 새 화면 `/history`(운영자 게이트, 다른 역할은 안내만): 이력 표(시각 UTC, 작업, 회차 제목(링크 `/episodes/{id}`), 수행자, 대상)와 거르기. 작업 이름은 한국어 고정 문구로 보이고(예: `SOURCE_SAVED` → "원문 저장 (v{sourceVersion})", `ASSIGNED` → "담당자 배정 → {subject}", `TRANSLATION_SUBMITTED` → "번역 v{n} 제출", `REVIEW_REJECTED` → "번역 v{n} 반려", `TRANSLATION_PUBLISHED` → "번역 v{n} 발행", `PUBLICATION_HELD` → "공개 보류", `PUBLICATION_RESUMED` → "공개 재개" 등), 알 수 없는 이벤트는 "기타 작업"으로 표시한다. 서버 문자열은 모두 글자로만 렌더링한다.
+- 거르기: "작업 종류" 선택(전체 + 허용 값)과 "회차" 선택 `?episodeId=`(회차 상세의 "이 회차의 작업 이력" 링크로 진입). 20개씩 페이지 이동, "새로고침" 버튼. 거르기를 바꾸면 첫 페이지로 돌아간다. 오류·재시도·늦은 응답 무시·401/403 처리는 기존 방식이다.
+- `/demo` 운영자 메뉴에 "작업 이력 조회" 링크, `/episodes/{id}`에 "이 회차의 작업 이력" 링크를 둔다. 독자·번역가·감수자 메뉴는 바꾸지 않는다.
+
+### 24.4 파일 소유권·완료 조건
+- Codex 변경: backend/src/main(신규 `history` 패키지, 보안 규칙·오류 처리), backend/src/test, README 기록. **마이그레이션 없음.** 기존 통합 테스트는 수정 없이 통과해야 한다(기존 응답에 필드를 더하지 않는다).
+- Claude Code 변경: frontend/src, frontend/tests/ui. 변경 금지: V1~V32, 기존 API의 기존 필드·동작, PROJECT_CONTEXT.md, 서로의 영역.
+- 테스트: 24.2 표, 연속 2회 통과·전후 행 수 비교(통합 테스트가 만든 행만 정리). frontend는 24.3 전부(표 표시·한국어 문구·거르기·페이지 이동·빈 상태·오류·재시도·역할 안내, 링크)와 기존 회귀·타입·빌드.
+- **실제 브라우저 검증은 한 번만, 마지막 통합 검증(10/12)에 합친다**: 운영자가 `/history`에서 원문 저장·배정·번역 제출·반려·승인·발행·보류·재개 이벤트가 최신순으로 보이는지, 회차·작업 종류 거르기와 페이지 이동, 다른 역할의 접근 차단(HTTP 403), 이력에 사유·의견·텍스트가 없음을 확인한다.
