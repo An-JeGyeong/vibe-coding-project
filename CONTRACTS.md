@@ -850,3 +850,43 @@ NOT NULL 규칙은 **모든 도메인·인증 테이블**에 적용한다. NULL 
 - Claude Code 변경: frontend/src, frontend/tests/ui. 변경 금지: V1~V31, 기존 API의 기존 필드·동작(`held` 추가 제외), PROJECT_CONTEXT.md, 서로의 영역.
 - 테스트: 21.4 표, 역할 매트릭스(hold·resume × 4개 역할 + 비로그인), 본문 있으면 400, 없는 회차 404, 오류 비노출, 기존 회귀·빌드, 연속 2회 통과·전후 행 수 비교. frontend는 21.5 전부와 기존 회귀·타입·빌드.
 - **실제 브라우저 검증은 한 번만, 최소 시나리오로**: 운영자 발행 → 공개 보류(확인 취소 시 요청 없음, 확정 후 `/read` 목록에서 사라지고 `/read/{id}`가 404 안내) → 보류 중 원문 수정 후 공개 재개 → `/read/{id}`가 같은 내용으로 복귀하고 발행 이력이 한 건 늘어남 → 보류 중 다른 승인 버전 발행 시 공개 내용 교체 → 번역가·감수자·독자의 hold/resume 403(HTTP 확인) → 감사 `PUBLICATION_HELD`·`PUBLICATION_RESUMED`와 상태·publication 행 정합.
+
+## 22. Review 보강 — 블록별 감수 코멘트 — PROPOSED (2026-10-07, 사용자 승인 대기)
+
+작성: Claude Code. 구현: backend=Codex, frontend=Claude Code. 근거: 사용자 채택(2026-10-07, 제출 완성도 향상), DECISIONS.md D-050(이 절과 함께 승인 대기). 18절 Review의 반려 규칙을 **반려에 한해 확장**한다. 인증·역할·오류 형식은 12·19절, 번역은 17절, 감수는 18절을 따른다. **이 노드는 마이그레이션 V32 하나가 있다**(새 테이블 1개, NOT NULL 규칙 적용).
+
+### 범위
+- 포함: 반려할 때 감수자가 문제 블록을 지정해 블록별 의견을 남기는 기능, 그 의견을 번역가·감수자·운영자가 읽는 것.
+- 제외: 승인에 코멘트 붙이기, 코멘트 수정·삭제, 코멘트에 대한 답글, 독자 공개, 코멘트 알림, 반려 사유(`reason`)의 대체(`reason`은 그대로 필수).
+
+### 22.1 스키마 — V32 (파일당 DDL 하나, InnoDB·utf8mb4·UTC DATETIME(6))
+`review_block_comment`: id BIGINT AUTO_INCREMENT PK, review_decision_id BIGINT NOT NULL, translation_version_id BIGINT NOT NULL, source_seq INT NOT NULL, body VARCHAR(300) NOT NULL, created_at DATETIME(6) NOT NULL.
+- **모든 컬럼 NOT NULL**(NULL 허용 목록 변경 없음, 스키마 lint 테스트 통과). `CHECK (CHAR_LENGTH(body) BETWEEN 1 AND 300)`. `UNIQUE (review_decision_id, source_seq)`(한 결정에서 같은 블록에 의견 하나).
+- FK: review_decision_id → review_decision(id), **(translation_version_id, source_seq) → translation_block(translation_version_id, source_seq)**(의견은 그 버전에 실제로 있는 블록만 가리킨다), review_decision(id)가 같은 번역 버전임을 보장하도록 `review_decision`에 UNIQUE(id, translation_version_id)를 이미 쓸 수 없으면 서비스 검사와 테스트로 막는다(DB 제약이 어려우면 구현을 멈추고 제안). 모두 ON DELETE/UPDATE RESTRICT.
+- 같은 결정에는 반려(REJECTED)에만 코멘트가 붙는다(서비스 규칙, 승인 결정에는 행이 생기지 않는다).
+
+### 22.2 API 변경 (모두 가산적, 기존 필드·동작 유지)
+- **반려 요청 확장** `POST /api/my/episodes/{id}/reviews/{versionNo}/reject`: 본문 `{"reason":"…","comments":[{"seq":1,"text":"…"}]}`. `comments`는 **선택**이며 없으면 `[]`과 같다. 미정의 필드는 여전히 400. `comments` 규칙(어기면 400 INVALID_REQUEST, 상세 필드 없음): 배열 길이 0~50, 각 항목은 정확히 `seq`(정수)와 `text`(문자열), `seq`는 그 번역 버전에 실제로 있는 블록의 seq이고 중복 불가, `text`는 1~300 코드포인트·공백만 불가·제어문자는 탭·개행만·trim/정규화 금지(18.2 `reason`과 같은 규칙).
+- 반려 처리(18.2)는 그대로이며 **결정 행 INSERT·상태 변경·감사 `REVIEW_REJECTED`·코멘트 INSERT를 같은 트랜잭션**에서 한다. 코멘트 저장이 실패하면 전체 롤백(결정·상태·감사 불변)과 503. 코멘트 본문은 감사·로그에 저장하지 않는다.
+- **응답에 `blockComments` 추가**(없으면 항상 `[]`): 번역가 `GET /api/my/episodes/{id}/translations/{versionNo}`, 감수자 `GET /api/my/episodes/{id}/reviews/{versionNo}`, 운영자 `GET /api/episodes/{id}/translations/{versionNo}`. 형식 `[{"seq":1,"text":"…","createdAt":"…"}]`, seq 오름차순. `REJECTED`가 아닌 버전에서는 `[]`. **목록 응답(번역가·감수자·운영자 목록 항목)에는 추가하지 않는다.**
+- 공개 범위(D-045와 같음): 그 회차의 **현재 배정된** 번역가·감수자와 운영자만 본다. 독자·공개 API·비배정자(404)에게는 어떤 경로로도 노출하지 않는다. 계정 정보(작성자·감수자 이름)는 노출하지 않는다.
+- 코멘트는 불변이다(수정·삭제 API 없음). 새 DRAFT를 만들어도 코멘트는 복사되지 않고, 직전 반려 버전의 상세에서 계속 읽을 수 있다.
+
+### 22.3 처리 함수
+| 이름 | 입력 → 출력 | 권한 | 상태 변경 | 실패 | 필수 테스트 |
+|---|---|---|---|---|---|
+| rejectTranslation (확장) | 호출자, versionNo, reason, comments → 결과 | 배정된 REVIEWER | 결정 행·상태·감사·코멘트 행 | 400/404/409/403/503 | 코멘트 없이 반려(기존 동작 그대로), 코멘트 N개 저장, 없는 seq·중복 seq·공백만·301자·제어문자·51개·잘못된 항목 형식 400(상태 불변·코멘트 행 0), 승인에는 코멘트 필드 자체를 받지 않음(approve는 본문 있으면 400 그대로), 저장 장애 롤백(결정·상태·감사·코멘트 모두 불변), 중복 반려 409(코멘트 행 증가 없음), 동시 반려·승인 하나만 성공 |
+| 상세 조회 확장 | 호출자, versionNo → blockComments | 번역가·감수자·운영자 | 없음 | 404/401/403/503 | 반려 버전에서 코멘트 반환, 비반려 버전 `[]`, 목록 응답에는 없음, 교체된 감수자·번역가 404와 새 담당자의 인계 읽기, 독자·비배정자 비노출(공개 API 응답에 없음) |
+| 스키마 | V32 | — | — | — | 컬럼 NOT NULL·CHECK·UNIQUE·FK 위반 거부와 정상 허용(제약별 실제 MySQL), 기존 NOT NULL lint 통과, V1~V31 불변 |
+
+### 22.4 프런트 계약 (Claude Code)
+- **감수자** `/reviews/{episodeId}/{versionNo}`: 반려 모드에서 각 블록 옆에 "이 블록에 의견 추가"를 둔다(블록당 300자 이하·최대 50개 검증, 입력은 텍스트로만 렌더링). 반려 확인 단계에서 입력한 의견 수를 보여 주고 `reason`과 함께 전송한다. 결정 후 읽기 전용 화면에는 블록별 의견을 해당 블록 옆에 표시한다. 오류·입력 유지·중복 제출 방지는 18.4와 같다.
+- **번역가** `/assigned/{id}`: 반려된 버전의 상세에서 블록별 의견을 해당 블록 옆에 표시한다. 새 번역을 편집할 때는 직전 반려 버전의 의견을 "직전 반려 의견" 영역에서 읽기 전용으로 참조할 수 있게 한다(별도 API 없이 기존 상세 호출 재사용).
+- **운영자** `/episodes/{id}` 번역 현황의 상세 보기: 반려 버전의 블록별 의견을 함께 표시한다.
+- 독자 화면은 변경하지 않는다.
+
+### 22.5 파일 소유권·완료 조건
+- Codex 변경: `backend/src/main/resources/db/migration/V32__…`, backend/src/main(`review`·`translation` 패키지 확장), backend/src/test, README 기록. 기존 EpisodeSource·Assignment·Translation·Review·Publication·인증 통합 테스트는 수정 없이 통과해야 하고, **번역가 상세·감수자 상세·운영자 상세 응답의 필드 목록 단언(정확히 일치 단언)에 `blockComments`를 추가하는 것과 `blockComments:[]` 검증 추가만 허용**한다(가산적 필드 추가는 정확 일치 단언과 양립하지 않는다 — 18절 정정과 같은 처리, 변경한 단언 목록을 보고).
+- Claude Code 변경: frontend/src, frontend/tests/ui. 변경 금지: V1~V31, 기존 API의 기존 필드·동작(`blockComments`·`comments` 추가 제외), PROJECT_CONTEXT.md, 서로의 영역.
+- 테스트: 22.3 표, 역할 매트릭스(코멘트 포함 반려 × 4개 역할 + 비로그인, 역할 위조), 오류 비노출·비JSON 400, 기존 회귀·빌드, 연속 2회 통과·전후 행 수 비교(코멘트 테이블 포함 정확히 정리). frontend는 22.4 전부와 기존 회귀·타입·빌드.
+- **실제 브라우저 검증은 한 번만, 마지막 통합 검증(10/12)에 합친다**: 감수자가 코멘트를 붙여 반려 → 번역가가 블록별 의견을 보고 새 번역 작성·제출 → 운영자 상세에서 의견 확인 → 독자·비배정 감수자에게 비노출 → 감사·결정·코멘트 행 정합.
