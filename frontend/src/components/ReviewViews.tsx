@@ -9,7 +9,10 @@ import { reviewFailureMessage } from "@/lib/review/messages";
 import type { PendingReviewList, ReviewDetail, ReviewVersionList } from "@/lib/review/types";
 import { COMMENT_MAX, COMMENTS_MAX, REASON_MAX, validateComment, validateReason } from "@/lib/review/validation";
 import { STATUS_LABEL } from "@/lib/translation/types";
+import { translationProgress } from "@/lib/translation/progress";
+import { ProgressBar } from "./ProgressBar";
 import { DecisionBox, decisionLabel, SideBySide } from "./ReviewParts";
+import { VersionCompare } from "./VersionCompare";
 
 const PAGE_SIZE = 20;
 
@@ -175,6 +178,7 @@ export function ReviewDetailView({ episodeId, versionNo }: { episodeId: string; 
     <h1 className="h2 mb-1">번역 v{detail.versionNo} 검토</h1>
     <p className="text-secondary">상태: {STATUS_LABEL[detail.status]} · 기준 원문 v{detail.sourceVersion}{detail.submittedAt && <> · 제출 <time>{detail.submittedAt}</time></>}</p>
     <DecisionBox decision={detail.decision} />
+    <ProgressBar progress={translationProgress(detail.blocks)} />
     {notice && <p className={`alert alert-${notice.tone}`} role={notice.tone === "danger" || notice.tone === "warning" ? "alert" : "status"}>{notice.text}</p>}
     <section aria-label="원문과 번역 (읽기 전용)" className="card card-body shadow-sm mb-3">
       <h2 className="h5">원문과 번역 (읽기 전용)</h2>
@@ -238,7 +242,8 @@ export function ReviewVersionsPanel({ episodeId }: { episodeId: string }) {
     return () => activeLoad.current?.abort();
   }, [load]);
 
-  return <section aria-label="검수 버전" className="card card-body shadow-sm mb-3">
+  return <>
+  <section aria-label="검수 버전" className="card card-body shadow-sm mb-3">
     <h2 className="h5">검수 버전</h2>
     {loading && !list && <p role="status">불러오는 중…</p>}
     {error && <div className="alert alert-warning" role="alert">
@@ -259,5 +264,7 @@ export function ReviewVersionsPanel({ episodeId }: { episodeId: string }) {
         </tr>)}
       </tbody>
     </table>}
-  </section>;
+  </section>
+  {list && list.items.length >= 2 && <VersionCompare versions={list.items} load={(versionNo, signal) => getReview(episodeId, versionNo, signal)} />}
+  </>;
 }

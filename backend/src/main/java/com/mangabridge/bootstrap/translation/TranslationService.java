@@ -54,7 +54,7 @@ public class TranslationService {
         return execute(read,()->{
             assigned(actor,episode,false); Stored version=required(episode,number);
             return new Detail(version.versionNo(),version.status(),version.sourceVersion(),version.revision(),version.createdAt(),
-                    version.submittedAt(),version.status().equals("DRAFT"),dao.blocks(episode,version),dao.decision(version.id()));
+                    version.submittedAt(),version.status().equals("DRAFT"),dao.blocks(episode,version),dao.decision(version.id()),dao.blockComments(version.id(),version.status()));
         });
     }
     public Saved saveTranslationDraft(CurrentUser actor,String pathId,String pathVersion,SaveRequest request) {

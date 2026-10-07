@@ -13,8 +13,11 @@ import java.time.Clock;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Set;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.function.Supplier;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionException;
@@ -57,26 +60,50 @@ public class ReviewService {
             var row=assigned(actor,episode,false); var v=required(episode,version);
             if(!VISIBLE.contains(v.status())) throw ReviewFailure.notFound();
             boolean decidable=v.status().equals("REVIEW_PENDING") && v.sourceVersion()==row.latest() && dao.author(v.id())!=actorId(actor);
-            return new Detail(v.versionNo(),v.status(),v.sourceVersion(),v.submittedAt(),decidable,dao.decision(v.id()),translations.blocks(episode,v));
+            return new Detail(v.versionNo(),v.status(),v.sourceVersion(),v.submittedAt(),decidable,dao.decision(v.id()),translations.blocks(episode,v),translations.blockComments(v.id(),v.status()));
         });
     }
-    public Result approveTranslation(CurrentUser actor,String id,String number) { return decide(actor,id,number,"APPROVED",null); }
+    public Result approveTranslation(CurrentUser actor,String id,String number) { return decide(actor,id,number,"APPROVED",null,List.of()); }
     public Result rejectTranslation(CurrentUser actor,String id,String number,RejectRequest request) {
         if(request==null || request.reason()==null || !request.reason().isTextual()) throw ReviewFailure.invalid();
         String reason=request.reason().textValue(); int length=reason.codePointCount(0,reason.length());
         if(length<1 || length>500 || reason.codePoints().allMatch(c->Character.isWhitespace(c)||Character.isSpaceChar(c))
                 || reason.codePoints().anyMatch(c->Character.isISOControl(c)&&c!='\t'&&c!='\n'&&c!='\r')) throw ReviewFailure.invalid();
-        return decide(actor,id,number,"REJECTED",reason);
+        return decide(actor,id,number,"REJECTED",reason,commentInputs(request.comments()));
     }
-    private Result decide(CurrentUser actor,String id,String number,String decision,String reason) {
+    private static List<CommentInput> commentInputs(com.fasterxml.jackson.databind.JsonNode node) {
+        if(node==null) return List.of();
+        if(!node.isArray() || node.size()>50) throw ReviewFailure.invalid();
+        var result=new ArrayList<CommentInput>(); var seqs=new HashSet<Integer>();
+        for(var item:node) {
+            if(!item.isObject() || item.size()!=2 || !item.has("seq") || !item.has("text")) throw ReviewFailure.invalid();
+            var seq=item.get("seq"); var text=item.get("text");
+            if(!seq.isIntegralNumber() || !seq.canConvertToInt() || !seqs.add(seq.intValue()) || !text.isTextual()) throw ReviewFailure.invalid();
+            String value=text.textValue(); int length=value.codePointCount(0,value.length());
+            if(length<1 || length>300 || value.codePoints().allMatch(c->Character.isWhitespace(c)||Character.isSpaceChar(c))
+                    || value.codePoints().anyMatch(c->Character.isISOControl(c)&&c!='\t'&&c!='\n'&&c!='\r')) throw ReviewFailure.invalid();
+            result.add(new CommentInput(seq.intValue(),value));
+        }
+        return List.copyOf(result);
+    }
+    private Result decide(CurrentUser actor,String id,String number,String decision,String reason,List<CommentInput> inputs) {
         long episode=path(id,false); int version=(int)path(number,true);
         try { return execute(write,()->{
             var row=assigned(actor,episode,true); var v=required(episode,version);
             if(!v.status().equals("REVIEW_PENDING") || v.sourceVersion()!=row.latest()) throw ReviewFailure.state(v.status());
             if(dao.author(v.id())==actorId(actor)) throw new SelfReview();
+            if(!inputs.isEmpty() && !translations.texts(v.id()).keySet().containsAll(inputs.stream().map(CommentInput::seq).toList())) throw ReviewFailure.invalid();
             var now=clock.instant().truncatedTo(ChronoUnit.MICROS);
             dao.decide(v.id(),v.sourceVersion(),actorId(actor),decision,reason,now);
             dao.audit(actorId(actor),decision.equals("APPROVED")?"REVIEW_APPROVED":"REVIEW_REJECTED",episode,v.sourceVersion(),v.id(),now);
+            if(!inputs.isEmpty()) {
+                long decisionId=dao.decisionId(v.id());
+                var stored=dao.commentDecision(decisionId);
+                // The two V32 foreign keys do not enforce this relationship; check before any INSERT.
+                if(stored==null || stored.versionId()!=v.id() || !stored.decision().equals("REJECTED"))
+                    throw new DataIntegrityViolationException("Comment decision mismatch");
+                for(var input:inputs) dao.insertComment(decisionId,v.id(),input,now);
+            }
             return new Result(version,decision,now);
         }); } catch(SelfReview denied) {
             // Persist the denial after the domain transaction has rolled back.
@@ -97,7 +124,7 @@ public class ReviewService {
         long episode=path(id,false); int version=(int)path(number,true);
         return execute(read,()->{
             requiredEpisode(episode,false); var v=required(episode,version);
-            return new OperatorDetail(v.versionNo(),v.status(),v.sourceVersion(),v.createdAt(),v.submittedAt(),dao.decision(v.id()),dao.invalidatedAt(v.id()),translations.blocks(episode,v));
+            return new OperatorDetail(v.versionNo(),v.status(),v.sourceVersion(),v.createdAt(),v.submittedAt(),dao.decision(v.id()),dao.invalidatedAt(v.id()),translations.blocks(episode,v),translations.blockComments(v.id(),v.status()));
         });
     }
     private EpisodeModels.Stored requiredEpisode(long episode,boolean lock) {

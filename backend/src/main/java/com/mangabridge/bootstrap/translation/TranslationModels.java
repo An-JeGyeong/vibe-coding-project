@@ -20,7 +20,7 @@ public final class TranslationModels {
         @Override public String toString() { return "Block[redacted]"; }
     }
     public record Detail(int versionNo,String status,int sourceVersion,int revision,Instant createdAt,
-                         Instant submittedAt,boolean editable,List<Block> blocks,com.mangabridge.bootstrap.review.ReviewModels.Decision decision) { }
+                         Instant submittedAt,boolean editable,List<Block> blocks,com.mangabridge.bootstrap.review.ReviewModels.Decision decision,List<com.mangabridge.bootstrap.review.ReviewModels.BlockComment> blockComments) { }
     public record Saved(int revision,boolean changed) { }
     public record Submitted(int versionNo,String status,Instant submittedAt) { }
     public record Stored(long id,int versionNo,String status,int sourceVersion,int revision,Instant createdAt,Instant submittedAt) {

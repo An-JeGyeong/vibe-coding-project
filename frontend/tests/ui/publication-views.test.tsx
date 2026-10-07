@@ -211,8 +211,8 @@ describe("reader: public pages", () => {
     expect(container.querySelector("b")).toBeNull();
     expect(container.querySelectorAll("li")).toHaveLength(2);
     expect(screen.queryByText(/원문|초안|검수|승인|상태/)).toBeNull();
-    expect(calls).toHaveLength(1);
-    expect(calls[0].headers.Authorization).toBeUndefined();
+    expect(calls.every((call) => call.path.startsWith("/api/public/"))).toBe(true); // the episode and, best effort, the public list for neighbour links
+    expect(calls.every((call) => call.headers.Authorization === undefined)).toBe(true);
   });
 
   test("an unpublished or unknown episode (404) shows one neutral notice and no content", async () => {

@@ -7,7 +7,10 @@ import type { EpisodeFailure } from "@/lib/episodes/types";
 import { createTranslation, getTranslation, listTranslations, saveTranslation, submitTranslation } from "@/lib/translation/client";
 import { STATUS_LABEL, type TranslationDetail, type TranslationList } from "@/lib/translation/types";
 import { validateTranslationText } from "@/lib/translation/validation";
+import { translationProgress } from "@/lib/translation/progress";
+import { ProgressBar } from "./ProgressBar";
 import { DecisionBox, decisionLabel, decisionSummary } from "./ReviewParts";
+import { VersionCompare } from "./VersionCompare";
 
 type Notice = { tone: "success" | "info" | "danger" | "warning"; text: string };
 type Busy = "save" | "submit" | "create" | null;
@@ -181,6 +184,8 @@ export function TranslationWorkspace({ episodeId, onLatestSourceVersion }: { epi
       </button>}
     </section>
 
+    {list.items.length >= 2 && <VersionCompare versions={list.items} load={(versionNo, signal) => getTranslation(episodeId, versionNo, signal)} />}
+
     {notice && <p className={`alert alert-${notice.tone}`} role={notice.tone === "danger" || notice.tone === "warning" ? "alert" : "status"}>{notice.text}</p>}
     {needsReload && <div className="mb-3">
       <button type="button" className="btn btn-warning" disabled={loading} onClick={() => void load(detail?.versionNo)}>최신 내용 불러오기 (작성 중인 내용은 사라집니다)</button>
@@ -200,6 +205,7 @@ export function TranslationWorkspace({ episodeId, onLatestSourceVersion }: { epi
     {detail && <section aria-label="원문과 번역" className="card card-body shadow-sm">
       <h2 className="h5">v{detail.versionNo} · {STATUS_LABEL[detail.status]}</h2>
       <DecisionBox decision={detail.decision} />
+      <ProgressBar progress={translationProgress(detail.blocks, detail.editable ? texts : undefined)} unsaved={detail.editable && dirty} />
       <p className="text-secondary small">
         {detail.editable ? "왼쪽 원문을 보고 오른쪽에 번역을 입력합니다. 저장한 뒤에 제출할 수 있으며, 제출하면 수정할 수 없습니다."
           : detail.status === "INVALIDATED" ? "원문이 바뀌어 무효화된 번역입니다. 읽기 전용이며, 새 번역을 시작할 수 있습니다."

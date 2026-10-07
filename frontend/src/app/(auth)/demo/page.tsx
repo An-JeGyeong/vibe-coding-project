@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { DashboardCards } from "@/components/DashboardCards";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { failureMessage } from "@/lib/auth/messages";
 import { ROLE_INFO, ROLE_MENU_LINKS } from "@/lib/auth/roles";
@@ -53,6 +54,7 @@ export default function DemoPage() {
       </ul>
       <p className="text-secondary small">나머지 업무 기능은 후속 단계에서 제공됩니다. 화면의 안내는 편의 기능이며 접근 권한은 서버가 판단합니다.</p>
     </section>
+    <DashboardCards role={user.role} />
     <button type="button" className="btn btn-outline-danger mt-3" onClick={() => void auth.logout()} disabled={auth.loggingOut}>
       {auth.loggingOut ? "로그아웃 중…" : "로그아웃"}
     </button>

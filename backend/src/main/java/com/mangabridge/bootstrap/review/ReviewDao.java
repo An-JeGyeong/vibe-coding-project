@@ -33,6 +33,18 @@ public class ReviewDao {
                 version,decision,reason,reviewer,source,Timestamp.from(now));
         jdbc.update("UPDATE translation_version SET status=? WHERE id=?",decision,version);
     }
+    public long decisionId(long version) {
+        return jdbc.queryForObject("SELECT id FROM review_decision WHERE translation_version_id=?",Long.class,version);
+    }
+    public CommentDecision commentDecision(long decision) {
+        var rows=jdbc.query("SELECT translation_version_id,decision FROM review_decision WHERE id=?",
+                (rs,n)->new CommentDecision(rs.getLong(1),rs.getString(2)),decision);
+        return rows.isEmpty()?null:rows.get(0);
+    }
+    public void insertComment(long decision,long version,CommentInput comment,Instant now) {
+        jdbc.update("INSERT INTO review_block_comment(review_decision_id,translation_version_id,source_seq,body,created_at) VALUES (?,?,?,?,?)",
+                decision,version,comment.seq(),comment.text(),Timestamp.from(now));
+    }
     public void audit(long actor,String event,long episode,int source,long version,Instant now) {
         jdbc.update("INSERT INTO domain_audit(occurred_at,actor_account_id,event,episode_id,source_version,translation_version_id) VALUES (?,?,?,?,?,?)",
                 Timestamp.from(now),actor,event,episode,source,version);

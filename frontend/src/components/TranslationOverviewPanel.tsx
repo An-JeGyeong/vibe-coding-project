@@ -10,7 +10,10 @@ import type { Publication } from "@/lib/publication/types";
 import { getOperatorTranslation, listOperatorTranslations } from "@/lib/review/client";
 import type { OperatorTranslationDetail, OperatorTranslationList } from "@/lib/review/types";
 import { STATUS_LABEL } from "@/lib/translation/types";
+import { translationProgress } from "@/lib/translation/progress";
+import { ProgressBar } from "./ProgressBar";
 import { DecisionBox, decisionLabel, SideBySide } from "./ReviewParts";
+import { VersionCompare } from "./VersionCompare";
 
 type Notice = { tone: "success" | "warning" | "danger"; text: string };
 
@@ -174,11 +177,13 @@ export function TranslationOverviewPanel({ episodeId, refreshKey = 0 }: { episod
         </tr>)}
       </tbody>
     </table>}
+    {list && list.items.length >= 2 && <VersionCompare key={refreshKey} versions={list.items} load={(versionNo, signal) => getOperatorTranslation(episodeId, versionNo, signal)} />}
     {viewError && <p className="alert alert-warning" role="alert">{viewError}</p>}
     {view && <div role="region" aria-label={`번역 v${view.versionNo} 내용`}>
       <h3 className="h6">번역 v{view.versionNo} · {STATUS_LABEL[view.status]} (읽기 전용)</h3>
       {view.invalidatedAt && <p className="text-secondary small">무효화 시각 (UTC): <time>{view.invalidatedAt}</time></p>}
       <DecisionBox decision={view.decision} />
+      <ProgressBar progress={translationProgress(view.blocks)} />
       <SideBySide blocks={view.blocks} comments={view.blockComments} />
     </div>}
   </section>;

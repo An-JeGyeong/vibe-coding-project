@@ -33,6 +33,11 @@ public class TranslationDao {
                 (rs,n)->new com.mangabridge.bootstrap.review.ReviewModels.Decision(rs.getString(1),rs.getTimestamp(2).toInstant(),rs.getString(3)),version);
         return rows.isEmpty()?null:rows.get(0);
     }
+    public List<com.mangabridge.bootstrap.review.ReviewModels.BlockComment> blockComments(long version,String status) {
+        if(!"REJECTED".equals(status)) return List.of();
+        return jdbc.query("SELECT c.source_seq,c.body,c.created_at FROM review_block_comment c JOIN review_decision d ON d.id=c.review_decision_id AND d.translation_version_id=c.translation_version_id AND d.decision='REJECTED' WHERE c.translation_version_id=? ORDER BY c.source_seq",
+                (rs,n)->new com.mangabridge.bootstrap.review.ReviewModels.BlockComment(rs.getInt(1),rs.getString(2),rs.getTimestamp(3).toInstant()),version);
+    }
     public int latestTranslationVersion(long episode) {
         return jdbc.queryForObject("SELECT latest_translation_version FROM episode WHERE id=?",Integer.class,episode);
     }

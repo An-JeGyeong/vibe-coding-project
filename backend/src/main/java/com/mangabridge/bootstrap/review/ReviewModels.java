@@ -10,15 +10,23 @@ public final class ReviewModels {
     public record Decision(String decision,Instant decidedAt,String reason) {
         @Override public String toString() { return "Decision[redacted]"; }
     }
-    public record RejectRequest(JsonNode reason) {
+    public record RejectRequest(JsonNode reason,JsonNode comments) {
+        public RejectRequest(JsonNode reason) { this(reason,null); }
         @Override public String toString() { return "RejectRequest[redacted]"; }
     }
+    public record CommentInput(int seq,String text) {
+        @Override public String toString() { return "CommentInput[redacted]"; }
+    }
+    public record BlockComment(int seq,String text,Instant createdAt) {
+        @Override public String toString() { return "BlockComment[redacted]"; }
+    }
+    public record CommentDecision(long versionId,String decision) { }
     public record Pending(String episodeId,String title,int versionNo,int sourceVersion,Instant submittedAt) { }
     public record Queue(List<Pending> items,long total) { }
     public record Item(int versionNo,String status,int sourceVersion,Instant submittedAt,Decision decision) { }
     public record Versions(int latestSourceVersion,List<Item> items) { }
-    public record Detail(int versionNo,String status,int sourceVersion,Instant submittedAt,boolean decidable,Decision decision,List<Block> blocks) { }
+    public record Detail(int versionNo,String status,int sourceVersion,Instant submittedAt,boolean decidable,Decision decision,List<Block> blocks,List<BlockComment> blockComments) { }
     public record OperatorDetail(int versionNo,String status,int sourceVersion,Instant createdAt,Instant submittedAt,
-                                 Decision decision,Instant invalidatedAt,List<Block> blocks) { }
+                                 Decision decision,Instant invalidatedAt,List<Block> blocks,List<BlockComment> blockComments) { }
     public record Result(int versionNo,String status,Instant decidedAt) { }
 }
