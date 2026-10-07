@@ -12,6 +12,7 @@ import { STATUS_LABEL } from "@/lib/translation/types";
 import { translationProgress } from "@/lib/translation/progress";
 import { PageImageSlot, usePageImages } from "./PageImage";
 import { PagedBlocks } from "./PagedBlocks";
+import { StatusBadge } from "./StatusBadge";
 import { ProgressBar } from "./ProgressBar";
 import { DecisionBox, decisionLabel, SideBySide } from "./ReviewParts";
 import { VersionCompare } from "./VersionCompare";
@@ -55,7 +56,7 @@ export function ReviewListView() {
       <p>{error}</p>
       <button type="button" className="btn btn-primary" onClick={() => void load(offset)}>다시 시도</button>
     </div>}
-    {!loading && !error && list && list.items.length === 0 && <p className="text-secondary">검수를 기다리는 번역이 없습니다.</p>}
+    {!loading && !error && list && list.items.length === 0 && <p className="text-secondary empty-note">검수를 기다리는 번역이 없습니다.</p>}
     {list && list.items.length > 0 && <div className="table-responsive"><table className="table align-middle">
       <thead><tr><th>회차</th><th>번역 버전</th><th>기준 원문</th><th>제출 시각 (UTC)</th></tr></thead>
       <tbody>
@@ -253,13 +254,13 @@ export function ReviewVersionsPanel({ episodeId }: { episodeId: string }) {
       <p>{error}</p>
       <button type="button" className="btn btn-primary" onClick={() => void load()}>다시 시도</button>
     </div>}
-    {list && list.items.length === 0 && <p className="text-secondary">검수할 번역이 아직 없습니다. 번역가가 제출하면 여기에 표시됩니다.</p>}
+    {list && list.items.length === 0 && <p className="text-secondary empty-note">검수할 번역이 아직 없습니다. 번역가가 제출하면 여기에 표시됩니다.</p>}
     {list && list.items.length > 0 && <div className="table-responsive"><table className="table align-middle">
       <thead><tr><th>버전</th><th>상태</th><th>기준 원문</th><th>제출 시각 (UTC)</th><th>결정</th><th /></tr></thead>
       <tbody>
         {list.items.map((item) => <tr key={item.versionNo}>
           <td>v{item.versionNo}</td>
-          <td>{STATUS_LABEL[item.status]}</td>
+          <td><StatusBadge status={item.status} /></td>
           <td>{item.sourceVersion === list.latestSourceVersion ? `원문 v${item.sourceVersion} (최신)` : `원문 v${item.sourceVersion} (이전)`}</td>
           <td>{item.submittedAt ? <time>{item.submittedAt}</time> : "—"}</td>
           <td>{decisionLabel(item.decision)}</td>

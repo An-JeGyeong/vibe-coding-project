@@ -90,7 +90,7 @@ function OperatorCard() {
   return <Card title="회차 현황" label="회차 현황" {...card} message={episodeFailureMessage}>
     {card.data && <>
       <p className="small">회차 {card.data.total}개 · 최근 {card.data.rows.length}개의 진행 상태</p>
-      {card.data.rows.length === 0 ? <p className="text-secondary mb-0">아직 회차가 없습니다.</p> : <RowList rows={card.data.rows} />}
+      {card.data.rows.length === 0 ? <p className="text-secondary empty-note mb-0">아직 회차가 없습니다.</p> : <RowList rows={card.data.rows} />}
     </>}
   </Card>;
 }
@@ -112,7 +112,7 @@ function TranslatorCard() {
   return <Card title="내 번역" label="내 번역" {...card} message={episodeFailureMessage}>
     {card.data && <>
       <p className="small">반려 {counts.rejected}건 · 작성 중 {counts.drafting}건 · 시작 전 {counts.notStarted}건</p>
-      {card.data.rows.length === 0 ? <p className="text-secondary mb-0">배정된 회차가 없습니다.</p> : <RowList rows={card.data.rows} />}
+      {card.data.rows.length === 0 ? <p className="text-secondary empty-note mb-0">배정된 회차가 없습니다.</p> : <RowList rows={card.data.rows} />}
     </>}
   </Card>;
 }
@@ -147,7 +147,7 @@ function ReaderCard() {
   });
   return <Card title="최근 공개 회차" label="최근 공개 회차" {...card} message={publicFailureMessage}>
     {card.data && (card.data.items.length === 0
-      ? <p className="text-secondary mb-0">아직 공개된 회차가 없습니다.</p>
+      ? <p className="text-secondary empty-note mb-0">아직 공개된 회차가 없습니다.</p>
       : <ul className="list-group">
         {card.data.items.map((item) => <li key={item.episodeId} className="list-group-item"><Link href={`/read/${encodeURIComponent(item.episodeId)}`}>{item.title}</Link></li>)}
       </ul>)}

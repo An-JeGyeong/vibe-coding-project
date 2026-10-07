@@ -10,6 +10,7 @@ import { validateTranslationText } from "@/lib/translation/validation";
 import { translationProgress } from "@/lib/translation/progress";
 import { PageImageSlot, usePageImages } from "./PageImage";
 import { PagedBlocks } from "./PagedBlocks";
+import { StatusBadge } from "./StatusBadge";
 import { ProgressBar } from "./ProgressBar";
 import { DecisionBox, decisionLabel, decisionSummary } from "./ReviewParts";
 import { VersionCompare } from "./VersionCompare";
@@ -199,13 +200,13 @@ export function TranslationWorkspace({ episodeId, onLatestSourceVersion }: { epi
         <button type="button" className="btn btn-primary" onClick={() => void load()}>다시 시도</button>
       </div>}
       {list.items.length === 0
-        ? <p className="text-secondary">아직 번역이 없습니다. 새 번역을 시작하면 최신 원문(v{list.latestSourceVersion}) 기준으로 작성할 수 있습니다.</p>
+        ? <p className="text-secondary empty-note">아직 번역이 없습니다. 새 번역을 시작하면 최신 원문(v{list.latestSourceVersion}) 기준으로 작성할 수 있습니다.</p>
         : <div className="table-responsive"><table className="table align-middle">
           <thead><tr><th>버전</th><th>상태</th><th>기준 원문</th><th>제출 시각 (UTC)</th><th>결정</th><th /></tr></thead>
           <tbody>
             {list.items.map((item) => <tr key={item.versionNo}>
               <td>v{item.versionNo}</td>
-              <td>{STATUS_LABEL[item.status]}</td>
+              <td><StatusBadge status={item.status} /></td>
               <td>{item.sourceVersion === list.latestSourceVersion ? `원문 v${item.sourceVersion} (최신)` : `원문 v${item.sourceVersion} (이전)`}</td>
               <td>{item.submittedAt ? <time>{item.submittedAt}</time> : "—"}</td>
               <td>{decisionLabel(item.decision)}{decisionSummary(item.decision) && <div className="small text-secondary">{decisionSummary(item.decision)}</div>}</td>

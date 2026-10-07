@@ -49,7 +49,7 @@ export function AssignedListView() {
       <p>{error}</p>
       <button type="button" className="btn btn-primary" onClick={() => void load(offset)}>다시 시도</button>
     </div>}
-    {!loading && !error && list && list.items.length === 0 && <p className="text-secondary">배정된 회차가 없습니다.</p>}
+    {!loading && !error && list && list.items.length === 0 && <p className="text-secondary empty-note">배정된 회차가 없습니다.</p>}
     {list && list.items.length > 0 && <div className="table-responsive"><table className="table align-middle">
       <thead><tr><th>제목</th><th>내 담당</th><th>최신 원문 버전</th><th>배정 시각 (UTC)</th></tr></thead>
       <tbody>

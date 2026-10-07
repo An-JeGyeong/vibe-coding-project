@@ -13,6 +13,7 @@ import { STATUS_LABEL } from "@/lib/translation/types";
 import { translationProgress } from "@/lib/translation/progress";
 import { PageImageSlot, usePageImages } from "./PageImage";
 import { PagedBlocks } from "./PagedBlocks";
+import { StatusBadge } from "./StatusBadge";
 import { ProgressBar } from "./ProgressBar";
 import { DecisionBox, decisionLabel, SideBySide } from "./ReviewParts";
 import { VersionCompare } from "./VersionCompare";
@@ -152,13 +153,13 @@ export function TranslationOverviewPanel({ episodeId, refreshKey = 0 }: { episod
         </ul>
       </details>}
     </div>
-    {list && list.items.length === 0 && <p className="text-secondary">아직 번역이 없습니다.</p>}
+    {list && list.items.length === 0 && <p className="text-secondary empty-note">아직 번역이 없습니다.</p>}
     {list && list.items.length > 0 && <div className="table-responsive"><table className="table align-middle">
       <thead><tr><th>버전</th><th>상태</th><th>기준 원문</th><th>제출 시각 (UTC)</th><th>결정</th><th /></tr></thead>
       <tbody>
         {list.items.map((item) => <tr key={item.versionNo}>
           <td>v{item.versionNo}{current?.versionNo === item.versionNo && <span className="badge text-bg-success ms-2">공개 중</span>}{held?.versionNo === item.versionNo && <span className="badge text-bg-warning ms-2">보류 중</span>}</td>
-          <td>{STATUS_LABEL[item.status]}</td>
+          <td><StatusBadge status={item.status} /></td>
           <td>{item.sourceVersion === list.latestSourceVersion ? `원문 v${item.sourceVersion} (최신)` : `원문 v${item.sourceVersion} (이전)`}</td>
           <td>{item.submittedAt ? <time>{item.submittedAt}</time> : "—"}</td>
           <td>{decisionLabel(item.decision)}</td>

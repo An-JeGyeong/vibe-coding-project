@@ -85,9 +85,9 @@ export function PublicListView() {
       <button type="button" className="btn btn-primary" onClick={retry}>다시 시도</button>
     </div>}
     {searching && all?.truncated && <p className="text-secondary small">처음 1000개 회차 안에서 검색했습니다.</p>}
-    {!busy && !currentFailure && searching && all && matches.length === 0 && <p className="text-secondary">검색 결과가 없습니다.</p>}
-    {!busy && !currentFailure && !searching && list && list.items.length === 0 && <p className="text-secondary">아직 공개된 회차가 없습니다.</p>}
-    {shown.length > 0 && <ul className="list-group mb-3">
+    {!busy && !currentFailure && searching && all && matches.length === 0 && <p className="text-secondary empty-note">검색 결과가 없습니다.</p>}
+    {!busy && !currentFailure && !searching && list && list.items.length === 0 && <p className="text-secondary empty-note">아직 공개된 회차가 없습니다.</p>}
+    {shown.length > 0 && <ul className="list-group reader-list mb-3">
       {shown.map((item) => <li key={item.episodeId} className="list-group-item d-flex justify-content-between align-items-center">
         <span>
           <Link href={`/read/${encodeURIComponent(item.episodeId)}`}>{item.title}</Link>

@@ -79,7 +79,7 @@ export function HistoryView({ initialEpisodeId = "" }: { initialEpisodeId?: stri
       <p>{episodeFailureMessage(failure)}</p>
       <button type="button" className="btn btn-primary" onClick={() => void load()}>다시 시도</button>
     </div>}
-    {!loading && !failure && list && list.items.length === 0 && <p className="text-secondary">조건에 맞는 작업 이력이 없습니다.</p>}
+    {!loading && !failure && list && list.items.length === 0 && <p className="text-secondary empty-note">조건에 맞는 작업 이력이 없습니다.</p>}
     {list && list.items.length > 0 && <div className="table-responsive">
       <table className="table align-middle">
         <thead><tr><th>시각 (UTC)</th><th>작업</th><th>회차</th><th>수행자</th><th>대상</th></tr></thead>

@@ -40,7 +40,9 @@ main > p.text-uppercase.small { letter-spacing: 0.14em; font-size: 0.7rem; color
 .login-main { max-width: 440px; }
 
 /* Shared header of the signed-in app and of the public reader. */
-.app-header { z-index: 10; background: var(--brand-dark) !important; }
+.app-header { z-index: 10; }
+/* more specific than Bootstrap's .bg-dark (also !important) so the brand colour wins whatever the stylesheet order */
+header.app-header.bg-dark { background-color: var(--brand-dark) !important; }
 /* a tall wrapped header must not eat a phone screen: it only sticks on wider screens */
 @media (min-width: 768px) { .app-header { position: sticky; top: 0; } }
 .app-nav-link { color: rgba(255, 255, 255, 0.78); text-decoration: none; padding: 0.25rem 0.6rem; border-radius: 0.375rem; font-size: 0.95rem; }
@@ -68,3 +70,18 @@ details.fold > summary h2 { margin: 0; }
 .reader-article { max-width: 680px; margin-left: auto; margin-right: auto; }
 .reader-block { font-size: 1.1rem; line-height: 1.9; }
 .reader-block.current { border-color: var(--bs-info) !important; box-shadow: 0 0 0 2px rgba(13, 202, 240, 0.25); }
+
+/* Loading and empty states look the same on every screen. */
+main p[role="status"]:not(.alert):not(.text-success) { color: var(--bs-secondary-color); display: flex; align-items: center; gap: 0.5rem; }
+main p[role="status"]:not(.alert):not(.text-success)::before {
+  content: ""; width: 1rem; height: 1rem; border-radius: 50%; flex: none;
+  border: 2px solid var(--brand-soft); border-top-color: var(--brand); animation: app-spin 0.8s linear infinite;
+}
+@keyframes app-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { main p[role="status"]:not(.alert):not(.text-success)::before { animation: none; } }
+.empty-note { padding: 1.1rem; text-align: center; border: 1px dashed var(--bs-border-color); border-radius: 0.5rem; background: var(--bs-body-bg); }
+
+/* Public episode list: easier to scan and to tap. */
+.reader-list .list-group-item { padding: 0.9rem 1rem; }
+.reader-list a { font-weight: 600; font-size: 1.05rem; text-decoration: none; }
+.reader-list a:hover { text-decoration: underline; }
