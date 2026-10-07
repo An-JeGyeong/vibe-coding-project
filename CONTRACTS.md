@@ -1008,3 +1008,47 @@ NOT NULL 규칙은 **모든 도메인·인증 테이블**에 적용한다. NULL 
 - 키 취급: **실제 키는 사용자만 셸 환경에 넣는다**(채팅·문서·커밋·로그에 쓰지 않는다). 기본 `mock`이므로 키 없이 전체 테스트와 시연이 가능하다. 실제 제공자 연동 확인은 사용자가 키를 설정한 경우에만 한 번 수동으로 한다(자동 테스트 아님).
 - 테스트: 25.3 표, 연속 2회 통과·전후 행 수 비교. frontend는 25.4 전부(확인 단계·덮어쓰지 않음·AI 표시·실패 안내와 재시도·늦은 응답 무시·중복 방지·역할/읽기 전용에서 버튼 없음·저장 전 변경 취급)와 기존 회귀·타입·빌드.
 - **실제 브라우저 검증은 한 번만, 마지막 통합 검증(10/12)에 합친다**(mock 제공자 기준): 번역가가 DRAFT에서 AI 초안을 불러와 채워진 블록을 수정·저장·제출하고, 감사에 `AI_DRAFT_REQUESTED`만 남고 텍스트가 없으며, AI 호출 실패 시(제공자 설정 오류) 수동 번역이 계속 가능함을 확인한다.
+
+## 26. 페이지 이미지와 페이지 단위 작업 화면 — PROPOSED (2026-10-07, 사용자 승인 대기)
+
+작성: Claude Code. 구현: backend=Codex(마이그레이션 V33 포함), frontend=Claude Code. 근거: 사용자 결정(2026-10-07: 만화 번역·검수는 원본 이미지를 보며 해야 한다), PROJECT_CONTEXT.md 4절 선택 기능 2번(만화 페이지 이미지 업로드)을 이번 범위로 되돌림, DECISIONS.md D-054(이 절과 함께 승인 대기). 인증·역할·오류 형식은 12·19절, 회차·원문은 13절, 배정 범위는 15절·D-038을 따른다. **이 노드는 마이그레이션 V33 하나가 있다**(새 테이블 1개, NOT NULL 규칙 적용).
+
+### 범위
+- 포함: 운영자의 페이지 이미지 업로드(교체 가능), 배정된 번역가·감수자와 운영자의 이미지 열람, 페이지 단위 작업 화면(번역가 편집·감수자 검토·운영자 읽기에서 한 페이지씩 이미지와 텍스트를 나란히 보며 넘김).
+- 제외: 이미지 삭제, 이미지 편집·자르기·OCR, 독자 공개(원본 이미지는 독자에게 절대 노출하지 않는다), 이미지의 버전 관리(교체하면 이전 이미지는 사라지고 감사만 남는다), 객체 스토리지·CDN(D-054: 로컬 시연은 DB 저장), 큰 파일·동영상.
+
+### 26.1 스키마 — V33 (파일당 DDL 하나, InnoDB·utf8mb4·UTC DATETIME(6))
+`source_page_image`: episode_id BIGINT NOT NULL, page_no INT NOT NULL, content_type VARCHAR(32) NOT NULL(ascii_bin), byte_size INT NOT NULL, image_data MEDIUMBLOB NOT NULL, uploaded_by BIGINT NOT NULL, updated_at DATETIME(6) NOT NULL. **PRIMARY KEY (episode_id, page_no)**(한 회차의 한 페이지에 이미지 하나). FK(ON DELETE/UPDATE RESTRICT): episode_id → episode(id), uploaded_by → demo_account(id). `CHECK (content_type IN ('image/png','image/jpeg','image/webp'))`, `CHECK (byte_size BETWEEN 1 AND 5242880)`, `CHECK (page_no BETWEEN 1 AND 9999)`. 모든 컬럼 NOT NULL(NULL 허용 목록 변경 없음, 스키마 lint 통과). 이미지는 원문 버전이 아니라 **회차 + 페이지 번호**에 묶인다(원문을 새로 저장해도 같은 페이지 이미지가 유지된다).
+
+### 26.2 API
+시각은 UTC ISO-8601 `Z`, ID는 문자열, 경로 id가 `^[1-9][0-9]{0,17}$`(pageNo는 `^[1-9][0-9]{0,3}$`)가 아니거나 회차가 없으면 404 NOT_FOUND. 이미지 응답과 목록 응답은 `Cache-Control: no-store`(배정이 바뀌면 즉시 막혀야 한다).
+| API | 권한 | 요청 | 성공 응답 |
+|---|---|---|---|
+| PUT /api/episodes/{id}/pages/{pageNo}/image | OPERATOR | **본문이 이미지 바이트 그대로**, `Content-Type`은 `image/png`·`image/jpeg`·`image/webp` 중 하나, 1~5 MiB | 201(새로 저장) 또는 200(교체) {"pageNo","contentType","byteSize","updatedAt"} |
+| GET /api/episodes/{id}/pages | OPERATOR | — | 200 {"items":[{"pageNo","contentType","byteSize","updatedAt"}]} — pageNo 오름차순, 이미지가 있는 페이지만 |
+| GET /api/episodes/{id}/pages/{pageNo}/image | OPERATOR | — | 200, 본문이 이미지 바이트, 저장된 `Content-Type`, `X-Content-Type-Options: nosniff` |
+| GET /api/my/episodes/{id}/pages | 배정된 TRANSLATOR·REVIEWER | — | 200 위 목록과 같은 형식 |
+| GET /api/my/episodes/{id}/pages/{pageNo}/image | 배정된 TRANSLATOR·REVIEWER | — | 200 이미지 바이트(위와 같은 헤더) |
+- **업로드 검증(어기면 400 INVALID_REQUEST, 저장 없음)**: `Content-Type`이 허용 3종이 아님, 본문이 비었거나 5 MiB 초과, **본문의 시작 바이트(매직 넘버)가 선언한 형식과 다름**(PNG `89 50 4E 47 0D 0A 1A 0A`, JPEG `FF D8 FF`, WEBP `RIFF....WEBP`), `pageNo`가 1~9999 밖. SVG·GIF·기타 형식은 받지 않는다. 쿼리 문자열·미정의 헤더는 무시한다. 5 MiB 초과 본문은 전부 읽기 전에 거절하도록 서버가 크기 상한을 둔다(메모리 보호).
+- **페이지 존재 조건**: `pageNo`는 그 회차의 **현재 최신 원문 버전의 블록 중 하나가 가진 `pageNo`**여야 한다. 아니면 404 NOT_FOUND(원문이 없는 회차 포함). 이후 원문이 바뀌어 그 페이지가 사라져도 저장된 이미지는 남고 목록에서는 계속 보인다(조회 API는 원문과 무관하게 저장된 행만 본다).
+- **배정 범위(D-038, 15·17절과 같음)**: 번역가·감수자는 그 회차에 **현재 배정된** 경우에만 읽는다(미배정·교체된 이전 담당자는 404). 역할 위반은 403 FORBIDDEN(ACCESS_DENIED 감사), 비로그인 401. **독자·공개 API·비배정자에게는 어떤 경로로도 노출하지 않는다**(`/api/public/**` 응답에 이미지·이미지 존재 여부가 없다). 업로드는 운영자만(번역가·감수자·독자 403). 보안 규칙 순서: `/api/my/episodes/*/pages/**`는 TRANSLATOR·REVIEWER 전용이며 기존 `/api/my/**`와 번역 전용 규칙보다 먼저 평가되어야 한다.
+- 오류 코드: 400, 401, 403, 404, 503, 500(413은 쓰지 않고 400으로 통일). 오류 형식은 12절과 같고 비밀·내부 예외는 노출하지 않는다.
+- **감사**: 업로드·교체마다 `domain_audit`에 `PAGE_IMAGE_SAVED`(actor, episode_id, source_version=현재 최신 원문 버전)를 한 건 기록하고 이미지 바이트·파일명은 저장하지 않는다. 같은 트랜잭션에서 저장과 감사가 함께 성공해야 하며 실패하면 전체 롤백과 503. 24절 작업 이력의 허용 `event` 목록에 `PAGE_IMAGE_SAVED`를 **추가**한다(가산적 변경, 기존 응답 형식 불변).
+
+### 26.3 처리 함수
+| 이름 | 입력 → 출력 | 권한 | 상태 변경 | 실패 | 필수 테스트 |
+|---|---|---|---|---|---|
+| savePageImage | 호출자, episodeId, pageNo, 바이트, Content-Type → 메타 | OPERATOR | 이미지 행 저장(신규/교체), 감사 | 400/404/403/503 | PNG·JPEG·WEBP 정상(바이트 정확 왕복), 신규 201·교체 200, 허용 밖 형식·SVG·GIF 400, 선언과 매직 넘버 불일치 400, 빈 본문·5 MiB 초과(경계 5 MiB 허용, +1 거절) 400, pageNo 범위·원문에 없는 페이지 404, 원문 없는 회차 404, 역할 매트릭스(4개 역할 + 비로그인), 감사 1건에 바이트 비저장, 감사 장애 롤백(이미지 불변), 동시 교체(마지막 성공이 남고 오류 없음) |
+| listPageImages / getPageImage | 호출자, 회차(, pageNo) → 목록/바이트 | OPERATOR 또는 배정된 번역가·감수자 | 없음 | 404/403/401/503 | 목록 정렬·형식, 바이트가 업로드와 정확히 같음·`Content-Type`·`nosniff`, 이미지 없는 페이지 404, 미배정·교체 후 이전 담당자 404와 새 담당자 인계, 독자 403, 공개 API에 이미지·존재 비노출, 원문이 바뀌어도 이미지 유지, `no-store` |
+
+### 26.4 프런트 계약 (Claude Code)
+- **인증된 이미지 불러오기**: 브라우저의 `<img src>`는 `Authorization`을 보낼 수 없으므로, 프런트는 기존 요청 방식(Bearer, `credentials: omit`)으로 바이트를 받아 `Blob` URL로 표시하고 화면이 닫히거나 이미지가 바뀌면 URL을 해제한다. 이미지 요청은 늦은 응답을 무시하고, 실패(404 포함)는 그 페이지의 이미지 영역에만 "이미지가 없습니다/불러오지 못했습니다"를 보이며 텍스트 작업은 계속된다. 역할 외 화면에서는 이미지를 요청하지 않는다. 이미지는 토큰·사용자 정보를 URL에 넣지 않는다.
+- **운영자** `/episodes/{id}`: "페이지 이미지" 영역 — 원문 블록의 페이지 번호 목록을 보이고(페이지 번호가 없는 원문이면 안내) 페이지마다 이미지 유무·썸네일·"업로드/교체" 선택(파일 선택, 허용 3종·5 MiB를 로컬에서 먼저 검사)을 둔다. 업로드 중 중복 요청 방지, 오류는 고정 문구, 성공하면 목록과 썸네일을 갱신한다. 원문 저장으로 페이지 목록이 바뀌면 영역도 다시 불러온다.
+- **페이지 단위 작업 화면(번역가 편집 DRAFT·읽기 전용 버전, 감수자 검토, 운영자 번역 현황 상세)**: 블록을 `pageNo`별로 묶어 **한 번에 한 페이지**를 보이고 상단에 "페이지 N / M", 이전·다음, 페이지 선택을 둔다. 한 페이지의 화면은 **왼쪽(좁은 화면에서는 위): 페이지 이미지(있을 때) — 맞춤 폭/원본 크기 전환**, 그 아래 원문 블록, **오른쪽(아래): 번역 입력**(번역가 편집)·번역 표시(읽기 전용)·감수 의견 입력(감수자 반려 모드)이다. `pageNo`가 없는 블록은 "페이지 미지정" 묶음으로 마지막에 보인다. 페이지를 넘겨도 입력 중인 번역·의견·AI 초안 표시는 유지되고(메모리 상태), 페이지별 번역 완료 개수와 기존 전체 진행률을 보인다. 저장·제출·승인·반려의 규칙과 확인 단계는 기존 그대로다. 이미지가 없거나 불러오지 못하면 텍스트만 같은 구조로 보인다(이미지 자리는 안내 문구).
+- 독자 화면은 변경하지 않는다(원본 이미지를 독자에게 보이지 않는다).
+
+### 26.5 파일 소유권·완료 조건
+- Codex 변경: `backend/src/main/resources/db/migration/V33__…`, backend/src/main(신규 `page` 패키지, 보안 규칙·오류 처리, 이력 허용 event 추가), backend/src/test, README 기록. 기존 EpisodeSource·Assignment·Translation·Review·Publication·History·인증 통합 테스트는 수정 없이 통과해야 하며, 24절 이력의 허용 event 목록 테스트에 `PAGE_IMAGE_SAVED` 추가만 허용한다. **개발 DB(3306)에는 승인과 백업 절차 후에만 적용한다.**
+- Claude Code 변경: frontend/src, frontend/tests/ui. 변경 금지: V1~V32, 기존 API의 기존 필드·동작, PROJECT_CONTEXT.md, 서로의 영역.
+- 테스트: 26.3 표, 연속 2회 통과·전후 행 수 비교(이미지 테이블 포함 정리). frontend는 26.4 전부(Blob URL 표시·해제, 역할별 요청 범위, 실패 시 텍스트 작업 유지, 업로드 로컬 검사와 중복 방지, 페이지 묶음·이동·입력 유지, 이미지 없는 페이지, 미지정 페이지)와 기존 회귀·타입·빌드.
+- **실제 브라우저 검증은 한 번만, 마지막 통합 검증(10/12)에 합친다**: 운영자가 PNG·JPEG 업로드·교체 → 번역가가 한 페이지씩 이미지와 원문을 보며 번역·AI 초안 수정·저장 → 감수자가 페이지별로 대조하고 의견 → 독자 화면·공개 API에 이미지 비노출 → 교체된 번역가의 404 → 작업 이력에 `PAGE_IMAGE_SAVED`.
