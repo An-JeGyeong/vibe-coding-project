@@ -1,8 +1,12 @@
+import type { BlockComment } from "@/lib/translation/comments";
 import type { Decision } from "@/lib/translation/decision";
 import type { TranslationBlock } from "@/lib/translation/types";
 
 /** Read-only source / translation pairs, shared by the reviewer's detail page and the operator's overview. */
-export function SideBySide({ blocks }: { blocks: TranslationBlock[] }) {
+export type CommentEditor = { values: Record<number, string>; errors: Record<number, string>; max: number; onChange: (seq: number, text: string) => void };
+
+export function SideBySide({ blocks, comments = [], editor }: { blocks: TranslationBlock[]; comments?: BlockComment[]; editor?: CommentEditor }) {
+  const remark = (seq: number) => comments.find((comment) => comment.seq === seq);
   return <ol className="list-unstyled">
     {blocks.map((block) => <li key={block.seq} className="border rounded p-2 mb-2">
       <div className="row g-2">
@@ -13,6 +17,13 @@ export function SideBySide({ blocks }: { blocks: TranslationBlock[] }) {
           {block.text ?? <span className="text-secondary">(번역 없음)</span>}
         </div>
       </div>
+      {remark(block.seq) && <div className="alert alert-warning py-1 px-2 mt-2 mb-0 small" style={{ whiteSpace: "pre-wrap" }}>감수 의견: {remark(block.seq)!.text}</div>}
+      {editor && <div className="mt-2">
+        <label className="form-label small mb-1" htmlFor={`comment-${block.seq}`}>블록 {block.seq} 의견 (선택, {editor.max}자 이하)</label>
+        <textarea id={`comment-${block.seq}`} className="form-control form-control-sm" rows={2} value={editor.values[block.seq] ?? ""}
+          aria-invalid={editor.errors[block.seq] ? true : undefined} onChange={(event) => editor.onChange(block.seq, event.target.value)} />
+        {editor.errors[block.seq] && <p className="text-danger small mt-1 mb-0" role="alert">{editor.errors[block.seq]}</p>}
+      </div>}
     </li>)}
   </ol>;
 }

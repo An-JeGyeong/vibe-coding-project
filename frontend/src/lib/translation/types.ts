@@ -1,3 +1,4 @@
+import type { BlockComment } from "./comments";
 import type { Decision } from "./decision";
 
 export type TranslationStatus = "DRAFT" | "REVIEW_PENDING" | "REJECTED" | "APPROVED" | "PUBLISHED" | "INVALIDATED" | "ON_HOLD";
@@ -7,7 +8,7 @@ export type TranslationSummary = {
 };
 export type TranslationList = { latestSourceVersion: number; items: TranslationSummary[] };
 export type TranslationBlock = { seq: number; pageNo: number | null; source: string; text: string | null };
-export type TranslationDetail = TranslationSummary & { editable: boolean; blocks: TranslationBlock[] };
+export type TranslationDetail = TranslationSummary & { editable: boolean; blocks: TranslationBlock[]; blockComments: BlockComment[] };
 
 export type CreatedTranslation = { versionNo: number; status: TranslationStatus; sourceVersion: number; revision: number };
 export type SaveTranslationOutcome = { revision: number; changed: boolean };

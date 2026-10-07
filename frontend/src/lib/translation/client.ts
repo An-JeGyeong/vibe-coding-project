@@ -1,5 +1,6 @@
 import { errorCode, isRecord } from "@/lib/auth/client";
 import { call, fail, INVALID_RESPONSE, isInt, isStr, isTime } from "@/lib/episodes/client";
+import { parseBlockComments } from "./comments";
 import { parseDecision } from "./decision";
 import type { EpisodeFailure, EpisodeResult } from "@/lib/episodes/types";
 import type {
@@ -63,7 +64,9 @@ export async function getTranslation(episodeId: string, versionNo: number, signa
     if (!isRecord(item) || !isInt(item.seq) || !isStr(item.source) || !(item.pageNo === null || isInt(item.pageNo)) || !(item.text === null || isStr(item.text))) return fail(INVALID_RESPONSE);
     blocks.push({ seq: item.seq, pageNo: item.pageNo as number | null, source: item.source, text: item.text as string | null });
   }
-  return { ok: true, value: { ...head, editable: body.editable, blocks } };
+  const blockComments = parseBlockComments(body.blockComments);
+  if (!blockComments) return fail(INVALID_RESPONSE);
+  return { ok: true, value: { ...head, editable: body.editable, blocks, blockComments } };
 }
 
 export async function saveTranslation(episodeId: string, versionNo: number, expectedRevision: number, blocks: TranslationDraftBlock[], signal?: AbortSignal): Promise<EpisodeResult<SaveTranslationOutcome>> {

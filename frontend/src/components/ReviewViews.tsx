@@ -7,7 +7,7 @@ import type { EpisodeFailure } from "@/lib/episodes/types";
 import { approveReview, getReview, listEpisodeReviews, listPendingReviews, rejectReview } from "@/lib/review/client";
 import { reviewFailureMessage } from "@/lib/review/messages";
 import type { PendingReviewList, ReviewDetail, ReviewVersionList } from "@/lib/review/types";
-import { REASON_MAX, validateReason } from "@/lib/review/validation";
+import { COMMENT_MAX, COMMENTS_MAX, REASON_MAX, validateComment, validateReason } from "@/lib/review/validation";
 import { STATUS_LABEL } from "@/lib/translation/types";
 import { DecisionBox, decisionLabel, SideBySide } from "./ReviewParts";
 
@@ -83,6 +83,9 @@ export function ReviewDetailView({ episodeId, versionNo }: { episodeId: string; 
   const [mode, setMode] = useState<Mode>("idle");
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState<string | null>(null);
+  const [comments, setComments] = useState<Record<number, string>>({});
+  const [commentErrors, setCommentErrors] = useState<Record<number, string>>({});
+  const [commentsNotice, setCommentsNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const busyRef = useRef(false);
@@ -111,20 +114,33 @@ export function ReviewDetailView({ episodeId, versionNo }: { episodeId: string; 
 
   async function decide(kind: "approve" | "reject") {
     if (busyRef.current || !detail) return;
+    let drafted: { seq: number; text: string }[] = [];
     if (kind === "reject") {
       const error = validateReason(reason);
       setReasonError(error);
-      if (error) return;
+      const found: Record<number, string> = {};
+      for (const block of detail.blocks) {
+        const problem = validateComment(comments[block.seq] ?? "");
+        if (problem) found[block.seq] = problem;
+        else if ((comments[block.seq] ?? "") !== "") drafted.push({ seq: block.seq, text: comments[block.seq] });
+      }
+      setCommentErrors(found);
+      const tooMany = drafted.length > COMMENTS_MAX;
+      setCommentsNotice(tooMany ? `의견은 최대 ${COMMENTS_MAX}개까지 남길 수 있습니다.` : null);
+      if (error || Object.keys(found).length > 0 || tooMany) return;
     }
     busyRef.current = true;
     setBusy(true);
     setNotice(null);
-    const result = kind === "approve" ? await approveReview(episodeId, versionNo) : await rejectReview(episodeId, versionNo, reason);
+    const result = kind === "approve" ? await approveReview(episodeId, versionNo) : await rejectReview(episodeId, versionNo, reason, drafted);
     busyRef.current = false;
     setBusy(false);
     if (result.ok) {
       setMode("idle");
       setReason("");
+      setComments({});
+      setCommentErrors({});
+      setCommentsNotice(null);
       setNotice({ tone: "success", text: kind === "approve" ? "번역을 승인했습니다." : "번역을 반려했습니다. 번역가가 사유를 보고 새 번역을 작성합니다." });
       await load();
       return;
@@ -162,7 +178,8 @@ export function ReviewDetailView({ episodeId, versionNo }: { episodeId: string; 
     {notice && <p className={`alert alert-${notice.tone}`} role={notice.tone === "danger" || notice.tone === "warning" ? "alert" : "status"}>{notice.text}</p>}
     <section aria-label="원문과 번역 (읽기 전용)" className="card card-body shadow-sm mb-3">
       <h2 className="h5">원문과 번역 (읽기 전용)</h2>
-      <SideBySide blocks={detail.blocks} />
+      <SideBySide blocks={detail.blocks} comments={detail.blockComments}
+        editor={mode === "reject" ? { values: comments, errors: commentErrors, max: COMMENT_MAX, onChange: (seq, text) => { setComments((previous) => ({ ...previous, [seq]: text })); setCommentErrors((previous) => { const next = { ...previous }; delete next[seq]; return next; }); } } : undefined} />
     </section>
     {detail.decidable && <section aria-label="검수 결정" className="card card-body shadow-sm">
       <h2 className="h5">검수 결정</h2>
@@ -182,7 +199,8 @@ export function ReviewDetailView({ episodeId, versionNo }: { episodeId: string; 
             onChange={(event) => { setReason(event.target.value); setReasonError(null); }} />
         </label>
         {reasonError && <p className="text-danger small mt-1" role="alert">{reasonError}</p>}
-        <p className="text-secondary small">반려하면 번역가가 이 사유를 보고 새 번역을 작성해야 합니다.</p>
+        {commentsNotice && <p className="text-danger small" role="alert">{commentsNotice}</p>}
+        <p className="text-secondary small">반려하면 번역가가 이 사유{Object.values(comments).some((text) => text !== "") ? `와 블록별 의견 ${Object.values(comments).filter((text) => text !== "").length}개` : ""}를 보고 새 번역을 작성해야 합니다. 위 각 블록에 의견을 남길 수 있습니다.</p>
         <div className="d-flex gap-2">
           <button type="button" className="btn btn-danger btn-sm" disabled={busy} onClick={() => void decide("reject")}>{busy ? "처리 중…" : "반려 확정"}</button>
           <button type="button" className="btn btn-outline-secondary btn-sm" disabled={busy} onClick={() => { setMode("idle"); setReasonError(null); }}>취소</button>

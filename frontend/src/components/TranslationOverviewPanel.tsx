@@ -179,7 +179,7 @@ export function TranslationOverviewPanel({ episodeId, refreshKey = 0 }: { episod
       <h3 className="h6">번역 v{view.versionNo} · {STATUS_LABEL[view.status]} (읽기 전용)</h3>
       {view.invalidatedAt && <p className="text-secondary small">무효화 시각 (UTC): <time>{view.invalidatedAt}</time></p>}
       <DecisionBox decision={view.decision} />
-      <SideBySide blocks={view.blocks} />
+      <SideBySide blocks={view.blocks} comments={view.blockComments} />
     </div>}
   </section>;
 }

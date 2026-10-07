@@ -1,11 +1,12 @@
 import { isRecord } from "@/lib/auth/client";
 import { call, fail, INVALID_RESPONSE, isInt, isStr, isTime } from "@/lib/episodes/client";
 import type { EpisodeResult } from "@/lib/episodes/types";
+import { parseBlockComments } from "@/lib/translation/comments";
 import { parseDecision } from "@/lib/translation/decision";
 import { translationError } from "@/lib/translation/client";
 import type { TranslationBlock, TranslationStatus } from "@/lib/translation/types";
 import type {
-  DecideOutcome, OperatorTranslationDetail, OperatorTranslationList, PendingReview, PendingReviewList, ReviewDetail,
+  DecideOutcome, DraftBlockComment, OperatorTranslationDetail, OperatorTranslationList, PendingReview, PendingReviewList, ReviewDetail,
   ReviewVersionList, ReviewVersionSummary,
 } from "./types";
 
@@ -62,7 +63,9 @@ export async function getReview(episodeId: string, versionNo: number, signal?: A
   const head = summary(body);
   const list = isRecord(body) ? blocks(body.blocks) : null;
   if (!head || !isRecord(body) || typeof body.decidable !== "boolean" || !list) return fail(INVALID_RESPONSE);
-  return { ok: true, value: { ...head, decidable: body.decidable, blocks: list } };
+  const blockComments = parseBlockComments(body.blockComments);
+  if (!blockComments) return fail(INVALID_RESPONSE);
+  return { ok: true, value: { ...head, decidable: body.decidable, blocks: list, blockComments } };
 }
 
 function outcome(value: unknown): DecideOutcome | null {
@@ -77,8 +80,10 @@ export async function approveReview(episodeId: string, versionNo: number, signal
   return done ? { ok: true, value: done } : fail(INVALID_RESPONSE);
 }
 
-export async function rejectReview(episodeId: string, versionNo: number, reason: string, signal?: AbortSignal): Promise<EpisodeResult<DecideOutcome>> {
-  const result = await call({ path: `/api/my/episodes/${id(episodeId)}/reviews/${versionNo}/reject`, method: "POST", body: { reason }, signal, ok: [200], onError: translationError });
+export async function rejectReview(episodeId: string, versionNo: number, reason: string, comments: DraftBlockComment[] = [], signal?: AbortSignal): Promise<EpisodeResult<DecideOutcome>> {
+  // comments are optional (CONTRACTS 22.2): without any, the request is exactly the 18.1 one
+  const body = comments.length > 0 ? { reason, comments: comments.map((comment) => ({ seq: comment.seq, text: comment.text })) } : { reason };
+  const result = await call({ path: `/api/my/episodes/${id(episodeId)}/reviews/${versionNo}/reject`, method: "POST", body, signal, ok: [200], onError: translationError });
   if (!result.ok) return result;
   const done = outcome(result.value);
   return done ? { ok: true, value: done } : fail(INVALID_RESPONSE);
@@ -106,6 +111,8 @@ export async function getOperatorTranslation(episodeId: string, versionNo: numbe
   const list = isRecord(body) ? blocks(body.blocks) : null;
   if (!head || !isRecord(body) || !isTime(body.createdAt) || !list
     || !(body.invalidatedAt === null || body.invalidatedAt === undefined || isTime(body.invalidatedAt))) return fail(INVALID_RESPONSE);
+  const blockComments = parseBlockComments(body.blockComments);
+  if (!blockComments) return fail(INVALID_RESPONSE);
   return { ok: true, value: { versionNo: head.versionNo, status: head.status, sourceVersion: head.sourceVersion, createdAt: body.createdAt,
-    submittedAt: head.submittedAt, decision: head.decision, invalidatedAt: (body.invalidatedAt as string | null | undefined) ?? null, blocks: list } };
+    submittedAt: head.submittedAt, decision: head.decision, invalidatedAt: (body.invalidatedAt as string | null | undefined) ?? null, blocks: list, blockComments } };
 }

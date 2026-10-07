@@ -19,6 +19,7 @@ export function TranslationWorkspace({ episodeId, onLatestSourceVersion }: { epi
   const { handleUnauthorized } = useAuth();
   const [list, setList] = useState<TranslationList | null>(null);
   const [detail, setDetail] = useState<TranslationDetail | null>(null);
+  const [previous, setPrevious] = useState<TranslationDetail | null>(null); // the latest rejected version while a new draft is edited
   const [texts, setTexts] = useState<Record<number, string>>({});
   const [errors, setErrors] = useState<Record<number, string>>({});
   const [missing, setMissing] = useState<number[]>([]);
@@ -52,16 +53,24 @@ export function TranslationWorkspace({ episodeId, onLatestSourceVersion }: { epi
     if (!chosen) {
       activeLoad.current = null;
       setLoading(false); setLoadFailure(null); setList(listed.value);
-      selectedRef.current = null; setDetail(null); setTexts({}); setErrors({}); setMissing([]); setNeedsReload(false);
+      selectedRef.current = null; setDetail(null); setPrevious(null); setTexts({}); setErrors({}); setMissing([]); setNeedsReload(false);
       return;
     }
     const fetched = await getTranslation(episodeId, chosen.versionNo, request.signal);
     if (activeLoad.current !== request) return;
+    // While a new draft is edited, the reviewer's remarks on the latest rejected version stay readable (CONTRACTS 22.4). Best effort.
+    let rejected: TranslationDetail | null = null;
+    const lastRejected = items.filter((item) => item.status === "REJECTED" && item.versionNo !== chosen.versionNo).sort((a, b) => b.versionNo - a.versionNo)[0];
+    if (fetched.ok && fetched.value.editable && lastRejected) {
+      const earlier = await getTranslation(episodeId, lastRejected.versionNo, request.signal);
+      if (activeLoad.current !== request) return;
+      if (earlier.ok && earlier.value.blockComments.length > 0) rejected = earlier.value;
+    }
     activeLoad.current = null;
     setLoading(false);
     if (!fetched.ok) { finish(fetched.failure); return; }
     selectedRef.current = chosen.versionNo;
-    setLoadFailure(null); setList(listed.value); setDetail(fetched.value);
+    setLoadFailure(null); setList(listed.value); setDetail(fetched.value); setPrevious(rejected);
     setTexts(Object.fromEntries(fetched.value.blocks.map((block) => [block.seq, block.text ?? ""])));
     setErrors({}); setMissing([]); setNeedsReload(false); setConfirming(false);
   }, [episodeId, handleUnauthorized, onLatestSourceVersion]);
@@ -177,6 +186,17 @@ export function TranslationWorkspace({ episodeId, onLatestSourceVersion }: { epi
       <button type="button" className="btn btn-warning" disabled={loading} onClick={() => void load(detail?.versionNo)}>최신 내용 불러오기 (작성 중인 내용은 사라집니다)</button>
     </div>}
 
+    {detail && previous && <section aria-label="직전 반려 의견" className="card card-body shadow-sm mb-3">
+      <h2 className="h5">직전 반려 의견 (v{previous.versionNo})</h2>
+      <p className="text-secondary small">감수자가 블록별로 남긴 의견입니다. 읽기 전용이며, 새 번역을 고칠 때 참고하세요.</p>
+      <ul className="list-unstyled mb-0">
+        {previous.blockComments.map((comment) => <li key={comment.seq} className="border rounded p-2 mb-2">
+          <span className="badge text-bg-secondary me-2">블록 {comment.seq}</span>
+          <span style={{ whiteSpace: "pre-wrap" }}>{comment.text}</span>
+        </li>)}
+      </ul>
+    </section>}
+
     {detail && <section aria-label="원문과 번역" className="card card-body shadow-sm">
       <h2 className="h5">v{detail.versionNo} · {STATUS_LABEL[detail.status]}</h2>
       <DecisionBox decision={detail.decision} />
@@ -208,6 +228,8 @@ export function TranslationWorkspace({ episodeId, onLatestSourceVersion }: { epi
                     {errors[block.seq] && <p className="text-danger small mt-1 mb-0" role="alert">{errors[block.seq]}</p>}
                   </>
                   : <div style={{ whiteSpace: "pre-wrap" }}>{block.text ?? <span className="text-secondary">(번역 없음)</span>}</div>}
+                {detail.blockComments.filter((comment) => comment.seq === block.seq).map((comment) =>
+                  <div key={comment.seq} className="alert alert-warning py-1 px-2 mt-2 mb-0 small" style={{ whiteSpace: "pre-wrap" }}>감수 의견: {comment.text}</div>)}
                 {absent && <p className="text-danger small mt-1 mb-0">번역이 필요합니다.</p>}
               </div>
             </div>
