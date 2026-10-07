@@ -173,19 +173,19 @@ export function PublicEpisodeReader({ episodeId }: { episodeId: string }) {
     <span>{near.previous && <Link href={`/read/${encodeURIComponent(near.previous.episodeId)}`}>← 이전 회차 {near.previous.title}</Link>}</span>
     <span>{near.next && <Link href={`/read/${encodeURIComponent(near.next.episodeId)}`}>다음 회차 {near.next.title} →</Link>}</span>
   </nav>;
-  return <article>
+  return <article className="reader-article">
     <p><Link href="/read">← 공개 회차 목록</Link></p>
     <h1 className="h2 mb-1">{view.title}</h1>
     <p className="text-secondary small">공개 <time>{view.publishedAt}</time></p>
     {resume && <p><button type="button" className="btn btn-outline-info btn-sm" onClick={() => jumpTo(resume.seq)}>이어 읽기: 블록 {resume.seq}로 이동</button></p>}
     <ol className="list-unstyled">
-      {view.blocks.map((block) => <li key={block.seq} id={`block-${block.seq}`} className="border rounded bg-body p-3 mb-2">
+      {view.blocks.map((block) => <li key={block.seq} id={`block-${block.seq}`} className={`border rounded bg-body p-3 mb-2 reader-block${resume?.seq === block.seq ? " current" : ""}`}>
         <div style={{ whiteSpace: "pre-wrap" }}>
           {block.pageNo !== null && <span className="badge text-bg-secondary me-2">p.{block.pageNo}</span>}{block.text}
         </div>
         <div className="mt-2 d-flex align-items-center gap-2">
           {resume?.seq === block.seq && <span className="badge text-bg-info">읽던 위치</span>}
-          <button type="button" className="btn btn-link btn-sm p-0" aria-label={`블록 ${block.seq} 여기까지 읽음`} onClick={() => markRead(block.seq)}>여기까지 읽음</button>
+          <button type="button" className="btn btn-outline-secondary btn-sm" aria-label={`블록 ${block.seq} 여기까지 읽음`} onClick={() => markRead(block.seq)}>여기까지 읽음</button>
         </div>
       </li>)}
     </ol>

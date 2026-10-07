@@ -1,1 +1,14 @@
 .app-main { max-width: 720px; }
+
+/* Shared header of the signed-in app and of the public reader. */
+.app-header { z-index: 10; }
+/* a tall wrapped header must not eat a phone screen: it only sticks on wider screens */
+@media (min-width: 768px) { .app-header { position: sticky; top: 0; } }
+.app-nav-link { color: rgba(255, 255, 255, 0.75); text-decoration: none; padding: 0.25rem 0.6rem; border-radius: 0.375rem; font-size: 0.95rem; }
+.app-nav-link:hover { color: #fff; background: rgba(255, 255, 255, 0.12); }
+.app-nav-link.active { color: #fff; background: rgba(255, 255, 255, 0.2); }
+
+/* Reading view: a comfortable measure, size and line height for the translated text. */
+.reader-article { max-width: 680px; margin-left: auto; margin-right: auto; }
+.reader-block { font-size: 1.1rem; line-height: 1.9; }
+.reader-block.current { border-color: var(--bs-info) !important; box-shadow: 0 0 0 2px rgba(13, 202, 240, 0.25); }

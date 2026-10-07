@@ -195,7 +195,7 @@ export function EpisodeDetailView({ episodeId }: { episodeId: string }) {
 
     <section aria-label="버전 이력" className="card card-body shadow-sm">
       <h2 className="h5">버전 이력</h2>
-      {versions.length === 0 ? <p className="text-secondary">저장된 버전이 없습니다.</p> : <table className="table align-middle">
+      {versions.length === 0 ? <p className="text-secondary">저장된 버전이 없습니다.</p> : <div className="table-responsive"><table className="table align-middle">
         <thead><tr><th>버전</th><th>저장 시각 (UTC)</th><th>저장자</th><th>블록 수</th><th /></tr></thead>
         <tbody>
           {versions.map((item) => <tr key={item.version}>
@@ -203,7 +203,7 @@ export function EpisodeDetailView({ episodeId }: { episodeId: string }) {
             <td><button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => void onView(item.version)}>v{item.version} 보기</button></td>
           </tr>)}
         </tbody>
-      </table>}
+      </table></div>}
       {viewError && <p className="alert alert-warning" role="alert">{viewError}</p>}
       {viewing && <div aria-label={`v${viewing.version} 내용`} role="region">
         <h3 className="h6">v{viewing.version} (읽기 전용)</h3>

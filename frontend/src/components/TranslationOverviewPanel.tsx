@@ -150,7 +150,7 @@ export function TranslationOverviewPanel({ episodeId, refreshKey = 0 }: { episod
       </details>}
     </div>
     {list && list.items.length === 0 && <p className="text-secondary">아직 번역이 없습니다.</p>}
-    {list && list.items.length > 0 && <table className="table align-middle">
+    {list && list.items.length > 0 && <div className="table-responsive"><table className="table align-middle">
       <thead><tr><th>버전</th><th>상태</th><th>기준 원문</th><th>제출 시각 (UTC)</th><th>결정</th><th /></tr></thead>
       <tbody>
         {list.items.map((item) => <tr key={item.versionNo}>
@@ -176,7 +176,7 @@ export function TranslationOverviewPanel({ episodeId, refreshKey = 0 }: { episod
           </td>
         </tr>)}
       </tbody>
-    </table>}
+    </table></div>}
     {list && list.items.length >= 2 && <VersionCompare key={refreshKey} versions={list.items} load={(versionNo, signal) => getOperatorTranslation(episodeId, versionNo, signal)} />}
     {viewError && <p className="alert alert-warning" role="alert">{viewError}</p>}
     {view && <div role="region" aria-label={`번역 v${view.versionNo} 내용`}>

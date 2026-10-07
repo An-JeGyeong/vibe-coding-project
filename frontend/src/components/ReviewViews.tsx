@@ -54,7 +54,7 @@ export function ReviewListView() {
       <button type="button" className="btn btn-primary" onClick={() => void load(offset)}>다시 시도</button>
     </div>}
     {!loading && !error && list && list.items.length === 0 && <p className="text-secondary">검수를 기다리는 번역이 없습니다.</p>}
-    {list && list.items.length > 0 && <table className="table align-middle">
+    {list && list.items.length > 0 && <div className="table-responsive"><table className="table align-middle">
       <thead><tr><th>회차</th><th>번역 버전</th><th>기준 원문</th><th>제출 시각 (UTC)</th></tr></thead>
       <tbody>
         {list.items.map((item) => <tr key={`${item.episodeId}-${item.versionNo}`}>
@@ -64,7 +64,7 @@ export function ReviewListView() {
           <td><time>{item.submittedAt}</time></td>
         </tr>)}
       </tbody>
-    </table>}
+    </table></div>}
     {list && total > PAGE_SIZE && <div className="d-flex gap-2 align-items-center">
       <button type="button" className="btn btn-outline-secondary" disabled={loading || offset === 0}
         onClick={() => void load(Math.max(offset - PAGE_SIZE, 0))}>이전</button>
@@ -251,7 +251,7 @@ export function ReviewVersionsPanel({ episodeId }: { episodeId: string }) {
       <button type="button" className="btn btn-primary" onClick={() => void load()}>다시 시도</button>
     </div>}
     {list && list.items.length === 0 && <p className="text-secondary">검수할 번역이 아직 없습니다. 번역가가 제출하면 여기에 표시됩니다.</p>}
-    {list && list.items.length > 0 && <table className="table align-middle">
+    {list && list.items.length > 0 && <div className="table-responsive"><table className="table align-middle">
       <thead><tr><th>버전</th><th>상태</th><th>기준 원문</th><th>제출 시각 (UTC)</th><th>결정</th><th /></tr></thead>
       <tbody>
         {list.items.map((item) => <tr key={item.versionNo}>
@@ -263,7 +263,7 @@ export function ReviewVersionsPanel({ episodeId }: { episodeId: string }) {
           <td><Link href={`/reviews/${encodeURIComponent(episodeId)}/${item.versionNo}`}>v{item.versionNo} 검토</Link></td>
         </tr>)}
       </tbody>
-    </table>}
+    </table></div>}
   </section>
   {list && list.items.length >= 2 && <VersionCompare versions={list.items} load={(versionNo, signal) => getReview(episodeId, versionNo, signal)} />}
   </>;

@@ -197,7 +197,7 @@ export function TranslationWorkspace({ episodeId, onLatestSourceVersion }: { epi
       </div>}
       {list.items.length === 0
         ? <p className="text-secondary">아직 번역이 없습니다. 새 번역을 시작하면 최신 원문(v{list.latestSourceVersion}) 기준으로 작성할 수 있습니다.</p>
-        : <table className="table align-middle">
+        : <div className="table-responsive"><table className="table align-middle">
           <thead><tr><th>버전</th><th>상태</th><th>기준 원문</th><th>제출 시각 (UTC)</th><th>결정</th><th /></tr></thead>
           <tbody>
             {list.items.map((item) => <tr key={item.versionNo}>
@@ -210,7 +210,7 @@ export function TranslationWorkspace({ episodeId, onLatestSourceVersion }: { epi
                 onClick={() => void load(item.versionNo)}>v{item.versionNo} 보기</button></td>
             </tr>)}
           </tbody>
-        </table>}
+        </table></div>}
       {dirty && <p className="text-secondary small">저장하지 않은 변경이 있어 다른 버전으로 이동할 수 없습니다.</p>}
       {!hasOpen && <button type="button" className="btn btn-primary" disabled={busy !== null || loading} onClick={() => void onCreate()}>
         {busy === "create" ? "시작하는 중…" : "새 번역 시작"}

@@ -87,7 +87,7 @@ export function EpisodeListView() {
         <button type="button" className="btn btn-primary" onClick={() => void load(offset)}>다시 시도</button>
       </div>}
       {!loading && !loadError && list && list.items.length === 0 && <p className="text-secondary">등록된 회차가 없습니다.</p>}
-      {list && list.items.length > 0 && <table className="table align-middle">
+      {list && list.items.length > 0 && <div className="table-responsive"><table className="table align-middle">
         <thead><tr><th>제목</th><th>최신 원문 버전</th><th>수정 시각 (UTC)</th></tr></thead>
         <tbody>
           {list.items.map((item) => <tr key={item.id}>
@@ -96,7 +96,7 @@ export function EpisodeListView() {
             <td><time>{item.updatedAt}</time></td>
           </tr>)}
         </tbody>
-      </table>}
+      </table></div>}
       {list && total > PAGE_SIZE && <div className="d-flex gap-2 align-items-center">
         <button type="button" className="btn btn-outline-secondary" disabled={loading || offset === 0}
           onClick={() => void load(Math.max(offset - PAGE_SIZE, 0))}>이전</button>
