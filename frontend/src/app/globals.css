@@ -1,12 +1,68 @@
+/* Theme: one brand colour on top of Bootstrap, applied through its variables so no markup has to change. */
+:root {
+  --brand: #3d4fb8;
+  --brand-dark: #2c3a8c;
+  --brand-soft: #e9ecfb;
+  --bs-primary: var(--brand);
+  --bs-primary-rgb: 61, 79, 184;
+  --bs-link-color: var(--brand);
+  --bs-link-color-rgb: 61, 79, 184;
+  --bs-link-hover-color: var(--brand-dark);
+  --bs-link-hover-color-rgb: 44, 58, 140;
+  --bs-body-font-family: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.btn-primary {
+  --bs-btn-bg: var(--brand); --bs-btn-border-color: var(--brand);
+  --bs-btn-hover-bg: var(--brand-dark); --bs-btn-hover-border-color: var(--brand-dark);
+  --bs-btn-active-bg: var(--brand-dark); --bs-btn-active-border-color: var(--brand-dark);
+  --bs-btn-disabled-bg: var(--brand); --bs-btn-disabled-border-color: var(--brand);
+  --bs-btn-focus-shadow-rgb: 61, 79, 184;
+}
+.btn-outline-primary {
+  --bs-btn-color: var(--brand); --bs-btn-border-color: var(--brand);
+  --bs-btn-hover-bg: var(--brand); --bs-btn-hover-border-color: var(--brand);
+  --bs-btn-active-bg: var(--brand-dark); --bs-btn-active-border-color: var(--brand-dark);
+  --bs-btn-disabled-color: var(--brand); --bs-btn-disabled-border-color: var(--brand);
+}
+.progress { --bs-progress-bar-bg: var(--brand); }
+.form-control:focus, .form-select:focus { border-color: var(--brand); box-shadow: 0 0 0 0.2rem rgba(61, 79, 184, 0.2); }
+
+/* Surfaces and type. */
+.card { border-radius: 0.75rem; border: 1px solid var(--bs-border-color-translucent); }
+h1.h2 { font-weight: 700; letter-spacing: -0.01em; }
+.card h2.h5 { font-weight: 700; }
+main > p.text-uppercase.small { letter-spacing: 0.14em; font-size: 0.7rem; color: var(--brand) !important; font-weight: 600; }
+.table thead th { color: var(--bs-secondary-color); font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
+.table-hover > tbody > tr:hover > * { background-color: var(--brand-soft); }
+
 .app-main { max-width: 720px; }
+.login-main { max-width: 440px; }
 
 /* Shared header of the signed-in app and of the public reader. */
-.app-header { z-index: 10; }
+.app-header { z-index: 10; background: var(--brand-dark) !important; }
 /* a tall wrapped header must not eat a phone screen: it only sticks on wider screens */
 @media (min-width: 768px) { .app-header { position: sticky; top: 0; } }
-.app-nav-link { color: rgba(255, 255, 255, 0.75); text-decoration: none; padding: 0.25rem 0.6rem; border-radius: 0.375rem; font-size: 0.95rem; }
-.app-nav-link:hover { color: #fff; background: rgba(255, 255, 255, 0.12); }
-.app-nav-link.active { color: #fff; background: rgba(255, 255, 255, 0.2); }
+.app-nav-link { color: rgba(255, 255, 255, 0.78); text-decoration: none; padding: 0.25rem 0.6rem; border-radius: 0.375rem; font-size: 0.95rem; }
+.app-nav-link:hover { color: #fff; background: rgba(255, 255, 255, 0.14); }
+.app-nav-link.active { color: #fff; background: rgba(255, 255, 255, 0.22); }
+
+/* In-page section links on long screens. */
+.section-nav { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+.section-nav a { text-decoration: none; font-size: 0.85rem; padding: 0.2rem 0.7rem; border-radius: 999px; background: var(--brand-soft); color: var(--brand-dark); }
+.section-nav a:hover { background: var(--brand); color: #fff; }
+section[id^="section-"] { scroll-margin-top: 4.5rem; }
+details.fold > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 0.5rem; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::before { content: "▾"; color: var(--brand); }
+details.fold:not([open]) > summary::before { content: "▸"; }
+details.fold > summary h2 { margin: 0; }
+
+/* The translator's save / submit / AI buttons stay within reach while a long page is edited. */
+.action-bar {
+  position: sticky; bottom: 0; z-index: 5; background: var(--bs-body-bg);
+  border-top: 1px solid var(--bs-border-color); padding: 0.75rem 1rem; margin: 1rem -1rem -1rem; border-radius: 0 0 0.75rem 0.75rem;
+}
 
 /* Reading view: a comfortable measure, size and line height for the translated text. */
 .reader-article { max-width: 680px; margin-left: auto; margin-right: auto; }

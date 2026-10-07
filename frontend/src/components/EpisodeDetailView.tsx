@@ -145,14 +145,22 @@ export function EpisodeDetailView({ episodeId }: { episodeId: string }) {
     <p className="text-secondary">{detail.latestSourceVersion === 0 ? "아직 저장된 원문이 없습니다." : `최신 원문 버전: v${detail.latestSourceVersion}`}</p>
     {loadFailure && <div className="alert alert-warning" role="alert">{episodeFailureMessage(loadFailure)}</div>}
 
+    <nav aria-label="구역 이동" className="section-nav">
+      <a href="#section-assignment">담당자</a>
+      <a href="#section-translations">번역·발행</a>
+      {detail.source && <a href="#section-images">이미지</a>}
+      <a href="#section-source">원문</a>
+      <a href="#section-history">이력</a>
+    </nav>
+
     <AssignmentPanel episodeId={episodeId} />
     {detail.source && <PageImagesPanel key={detail.latestSourceVersion} episodeId={episodeId}
       pageNumbers={[...new Set(detail.source.blocks.flatMap((block) => (block.pageNo === null ? [] : [block.pageNo])))].sort((a, b) => a - b)} />}
     <TranslationOverviewPanel episodeId={episodeId} refreshKey={sourceSaves} />
 
-    <section aria-label="원문 편집" className="card card-body shadow-sm mb-3">
-      <h2 className="h5">원문 편집</h2>
-      <p className="text-secondary small">저장하면 새 원문 버전이 만들어지며 기존 버전은 바뀌지 않습니다. 작성 중인 내용은 저장 전까지 이 화면에만 있습니다.</p>
+    <section id="section-source" aria-label="원문 편집" className="card card-body shadow-sm mb-3"><details className="fold" open>
+      <summary><h2 className="h5">원문 편집</h2></summary>
+      <p className="text-secondary small mt-2">저장하면 새 원문 버전이 만들어지며 기존 버전은 바뀌지 않습니다. 작성 중인 내용은 저장 전까지 이 화면에만 있습니다.</p>
       <ol className="list-unstyled">
         {blocks.map((block, index) => {
           const number = index + 1;
@@ -194,10 +202,10 @@ export function EpisodeDetailView({ episodeId }: { episodeId: string }) {
       {conflict !== false && <div className="mt-2">
         <button type="button" className="btn btn-warning" disabled={loading} onClick={() => void load()}>최신 버전 불러오기 (작성 중인 내용은 사라집니다)</button>
       </div>}
-    </section>
+    </details></section>
 
-    <section aria-label="버전 이력" className="card card-body shadow-sm">
-      <h2 className="h5">버전 이력</h2>
+    <section id="section-history" aria-label="버전 이력" className="card card-body shadow-sm"><details className="fold" open>
+      <summary><h2 className="h5">버전 이력</h2></summary>
       {versions.length === 0 ? <p className="text-secondary">저장된 버전이 없습니다.</p> : <div className="table-responsive"><table className="table align-middle">
         <thead><tr><th>버전</th><th>저장 시각 (UTC)</th><th>저장자</th><th>블록 수</th><th /></tr></thead>
         <tbody>
@@ -214,6 +222,6 @@ export function EpisodeDetailView({ episodeId }: { episodeId: string }) {
           {block.pageNo !== null && <span className="badge text-bg-secondary me-2">p.{block.pageNo}</span>}{block.text}
         </li>)}</ol>
       </div>}
-    </section>
+    </details></section>
   </>;
 }

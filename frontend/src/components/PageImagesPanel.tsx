@@ -38,7 +38,7 @@ export function PageImagesPanel({ episodeId, pageNumbers }: { episodeId: string;
     setNotice({ tone: "danger", text: pageImageUploadMessage(result.failure), pageNo });
   }
 
-  return <section aria-label="페이지 이미지" className="card card-body shadow-sm mb-3">
+  return <section id="section-images" aria-label="페이지 이미지" className="card card-body shadow-sm mb-3">
     <h2 className="h5">페이지 이미지</h2>
     <p className="text-secondary small">번역가와 감수자가 원본 이미지를 보며 작업할 수 있게 페이지마다 이미지를 올립니다(PNG·JPEG·WEBP, 5 MiB 이하). 다시 올리면 교체됩니다. 독자에게는 보이지 않습니다.</p>
     {pageNumbers.length === 0 && <p className="text-secondary mb-0">원문 블록에 페이지 번호가 없어 이미지를 올릴 수 없습니다. 원문에서 블록의 페이지 번호를 지정하세요.</p>}

@@ -167,6 +167,21 @@ describe("episode detail and editor", () => {
     expect(screen.getByRole("button", { name: "v1 보기" })).toBeTruthy();
   });
 
+  test("the detail page has section links that point at sections that exist, and the long sections can be folded", async () => {
+    await openDetail();
+    const nav = screen.getByRole("navigation", { name: "구역 이동" });
+    const targets = Array.from(nav.querySelectorAll("a")).map((a) => a.getAttribute("href"));
+    expect(targets).toEqual(["#section-assignment", "#section-translations", "#section-images", "#section-source", "#section-history"]);
+    for (const target of targets) expect(document.querySelector(target!), String(target)).not.toBeNull();
+    expect(document.querySelectorAll("section details.fold[open]")).toHaveLength(2); // source editor and history start open
+  });
+
+  test("without a source there is no image section link", async () => {
+    await openDetail({ detail: () => json(200, detailBody(0)) });
+    const nav = screen.getByRole("navigation", { name: "구역 이동" });
+    expect(Array.from(nav.querySelectorAll("a")).map((a) => a.getAttribute("href"))).not.toContain("#section-images");
+  });
+
   test("the detail page links to the work history of this episode", async () => {
     await openDetail();
     expect(screen.getByRole("link", { name: "이 회차의 작업 이력" }).getAttribute("href")).toBe("/history?episodeId=7");

@@ -284,7 +284,7 @@ export function TranslationWorkspace({ episodeId, onLatestSourceVersion }: { epi
           </li>;
         })}
       </ol>} />
-      {detail.editable && <div className="d-flex gap-2 flex-wrap align-items-center">
+      {detail.editable && <div className="action-bar d-flex gap-2 flex-wrap align-items-center">
         <button type="button" className="btn btn-primary" disabled={busy !== null || !dirty} onClick={() => void onSave()}>{busy === "save" ? "저장 중…" : "저장"}</button>
         {!confirming
           ? <button type="button" className="btn btn-outline-primary" disabled={busy !== null || dirty} onClick={() => setConfirming(true)}>검수에 제출</button>

@@ -79,7 +79,7 @@ export function AssignmentPanel({ episodeId }: { episodeId: string }) {
       : episodeFailureMessage(failure) } }));
   }
 
-  return <section aria-label="담당자 배정" className="card card-body shadow-sm mb-3">
+  return <section id="section-assignment" aria-label="담당자 배정" className="card card-body shadow-sm mb-3">
     <h2 className="h5">담당자 배정</h2>
     <p className="text-secondary small">회차마다 번역가·감수자를 한 명씩 지정합니다. 교체하면 이전 담당자는 즉시 이 회차를 볼 수 없습니다.</p>
     {loading && !assignments && <p role="status">불러오는 중…</p>}

@@ -120,7 +120,7 @@ export function TranslationOverviewPanel({ episodeId, refreshKey = 0 }: { episod
   const images = usePageImages("operator", episodeId, !!view && view.blocks.some((block) => block.pageNo !== null));
   const current = publication?.current ?? null;
   const held = publication?.held ?? null;
-  return <section aria-label="번역 현황" className="card card-body shadow-sm mb-3">
+  return <section id="section-translations" aria-label="번역 현황" className="card card-body shadow-sm mb-3">
     <h2 className="h5">번역 현황</h2>
     <p className="text-secondary small">모든 번역 버전을 확인합니다. 작성 중인 초안도 포함됩니다. 승인된 번역만 발행할 수 있습니다.</p>
     {loading && !list && <p role="status">불러오는 중…</p>}
