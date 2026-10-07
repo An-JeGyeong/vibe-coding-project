@@ -15,6 +15,20 @@ public class PublicationController {
     @PostMapping("/api/episodes/{id}/translations/{versionNo}/publish") public ResponseEntity<?> publish(
             @PathVariable String id,@PathVariable String versionNo,@RequestBody(required=false) byte[] body,
             Authentication auth,HttpServletRequest request) {
+        requireNoBody(body,request);
+        return ok(service.publishTranslation((CurrentUser)auth.getPrincipal(),id,versionNo));
+    }
+    @PostMapping("/api/episodes/{id}/publication/hold") public ResponseEntity<?> hold(
+            @PathVariable String id,@RequestBody(required=false) byte[] body,Authentication auth,HttpServletRequest request) {
+        requireNoBody(body,request);
+        return ok(service.holdPublication((CurrentUser)auth.getPrincipal(),id));
+    }
+    @PostMapping("/api/episodes/{id}/publication/resume") public ResponseEntity<?> resume(
+            @PathVariable String id,@RequestBody(required=false) byte[] body,Authentication auth,HttpServletRequest request) {
+        requireNoBody(body,request);
+        return ok(service.resumePublication((CurrentUser)auth.getPrincipal(),id));
+    }
+    private static void requireNoBody(byte[] body,HttpServletRequest request) {
         if(body!=null && body.length>0) throw PublicationFailure.invalid();
         if(request.getContentType()!=null) {
             try {
@@ -22,7 +36,6 @@ public class PublicationController {
                 if(!type.getType().equalsIgnoreCase("application") || !(type.getSubtype().equalsIgnoreCase("json")||type.getSubtype().endsWith("+json"))) throw PublicationFailure.invalid();
             } catch(IllegalArgumentException error) { throw PublicationFailure.invalid(); }
         }
-        return ok(service.publishTranslation((CurrentUser)auth.getPrincipal(),id,versionNo));
     }
     @GetMapping("/api/episodes/{id}/publication") public ResponseEntity<?> publication(@PathVariable String id) { return ok(service.getPublication(id)); }
     @GetMapping("/api/public/episodes") public ResponseEntity<?> list(@RequestParam(required=false) String limit,@RequestParam(required=false) String offset) {

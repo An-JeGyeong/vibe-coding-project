@@ -42,6 +42,31 @@ public class PublicationService {
             return new Published(version,"PUBLISHED",now);
         });
     }
+    public Held holdPublication(CurrentUser actor,String id) {
+        long episode=path(id,false);
+        return execute(write,()->{
+            if(episodes.episode(episode,true)==null) throw PublicationFailure.notFound();
+            var target=dao.pointer(episode);
+            if(target==null || !target.status().equals("PUBLISHED")) throw PublicationFailure.state(target==null?null:target.status());
+            var now=clock.instant().truncatedTo(ChronoUnit.MICROS);
+            dao.hold(target.id());
+            dao.lifecycleAudit(Long.parseLong(actor.user().id()),"PUBLICATION_HELD",episode,target.sourceVersion(),target.id(),now);
+            return new Held(target.versionNo(),"ON_HOLD",now);
+        });
+    }
+    public Published resumePublication(CurrentUser actor,String id) {
+        long episode=path(id,false);
+        return execute(write,()->{
+            if(episodes.episode(episode,true)==null) throw PublicationFailure.notFound();
+            var target=dao.pointer(episode);
+            if(target==null || !target.status().equals("ON_HOLD")) throw PublicationFailure.state(target==null?null:target.status());
+            var now=clock.instant().truncatedTo(ChronoUnit.MICROS);
+            long account=Long.parseLong(actor.user().id());
+            dao.resume(episode,target.id(),target.sourceVersion(),account,now);
+            dao.lifecycleAudit(account,"PUBLICATION_RESUMED",episode,target.sourceVersion(),target.id(),now);
+            return new Published(target.versionNo(),"PUBLISHED",now);
+        });
+    }
     public Publication getPublication(String id) {
         long episode=path(id,false);
         return execute(read,()->{

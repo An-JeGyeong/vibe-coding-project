@@ -24,12 +24,29 @@ public class PublicationDao {
     public void audit(long actor,long episode,int source,long version,Instant now) {
         jdbc.update("INSERT INTO domain_audit(occurred_at,actor_account_id,event,episode_id,source_version,translation_version_id) VALUES (?,?,'TRANSLATION_PUBLISHED',?,?,?)",Timestamp.from(now),actor,episode,source,version);
     }
+    public PublicationPointer pointer(long episode) {
+        var rows=jdbc.query("SELECT t.id,t.version_no,t.source_version_no,t.status FROM episode e JOIN translation_version t ON t.id=e.published_translation_version_id AND t.episode_id=e.id WHERE e.id=?",
+                (rs,n)->new PublicationPointer(rs.getLong(1),rs.getInt(2),rs.getInt(3),rs.getString(4)),episode);
+        return rows.isEmpty()?null:rows.get(0);
+    }
+    public void hold(long version) {
+        jdbc.update("UPDATE translation_version SET status='ON_HOLD' WHERE id=?",version);
+    }
+    public void resume(long episode,long version,int source,long actor,Instant now) {
+        jdbc.update("UPDATE translation_version SET status='PUBLISHED' WHERE id=?",version);
+        jdbc.update("INSERT INTO publication(episode_id,translation_version_id,source_version_no,published_by,published_at) VALUES (?,?,?,?,?)",episode,version,source,actor,Timestamp.from(now));
+    }
+    public void lifecycleAudit(long actor,String event,long episode,int source,long version,Instant now) {
+        jdbc.update("INSERT INTO domain_audit(occurred_at,actor_account_id,event,episode_id,source_version,translation_version_id) VALUES (?,?,?,?,?,?)",Timestamp.from(now),actor,event,episode,source,version);
+    }
     public Publication publication(long episode) {
         var history=jdbc.query("SELECT t.version_no,p.source_version_no,p.published_at FROM publication p JOIN translation_version t ON t.id=p.translation_version_id AND t.episode_id=p.episode_id WHERE p.episode_id=? ORDER BY p.published_at DESC,p.id DESC",
                 (rs,n)->new Entry(rs.getInt(1),rs.getInt(2),rs.getTimestamp(3).toInstant()),episode);
         var current=jdbc.query("SELECT t.version_no,p.source_version_no,p.published_at"+PUBLIC+" WHERE e.id=?",
                 (rs,n)->new Entry(rs.getInt(1),rs.getInt(2),rs.getTimestamp(3).toInstant()),episode);
-        return new Publication(current.isEmpty()?null:current.get(0),history);
+        var held=jdbc.query("SELECT t.version_no,p.source_version_no,p.published_at FROM episode e JOIN translation_version t ON t.id=e.published_translation_version_id AND t.episode_id=e.id AND t.status='ON_HOLD' JOIN publication p ON p.id=(SELECT p2.id FROM publication p2 WHERE p2.episode_id=e.id AND p2.translation_version_id=t.id ORDER BY p2.published_at DESC,p2.id DESC LIMIT 1) WHERE e.id=?",
+                (rs,n)->new Entry(rs.getInt(1),rs.getInt(2),rs.getTimestamp(3).toInstant()),episode);
+        return new Publication(current.isEmpty()?null:current.get(0),held.isEmpty()?null:held.get(0),history);
     }
     public long count() { return jdbc.queryForObject("SELECT COUNT(*)"+PUBLIC,Long.class); }
     public List<Item> episodes(int limit,long offset) {
