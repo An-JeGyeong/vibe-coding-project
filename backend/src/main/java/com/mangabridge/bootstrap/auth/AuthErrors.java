@@ -18,7 +18,7 @@ import java.util.Map;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import static com.mangabridge.bootstrap.auth.AuthModels.*;
 
-@RestControllerAdvice(assignableTypes={AuthController.class,EpisodeController.class,AssignmentController.class,TranslationController.class,com.mangabridge.bootstrap.review.ReviewController.class,com.mangabridge.bootstrap.publication.PublicationController.class})
+@RestControllerAdvice(assignableTypes={AuthController.class,EpisodeController.class,AssignmentController.class,TranslationController.class,com.mangabridge.bootstrap.review.ReviewController.class,com.mangabridge.bootstrap.publication.PublicationController.class,com.mangabridge.bootstrap.history.HistoryController.class})
 public class AuthErrors {
     static ErrorResponse body(String code) {
         String message=switch(code) {
@@ -47,6 +47,9 @@ public class AuthErrors {
         return ResponseEntity.status(failure.status).header("Cache-Control","no-store").body(payload);
     }
     @ExceptionHandler(AssignmentFailure.class) ResponseEntity<ErrorResponse> assignmentFailure(AssignmentFailure failure) {
+        return ResponseEntity.status(failure.status).header("Cache-Control","no-store").body(body(failure.code));
+    }
+    @ExceptionHandler(com.mangabridge.bootstrap.history.HistoryFailure.class) ResponseEntity<ErrorResponse> historyFailure(com.mangabridge.bootstrap.history.HistoryFailure failure) {
         return ResponseEntity.status(failure.status).header("Cache-Control","no-store").body(body(failure.code));
     }
     @ExceptionHandler(TranslationFailure.class) ResponseEntity<?> translationFailure(TranslationFailure failure) {
