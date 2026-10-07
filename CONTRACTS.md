@@ -1048,7 +1048,7 @@ NOT NULL 규칙은 **모든 도메인·인증 테이블**에 적용한다. NULL 
 - 독자 화면은 변경하지 않는다(원본 이미지를 독자에게 보이지 않는다).
 
 ### 26.5 파일 소유권·완료 조건
-- Codex 변경: `backend/src/main/resources/db/migration/V33__…`, backend/src/main(신규 `page` 패키지, 보안 규칙·오류 처리, 이력 허용 event 추가), backend/src/test, README 기록. 기존 EpisodeSource·Assignment·Translation·Review·Publication·History·인증 통합 테스트는 수정 없이 통과해야 하며, 24절 이력의 허용 event 목록 테스트에 `PAGE_IMAGE_SAVED` 추가만 허용한다. **개발 DB(3306)에는 승인과 백업 절차 후에만 적용한다.**
+- Codex 변경: `backend/src/main/resources/db/migration/V33__…`, backend/src/main(신규 `page` 패키지, 보안 규칙·오류 처리, 이력 허용 event 추가), backend/src/test, README 기록. 기존 EpisodeSource·Assignment·Translation·Review·Publication·History·인증 통합 테스트는 수정 없이 통과해야 한다. **(정정 2026-10-07, 사용자 승인 — V33 적용에 따른 기계적 변경만 허용)**: `MySqlIntegrationTest`의 최신 마이그레이션 버전 32→33과 허용 테이블 목록에 `source_page_image` 추가, `DomainSchemaMigrationIntegrationTest`의 전체 적용·이력 수 32→33과 V9 업그레이드 적용 수 23→24만 바꾼다. `HistoryIntegrationTest`는 바꾸지 않고 `PAGE_IMAGE_SAVED` 이력 조회는 새 페이지 이미지 테스트에서 검증한다. 그 밖의 모든 단언은 그대로 유지하고, 변경한 단언 목록(파일·테스트명)을 보고한다. **개발 DB(3306)에는 승인과 백업 절차 후에만 적용한다.**
 - Claude Code 변경: frontend/src, frontend/tests/ui. 변경 금지: V1~V32, 기존 API의 기존 필드·동작, PROJECT_CONTEXT.md, 서로의 영역.
 - 테스트: 26.3 표, 연속 2회 통과·전후 행 수 비교(이미지 테이블 포함 정리). frontend는 26.4 전부(Blob URL 표시·해제, 역할별 요청 범위, 실패 시 텍스트 작업 유지, 업로드 로컬 검사와 중복 방지, 페이지 묶음·이동·입력 유지, 이미지 없는 페이지, 미지정 페이지)와 기존 회귀·타입·빌드.
 - **실제 브라우저 검증은 한 번만, 마지막 통합 검증(10/12)에 합친다**: 운영자가 PNG·JPEG 업로드·교체 → 번역가가 한 페이지씩 이미지와 원문을 보며 번역·AI 초안 수정·저장 → 감수자가 페이지별로 대조하고 의견 → 독자 화면·공개 API에 이미지 비노출 → 교체된 번역가의 404 → 작업 이력에 `PAGE_IMAGE_SAVED`.
