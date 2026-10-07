@@ -35,6 +35,7 @@ public class AuthSecurity {
                 .requestMatchers("/api/episodes","/api/episodes/**").hasRole("OPERATOR")
                 .requestMatchers("/api/assignable-accounts").hasRole("OPERATOR")
                 .requestMatchers("/api/history").hasRole("OPERATOR")
+                .requestMatchers("/api/my/episodes/*/pages","/api/my/episodes/*/pages/**").hasAnyRole("TRANSLATOR","REVIEWER")
                 .requestMatchers("/api/my/episodes/*/translations","/api/my/episodes/*/translations/**").hasRole("TRANSLATOR")
                 .requestMatchers("/api/my/reviews","/api/my/episodes/*/reviews","/api/my/episodes/*/reviews/**").hasRole("REVIEWER")
                 .requestMatchers("/api/my/**").hasAnyRole("TRANSLATOR","REVIEWER")

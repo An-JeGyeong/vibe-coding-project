@@ -18,7 +18,7 @@ import java.util.Map;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import static com.mangabridge.bootstrap.auth.AuthModels.*;
 
-@RestControllerAdvice(assignableTypes={AuthController.class,EpisodeController.class,AssignmentController.class,TranslationController.class,com.mangabridge.bootstrap.review.ReviewController.class,com.mangabridge.bootstrap.publication.PublicationController.class,com.mangabridge.bootstrap.history.HistoryController.class,com.mangabridge.bootstrap.ai.AiController.class})
+@RestControllerAdvice(assignableTypes={AuthController.class,EpisodeController.class,AssignmentController.class,TranslationController.class,com.mangabridge.bootstrap.review.ReviewController.class,com.mangabridge.bootstrap.publication.PublicationController.class,com.mangabridge.bootstrap.history.HistoryController.class,com.mangabridge.bootstrap.ai.AiController.class,com.mangabridge.bootstrap.page.PageController.class})
 public class AuthErrors {
     static ErrorResponse body(String code) {
         String message=switch(code) {
@@ -87,6 +87,9 @@ public class AuthErrors {
         });
         if(failure.currentStatus!=null) error.put("currentStatus",failure.currentStatus);
         return ResponseEntity.status(failure.status).header("Cache-Control","no-store").body(Map.of("error",error));
+    }
+    @ExceptionHandler(com.mangabridge.bootstrap.page.PageFailure.class) ResponseEntity<ErrorResponse> pageFailure(com.mangabridge.bootstrap.page.PageFailure failure) {
+        return ResponseEntity.status(failure.status).header("Cache-Control","no-store").body(body(failure.code));
     }
     @ExceptionHandler(Exception.class) ResponseEntity<ErrorResponse> internal() {
         return ResponseEntity.internalServerError().header("Cache-Control","no-store").body(body("INTERNAL_ERROR"));
