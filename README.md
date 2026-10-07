@@ -1010,3 +1010,47 @@ backend/에서 process 환경변수 DB_URL·DB_USERNAME·DB_PASSWORD·CORS_ALLOW
 커밋 직전 git diff --cached --name-only 및 --check로 대상 목록/혼입 여부를 확인하고, 명시적으로 지정한 파일만 stage 후 즉시 git commit --only로 코드·테스트·README를 분리했습니다. 코드/테스트 staged 목록은 각각 7개/1개 대상과 일치했고 다른 파일 혼입 없음. PROJECT_CONTEXT.md M은 수정·stage·restore하지 않았습니다. 비밀번호·토큰 값은 문서/Git에 넣지 않았으며 임시 환경변수는 실행한 PS 프로세스 종료로 소멸했습니다.
 
 정리: 이름·ID를 대조한 이번 MySQL만 docker stop --timeout 10으로 종료(코드 0, --rm 자동 정리), 3322 및 기존 3306·8080·8081·3000 리스너 0. 기존 vibe-coding-project-mysql-1 컨테이너·볼륨 보존, 기존 서비스 종료·push·이력 재작성 없음. 증빙은 ignored backend/build/verification/history-460ebf1의 로그·XML·스냅샷에 보관했습니다. 발견된 백엔드 결함/미해결 사항 없음. 실제 브라우저·프런트 연동은 이번 범위에서 미검증이며 10/12 최종 통합 검증으로 이월합니다.
+
+### AI 번역 초안 설정 (CONTRACTS.md 25절, D-053)
+
+서버의 `POST /api/my/episodes/{id}/translations/{versionNo}/ai-draft`는 현재 배정된 번역가의 최신 원문을 사용하는 DRAFT에서만 제안을 반환합니다. 제안은 저장·제출되지 않으며 번역 블록·상태·revision도 바꾸지 않습니다. 비어 있는 블록만 원문 순서로 최대 50개를 보내며, 채울 블록이 없으면 호출과 감사 없이 빈 제안을 반환합니다. 같은 계정·같은 버전의 처리 중 요청은 409로 거절합니다.
+
+| 서버 환경변수 | 비어 있거나 미설정일 때 | 허용 범위·용도 |
+|---|---|---|
+| AI_PROVIDER | mock | mock 또는 anthropic |
+| AI_API_KEY | 없음 | anthropic 호출에만 필요; 사용자만 서버 프로세스에 비공개로 주입 |
+| AI_MODEL | claude-haiku-4-5-20251001 | anthropic 모델 ID; 설정으로 변경 가능 |
+| AI_TIMEOUT_SECONDS | 30 | 1~120초; 연결·요청·응답 본문 전체 대기 제한 |
+| AI_MAX_OUTPUT_TOKENS | 2048 | 128~8192; Messages 요청의 max_tokens |
+
+backend/.env.example의 AI 값은 모두 비어 있습니다. Spring은 이 파일을 자동으로 읽지 않으므로 README 2절과 같이 PowerShell 5.1 프로세스 환경에 필요한 값을 주입합니다. 기본 mock은 외부 연결 없이 결정적인 `[AI 초안] ` 제안을 만듭니다. 실제 키를 .env.example·NEXT_PUBLIC 변수·채팅·Git·로그에 넣지 마세요. anthropic은 사용자가 서버 프로세스에 키를 설정했을 때만 사용하며 원문이 외부로 전송되므로 데모 데이터로만 수동 확인합니다.
+
+설정 범위 오류·미지원 제공자·anthropic 키 누락은 앱 기동을 막지 않으며 AI 요청만 503 AI_UNAVAILABLE입니다. 감사 저장 실패는 AI 호출 없이 503 SERVICE_UNAVAILABLE입니다. 호출 전 AI_DRAFT_REQUESTED를 별도 트랜잭션으로 커밋하고 DB 잠금을 해제한 뒤 한 번만 호출하며 재시도하지 않습니다. 원문·제안·프롬프트·키는 감사/로그에 넣지 않습니다. 번호 밖/검증 실패 제안은 개별 폐기하며 남은 제안은 변환 없이 seq 순서로 반환합니다.
+
+HTTP 구현은 Java 17 HttpClient와 기존 Jackson을 사용합니다(추가 의존성 없음). API 경로·버전 헤더·max_tokens 및 모델 ID는 [Anthropic Messages API](https://platform.claude.com/docs/en/api/messages/create)와 [공식 API 안내](https://platform.claude.com/docs/en/claude_api_primer)를 대조했습니다. 이 대조는 문서 확인이며 실제 제공자 호출 검증이 아닙니다.
+### AI 번역 초안 백엔드 검증 — 2026-10-07 (Codex 직접 실행)
+
+승인 기준: ecbde74의 CONTRACTS.md 25절·D-053. 구현 코드 9ba4fdc, 테스트 269d06d를 포함한 백엔드로 검증했습니다. 새 ai 패키지 6개와 AuthErrors의 새 컨트롤러/오류 등록, backend/.env.example의 빈 변수 5개 및 신규 테스트 3개만 변경했습니다. 기존 보안 규칙 `/api/my/episodes/*/translations/**`가 TRANSLATOR만 허용하므로 보안/CORS는 변경하지 않았습니다. 기존 통합 테스트 파일·API 응답·V1~V32·계약 문서·frontend는 변경하지 않았고, PROJECT_CONTEXT.md의 기존 줄바꿈 M도 수정·stage·restore하지 않았습니다.
+
+환경: PowerShell 5.1.26100.9444, Docker Linux, 실제 MySQL 8.4.11. mangabridge-ai-draft-ecbde74(--rm, tmpfs), 127.0.0.1:3323, ai_draft_verify만 사용했습니다. 앱 계정의 실제 SELECT 1과 Docker healthy 확인 후 변경 없는 V1~V32 적용·Flyway validate, 프로세스에서 생성한 비공개 임시 비밀번호로 데모 계정 4개 시드. 개발 DB(3306)는 연결·조회·변경하지 않았으며 별도 API·프런트 서버는 띄우지 않았습니다(통합 테스트는 RANDOM_PORT).
+
+backend/에서 격리 DB_URL·DB_USERNAME·DB_PASSWORD·CORS_ALLOWED_ORIGINS·local 프로파일과 격리 COMPOSE_PROJECT_NAME/COMPOSE_FILE을 PowerShell 프로세스 환경에 주입해 실행한 실제 명령:
+
+```powershell
+.\gradlew.bat -I build/verification/schema-tool.init.gradle schemaMigrate --no-daemon
+.\gradlew.bat bootRun --args='--demo-auth-seed=true --spring.main.web-application-type=none' --no-daemon
+.\gradlew.bat build integrationTest --no-daemon --rerun-tasks
+.\gradlew.bat build integrationTest --no-daemon --rerun-tasks
+```
+
+최종 코드로 연속 2회: 19:51:37~19:55:19 KST(3m 40s), 19:56:05~19:59:42 KST(3m 37s). 각각 종료 코드 0, BUILD SUCCESSFUL, **152개(단위 29 + 실제 MySQL 통합 123)**, 실패·오류·skipped 모두 0. 두 실행 사이 코드·테스트 내용 변경 없음. 앞서 예비 전체 실행 150개도 통과했으나, 응답 본문 전체 제한시간과 잘못된 설정의 실제 기동 테스트를 추가했으므로 완료 기준은 위 최종 152개 연속 2회입니다.
+
+신규 AiIntegrationTest 10개: 빈/공백 번역만·원문 순서 50개 상한, 채울 블록이 없으면 AI/감사 미호출(anthropic 키 없이도 빈 응답), 버전 상태·최신 원문 검사, 잘못된 경로·없는 버전·미배정/교체 후 404, 4역할/비로그인·헤더/본문 위조·ACCESS_DENIED 감사, 본문/비JSON 400, 처리 중 중복 409와 currentStatus 생략·중복 감사 없음·종료 후 재요청, DB/감사 장애 503 및 AI 미호출, 잘못된 설정/제공자 실패의 안전한 503와 성공/실패 요청별 감사, 잘못된/요청 밖 제안 개별 폐기·seq 정렬·공백/줄바꿈 보존을 실제 HTTP·MySQL로 확인했습니다. 번역 버전 전체 행·블록 전체 행을 전후 대조해 상태/revision/본문 불변과 감사의 메타데이터만 저장됨을 확인했습니다.
+
+AiConfigurationIntegrationTest 1개: anthropic 키 누락 및 범위 밖 값으로 실제 Spring 앱을 기동하고 DB health 200, AI 설정 접근 시 AI_UNAVAILABLE를 확인했습니다. AiAdapterTest 9개는 loopback 가짜 HTTP 서버만 사용해 mock 결정성/Unicode 최대 길이, 실제 요청의 모델·max_tokens·번호별 원문·한국어/주입 방어 지시, 설정 경계, 외부 장애/연결 실패·시간 초과(헤더 지연 및 본문 지연)·잘못된/중복/후행 JSON의 안전한 실패, 재시도 없음, 항목별 형식 검증과 텍스트/키 레코드 toString 가림을 확인했습니다. 실제 외부 AI 요청·실제 API 키 사용은 **미실행**입니다.
+
+검증 전/최종 첫 성공 후/최종 두 번째 후: demo_account 4/4/4(전체 기존 내용의 집계 해시 동일), auth_login_limit 0/0/0(내용 동일), auth_token·auth_audit·episode·episode_source_version·source_block·domain_audit·episode_assignment·translation_version·translation_block·review_decision·publication·review_block_comment 모두 0/0/0, Flyway 성공 이력 32/32/32. 세 스냅샷 정확 일치. 테스트가 만든 계정·회차·번역·토큰·감사 등만 정리했으며 데모 계정과 기존 데이터는 보존했습니다. 개발 DB 전후 행 수는 미검증(연결/변경 없음).
+
+코드 8개·테스트 3개·README 각각의 커밋 직전 git diff --cached --name-only 및 --check로 명시한 대상과 혼입 여부를 확인했습니다. 실제 키는 입력·사용·저장하지 않았고 변경 파일/빌드 로그의 실제 키 패턴 검사 0건, AI 예시 변수의 비어 있지 않은 값 0개, 테스트용 가짜 키의 빌드 로그 출력도 없었습니다. 가짜 키는 실제 인증 정보가 아닌 테스트 픽스처입니다. 임시 시드 비밀번호는 finally에서 환경변수 삭제 후 PS 프로세스 종료로 소멸했습니다.
+
+정리: 이름·ID가 일치하는 이번 컨테이너만 docker stop --timeout 10으로 종료(코드 0, --rm 자동 정리). 3323 리스너 0, 기존 3306·8080·8081·3000 리스너도 종료 확인 시 0이며 기존 서비스 종료 조작 없음. 기존 vibe-coding-project-mysql-1 컨테이너·볼륨 보존. 증빙은 ignored backend/build/verification/ai-draft-ecbde74의 로그·XML·스냅샷에 보관했습니다. push·이력 재작성 없음. 백엔드 미해결 사항 없음. 실제 브라우저/mock 연동은 10/12 통합 검증, 실제 anthropic 연동은 사용자 키 설정 후 수동 검증으로 이월합니다.
