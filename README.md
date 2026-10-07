@@ -1054,3 +1054,45 @@ AiConfigurationIntegrationTest 1개: anthropic 키 누락 및 범위 밖 값으�
 코드 8개·테스트 3개·README 각각의 커밋 직전 git diff --cached --name-only 및 --check로 명시한 대상과 혼입 여부를 확인했습니다. 실제 키는 입력·사용·저장하지 않았고 변경 파일/빌드 로그의 실제 키 패턴 검사 0건, AI 예시 변수의 비어 있지 않은 값 0개, 테스트용 가짜 키의 빌드 로그 출력도 없었습니다. 가짜 키는 실제 인증 정보가 아닌 테스트 픽스처입니다. 임시 시드 비밀번호는 finally에서 환경변수 삭제 후 PS 프로세스 종료로 소멸했습니다.
 
 정리: 이름·ID가 일치하는 이번 컨테이너만 docker stop --timeout 10으로 종료(코드 0, --rm 자동 정리). 3323 리스너 0, 기존 3306·8080·8081·3000 리스너도 종료 확인 시 0이며 기존 서비스 종료 조작 없음. 기존 vibe-coding-project-mysql-1 컨테이너·볼륨 보존. 증빙은 ignored backend/build/verification/ai-draft-ecbde74의 로그·XML·스냅샷에 보관했습니다. push·이력 재작성 없음. 백엔드 미해결 사항 없음. 실제 브라우저/mock 연동은 10/12 통합 검증, 실제 anthropic 연동은 사용자 키 설정 후 수동 검증으로 이월합니다.
+
+### 페이지 이미지 백엔드 검증 — 2026-10-07 실행 / 2026-10-08 기록 (Codex 직접 실행)
+
+승인 기준: c016d34의 CONTRACTS.md 26절·D-054 및 사용자가 추가 승인한 V32 업그레이드 테스트의 target("32") 고정. 마이그레이션 1df4626, 백엔드 코드 9ac3c53, 테스트 88c4891로 분리했습니다. 프런트의 병행 커밋 20e4424·b4bae04는 보존했으며 이번에 프런트 빌드·브라우저 검증은 실행하지 않았습니다.
+
+V33은 CREATE TABLE 한 문장으로 source_page_image를 추가합니다. 7개 컬럼 모두 NOT NULL, PK(episode_id,page_no), 형식·바이트 크기·페이지 범위 CHECK 3개, episode와 demo_account를 참조하는 RESTRICT FK 2개, InnoDB·utf8mb4·DATETIME(6), content_type은 ascii/ascii_bin입니다. V1~V32 파일 변경 0개이며 기존 스키마 NULL 허용 목록 lint도 통과했습니다.
+
+신규 page 패키지 5개는 운영자 업로드·목록·바이트 조회와 현재 배정된 번역가·감수자의 목록·바이트 조회를 제공합니다. PNG·JPEG·WEBP 매직 넘버와 1~5 MiB를 검사하며, 업로드는 최신 원문에 있는 페이지에만 허용합니다. 원문에서 페이지가 사라져도 기존 이미지는 읽을 수 있습니다. 저장·교체와 PAGE_IMAGE_SAVED 감사는 회차 잠금 이후 같은 트랜잭션에서 수행합니다. 보안 규칙·공통 오류 등록·이력 event 허용 목록만 확장했고 기존 API 필드와 CORS 설정은 유지했습니다. 응답은 no-store, 이미지에는 nosniff가 적용됩니다.
+
+환경: PowerShell 5.1.26100.9444, Docker Linux, 실제 MySQL 8.4.11. 이번 일회용 mangabridge-page-c016d34(--rm, tmpfs), 127.0.0.1:3324/page_verify만 사용했습니다. 앱 계정 SELECT 1·healthy 확인, V1~V33 적용과 Flyway validate 후 프로세스에서 생성한 비공개 임시 비밀번호로 데모 4계정을 시드했습니다. 개발 DB(3306)는 연결·조회·변경하지 않았고 V33을 적용하지 않았습니다. 별도 API·프런트 서버는 띄우지 않았습니다(통합 테스트 RANDOM_PORT).
+
+README 2절과 같이 PowerShell 5.1 프로세스 환경에 격리 DB_URL·DB_USERNAME·DB_PASSWORD·CORS_ALLOWED_ORIGINS·local 프로파일과 격리 COMPOSE_PROJECT_NAME/COMPOSE_FILE을 주입했습니다. 실제 실행 명령(backend/):
+
+```powershell
+.\gradlew.bat -I build/verification/schema-tool.init.gradle schemaMigrate --no-daemon
+.\gradlew.bat bootRun --args='--demo-auth-seed=true --spring.main.web-application-type=none' --no-daemon
+.\gradlew.bat integrationTest --tests "*PageIntegrationTest" --no-daemon --rerun-tasks
+.\gradlew.bat build integrationTest --no-daemon --rerun-tasks
+.\gradlew.bat build integrationTest --no-daemon --rerun-tasks
+```
+
+최종 코드로 2026-10-07 22:25:51~22:29:39 KST(3m 47s), 22:29:47~22:33:32 KST(3m 45s) 연속 2회 성공했습니다. 각각 종료 코드 0, BUILD SUCCESSFUL, **165개(단위 32 + 실제 MySQL 통합 133)**, 실패·오류·skipped 모두 0입니다. 두 실행 사이 소스·테스트 내용 변경은 없었습니다. 앞선 예비 실행은 V32 테스트 대상 미고정 및 초과 요청 클라이언트 전송 오류로 실패했고, 다음 시도는 Gradle의 stop command received로 중단됐습니다. 이들은 완료 결과에 포함하지 않았습니다.
+
+신규 PageIntegrationTest 10개와 PageBodyLimitTest 3개가 PNG·JPEG·WEBP 바이트 왕복, 신규 201·교체 200, 정렬·정확한 메타 필드, 4역할/비로그인·헤더 위조·ACCESS_DENIED 감사, 미배정/교체 후 404와 새 담당자 인계, 공개 응답의 이미지·존재 비노출, 원문 변경 후 이미지 유지, 감사 장애 롤백·안전한 DB 장애 503, 동시 교체, 실제 NOT NULL·CHECK·PK·FK 제약을 확인했습니다. 실제 업로드 픽스처로 GET /api/history?event=PAGE_IMAGE_SAVED를 확인했고 HistoryIntegrationTest는 변경하지 않았습니다. 빈 DB 전체 적용 및 데이터가 있는 V9 업그레이드에서 기존 행·체크섬 보존, validate·재실행 추가 적용 0개를 기존 마이그레이션 테스트로 확인했습니다.
+
+5 MiB(5,242,880바이트) 실제 HTTP 업로드는 201이며 조회 바이트가 정확히 같습니다. 5 MiB+1의 Content-Length는 본문 전송 전에 400 INVALID_REQUEST이며 기존 이미지·감사 불변을 확인했습니다. 이 사전 거부는 HTTP 소켓에서 헤더를 먼저 보내 응답을 읽는 방식으로 검증했습니다. 고수준 HTTP 클라이언트는 큰 본문 전송 중 서버가 먼저 거부하면 전송 오류를 낼 수 있어 해당 방식으로 대체했습니다. 본문 스트림 미개방과 길이 미정 스트림의 최대 5 MiB+1 읽기는 별도 단위 테스트로 확인했습니다. 실제 브라우저의 초과 파일 전송은 미검증입니다. 격리 DB의 max_allowed_packet은 67,108,864바이트였으며 설정 변경은 하지 않았습니다.
+
+기존 테스트 변경 목록(이 외 기존 단언 변경 없음):
+
+| 파일·테스트 | 변경·이유 |
+|---|---|
+| MySqlIntegrationTest.mysqlHealthAndBaseline | 최신 버전 32→33 |
+| MySqlIntegrationTest.mysqlCharsetCollationUtcDedicatedAccountAndInnoDb | 허용 테이블에 source_page_image 추가 |
+| DomainSchemaMigrationIntegrationTest.emptyDatabaseMigratesAllThirtyTwoAndValidatesTwice | 전체 적용·이력 수 32→33(기존 메서드명 유지) |
+| DomainSchemaMigrationIntegrationTest.populatedV9UpgradePreservesEveryOldColumnAndChecksum | 적용 수 23→24 |
+| DomainSchemaMigrationIntegrationTest.v32PreservesAllPopulatedV31RowsAndChecksums | 추가 사용자 승인에 따라 upgrade에 target("32")만 추가; 적용 1개 및 모든 기존 단언 유지 |
+
+검증 전/최종 첫 성공 후/최종 두 번째 후 스냅샷은 정확히 일치합니다. demo_account 4/4/4(전체 기존 내용 집계 해시 동일), auth_login_limit 0/0/0(내용 동일), auth_token·auth_audit·episode·episode_source_version·source_block·domain_audit·episode_assignment·translation_version·translation_block·review_decision·publication·review_block_comment·source_page_image 모두 0/0/0, Flyway 성공 이력 33/33/33입니다. 테스트가 만든 행과 정확한 임시 토큰만 정리했고 데모 계정·기존 데이터는 보존했습니다.
+
+각 커밋 직전 명시한 파일 목록과 git diff --cached --name-only 및 --check를 대조했습니다. 변경 파일의 실제 키 패턴 검사 0건, 비밀번호·이미지·파일명 감사 저장 없음, 이미지 레코드 toString 가림을 확인했습니다. 시드 비밀번호는 프로세스 환경에서만 사용하고 정리했으며 기록·Git에 포함하지 않았습니다. PROJECT_CONTEXT.md의 기존 줄바꿈 M, 공통 계약·결정 문서, frontend는 수정·stage·restore하지 않았습니다.
+
+정리: 이름·ID를 대조한 이번 컨테이너만 docker stop --timeout 10으로 종료(코드 0, --rm 자동 정리), 3324 리스너 0. 기존 vibe-coding-project-mysql-1(ID 접두사 49c9b14620e0)은 healthy, 3306 리스너 1로 보존했습니다. 8080·8081·3000 리스너는 정리 확인 시 0이며 종료 조작하지 않았습니다. 기존 볼륨·컨테이너 삭제, push·이력 재작성 없음. 증빙은 ignored backend/build/verification/page-c016d34의 로그·XML·스냅샷입니다. 개발 DB V33 적용은 별도 승인·백업 후 수행해야 하며, 실제 브라우저 연동은 10/12 최종 통합 검증으로 이월합니다.
