@@ -8,6 +8,7 @@ import { createTranslation, getTranslation, listTranslations, requestAiDraft, sa
 import { STATUS_LABEL, type TranslationDetail, type TranslationList } from "@/lib/translation/types";
 import { validateTranslationText } from "@/lib/translation/validation";
 import { translationProgress } from "@/lib/translation/progress";
+import { PagedBlocks } from "./PagedBlocks";
 import { ProgressBar } from "./ProgressBar";
 import { DecisionBox, decisionLabel, decisionSummary } from "./ReviewParts";
 import { VersionCompare } from "./VersionCompare";
@@ -244,8 +245,12 @@ export function TranslationWorkspace({ episodeId, onLatestSourceVersion }: { epi
           : detail.status === "INVALIDATED" ? "원문이 바뀌어 무효화된 번역입니다. 읽기 전용이며, 새 번역을 시작할 수 있습니다."
           : "읽기 전용입니다."}
       </p>
-      <ol className="list-unstyled">
-        {detail.blocks.map((block) => {
+      <PagedBlocks blocks={detail.blocks} resetKey={detail.versionNo} note={(group) => {
+        const done = translationProgress(group, detail.editable ? texts : undefined);
+        const gap = missing.some((seq) => group.some((block) => block.seq === seq));
+        return `번역 ${done.done}/${done.total} 블록${gap ? " · 번역이 필요한 블록 있음" : ""}`;
+      }} renderPage={(pageBlocks) => <ol className="list-unstyled">
+        {pageBlocks.map((block) => {
           const absent = missing.includes(block.seq);
           const value = texts[block.seq] ?? "";
           return <li key={block.seq} className={`border rounded p-2 mb-2 ${absent ? "border-danger" : ""}`}>
@@ -276,7 +281,7 @@ export function TranslationWorkspace({ episodeId, onLatestSourceVersion }: { epi
             </div>
           </li>;
         })}
-      </ol>
+      </ol>} />
       {detail.editable && <div className="d-flex gap-2 flex-wrap align-items-center">
         <button type="button" className="btn btn-primary" disabled={busy !== null || !dirty} onClick={() => void onSave()}>{busy === "save" ? "저장 중…" : "저장"}</button>
         {!confirming

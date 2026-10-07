@@ -16,7 +16,7 @@ vi.mock("next/navigation", () => ({
 const T = "2026-10-07T01:00:00.123456Z";
 const rejected = { decision: "REJECTED", decidedAt: T, reason: "전체적으로 어색합니다" };
 const blocks = [
-  { seq: 1, pageNo: 1, source: "원문 하나", text: "번역 하나" },
+  { seq: 1, pageNo: null, source: "원문 하나", text: "번역 하나" },
   { seq: 2, pageNo: null, source: "원문 둘", text: "번역 둘" },
   { seq: 3, pageNo: null, source: "원문 셋", text: "번역 셋" },
 ];

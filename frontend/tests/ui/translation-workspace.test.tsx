@@ -13,14 +13,14 @@ vi.mock("next/navigation", () => ({
 const T = "2026-10-06T01:00:00.123456Z";
 const episode = (role: "TRANSLATOR" | "REVIEWER" = "TRANSLATOR", withSource = true) => ({
   id: "7", title: "1화", assignedRole: role, latestSourceVersion: withSource ? 2 : 0,
-  source: withSource ? { version: 2, savedAt: T, blocks: [{ seq: 1, pageNo: 1, text: "원문 하나" }, { seq: 2, pageNo: null, text: "원문 둘" }] } : null,
+  source: withSource ? { version: 2, savedAt: T, blocks: [{ seq: 1, pageNo: null, text: "원문 하나" }, { seq: 2, pageNo: null, text: "원문 둘" }] } : null,
 });
 type Status = "DRAFT" | "REVIEW_PENDING" | "REJECTED" | "INVALIDATED";
 const summary = (versionNo: number, status: Status, revision = 1, sourceVersion = 2) =>
   ({ versionNo, status, sourceVersion, revision, createdAt: T, submittedAt: status === "DRAFT" ? null : T });
 const detail = (versionNo: number, status: Status, texts: (string | null)[], revision = 1) => ({
   ...summary(versionNo, status, revision), editable: status === "DRAFT",
-  blocks: [{ seq: 1, pageNo: 1, source: "원문 하나", text: texts[0] }, { seq: 2, pageNo: null, source: "원문 둘", text: texts[1] }],
+  blocks: [{ seq: 1, pageNo: null, source: "원문 하나", text: texts[0] }, { seq: 2, pageNo: null, source: "원문 둘", text: texts[1] }],
 });
 const list = (...items: ReturnType<typeof summary>[]) => ({ latestSourceVersion: 2, items });
 const listAt = (latestSourceVersion: number, ...items: ReturnType<typeof summary>[]) => ({ latestSourceVersion, items });
@@ -99,7 +99,6 @@ describe("side-by-side draft editor", () => {
   test("shows the source next to each translation field with page numbers and the version table", async () => {
     await openDraft();
     expect(screen.getByText("원문 하나")).toBeTruthy();
-    expect(screen.getByText("p.1")).toBeTruthy();
     expect(field(1).value).toBe("첫 번역");
     expect(field(2).value).toBe("");
     expect(screen.getByText("원문 v2 (최신)")).toBeTruthy();

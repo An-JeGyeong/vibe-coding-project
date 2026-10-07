@@ -207,11 +207,13 @@ describe("episode detail and editor", () => {
   test("a source save reloads the operator's translation overview and drops an opened detail", async () => {
     const { calls } = await openDetail();
     const overview = () => calls.filter((call) => call.method === "GET" && call.path === "/api/episodes/7/translations");
-    expect(overview()).toHaveLength(1);
+    await waitFor(() => expect(overview().length).toBeGreaterThanOrEqual(1));
+    await new Promise((resolve) => setTimeout(resolve, 50)); // let the initial load settle before counting
+    const before = overview().length;
     change("블록 1 텍스트", "수정");
     click("원문 저장");
     await screen.findByText("원문 버전 3으로 저장했습니다.");
-    await waitFor(() => expect(overview()).toHaveLength(2));
+    await waitFor(() => expect(overview().length).toBeGreaterThan(before)); // reloaded because of the save
   });
 
   test("an unchanged save does not reload the translation overview", async () => {

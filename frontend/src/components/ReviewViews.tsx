@@ -10,6 +10,7 @@ import type { PendingReviewList, ReviewDetail, ReviewVersionList } from "@/lib/r
 import { COMMENT_MAX, COMMENTS_MAX, REASON_MAX, validateComment, validateReason } from "@/lib/review/validation";
 import { STATUS_LABEL } from "@/lib/translation/types";
 import { translationProgress } from "@/lib/translation/progress";
+import { PagedBlocks } from "./PagedBlocks";
 import { ProgressBar } from "./ProgressBar";
 import { DecisionBox, decisionLabel, SideBySide } from "./ReviewParts";
 import { VersionCompare } from "./VersionCompare";
@@ -182,8 +183,8 @@ export function ReviewDetailView({ episodeId, versionNo }: { episodeId: string; 
     {notice && <p className={`alert alert-${notice.tone}`} role={notice.tone === "danger" || notice.tone === "warning" ? "alert" : "status"}>{notice.text}</p>}
     <section aria-label="원문과 번역 (읽기 전용)" className="card card-body shadow-sm mb-3">
       <h2 className="h5">원문과 번역 (읽기 전용)</h2>
-      <SideBySide blocks={detail.blocks} comments={detail.blockComments}
-        editor={mode === "reject" ? { values: comments, errors: commentErrors, max: COMMENT_MAX, onChange: (seq, text) => { setComments((previous) => ({ ...previous, [seq]: text })); setCommentErrors((previous) => { const next = { ...previous }; delete next[seq]; return next; }); } } : undefined} />
+      <PagedBlocks blocks={detail.blocks} resetKey={detail.versionNo} renderPage={(pageBlocks) => <SideBySide blocks={pageBlocks} comments={detail.blockComments}
+        editor={mode === "reject" ? { values: comments, errors: commentErrors, max: COMMENT_MAX, onChange: (seq, text) => { setComments((previous) => ({ ...previous, [seq]: text })); setCommentErrors((previous) => { const next = { ...previous }; delete next[seq]; return next; }); } } : undefined} />} />
     </section>
     {detail.decidable && <section aria-label="검수 결정" className="card card-body shadow-sm">
       <h2 className="h5">검수 결정</h2>

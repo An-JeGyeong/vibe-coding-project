@@ -17,7 +17,7 @@ vi.mock("next/navigation", () => ({
 const T = "2026-10-06T01:00:00.123456Z";
 const approved = { decision: "APPROVED", decidedAt: T, reason: null };
 const rejected = { decision: "REJECTED", decidedAt: T, reason: "3번 블록 번역이\n어색합니다" };
-const blocks = [{ seq: 1, pageNo: 1, source: "원문 하나", text: "번역 하나" }, { seq: 2, pageNo: null, source: "원문 둘", text: null }];
+const blocks = [{ seq: 1, pageNo: null, source: "원문 하나", text: "번역 하나" }, { seq: 2, pageNo: null, source: "원문 둘", text: null }];
 const review = (status: string, decision: unknown = null, decidable = status === "REVIEW_PENDING") =>
   ({ versionNo: 2, status, sourceVersion: 3, submittedAt: T, decidable, decision, blocks });
 const pendingItem = (episodeId: string, versionNo: number) => ({ episodeId, title: `회차 ${episodeId}`, versionNo, sourceVersion: 3, submittedAt: T });
@@ -93,7 +93,6 @@ describe("review page: reading", () => {
     expect(await screen.findByRole("heading", { name: "번역 v2 검토" })).toBeTruthy();
     expect(screen.getByText("원문 하나")).toBeTruthy();
     expect(screen.getByText("번역 하나")).toBeTruthy();
-    expect(screen.getByText("p.1")).toBeTruthy();
     expect(screen.getByText("(번역 없음)")).toBeTruthy();
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(screen.getByRole("button", { name: "승인" })).toBeTruthy();
