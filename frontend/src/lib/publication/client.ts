@@ -4,7 +4,7 @@ import type { EpisodeResult } from "@/lib/episodes/types";
 import { translationError } from "@/lib/translation/client";
 import type { TranslationStatus } from "@/lib/translation/types";
 import type {
-  Publication, PublicationEntry, PublicBlock, PublicEpisode, PublicEpisodeList, PublicEpisodeView, PublishOutcome,
+  HoldOutcome, Publication, PublicationEntry, PublicBlock, PublicEpisode, PublicEpisodeList, PublicEpisodeView, PublishOutcome,
 } from "./types";
 
 const id = (value: string) => encodeURIComponent(value);
@@ -20,13 +20,30 @@ export async function getPublication(episodeId: string, signal?: AbortSignal): P
   const body = result.value;
   if (!isRecord(body) || !Array.isArray(body.history)) return fail(INVALID_RESPONSE);
   const current = body.current === null ? null : entry(body.current);
+  const held = body.held === undefined || body.held === null ? null : entry(body.held); // absent in older responses
   const history = body.history.map(entry);
-  if ((body.current !== null && current === null) || !history.every((item): item is PublicationEntry => item !== null)) return fail(INVALID_RESPONSE);
-  return { ok: true, value: { current, history } };
+  if ((body.current !== null && current === null) || (body.held != null && held === null) || !history.every((item): item is PublicationEntry => item !== null)) return fail(INVALID_RESPONSE);
+  return { ok: true, value: { current, held, history } };
 }
 
 export async function publishTranslation(episodeId: string, versionNo: number, signal?: AbortSignal): Promise<EpisodeResult<PublishOutcome>> {
   const result = await call({ path: `/api/episodes/${id(episodeId)}/translations/${versionNo}/publish`, method: "POST", signal, ok: [200], onError: translationError });
+  if (!result.ok) return result;
+  const body = result.value;
+  if (!isRecord(body) || !isInt(body.versionNo) || !isStr(body.status) || !isTime(body.publishedAt)) return fail(INVALID_RESPONSE);
+  return { ok: true, value: { versionNo: body.versionNo, status: body.status as TranslationStatus, publishedAt: body.publishedAt } };
+}
+
+export async function holdPublication(episodeId: string, signal?: AbortSignal): Promise<EpisodeResult<HoldOutcome>> {
+  const result = await call({ path: `/api/episodes/${id(episodeId)}/publication/hold`, method: "POST", signal, ok: [200], onError: translationError });
+  if (!result.ok) return result;
+  const body = result.value;
+  if (!isRecord(body) || !isInt(body.versionNo) || !isStr(body.status) || !isTime(body.heldAt)) return fail(INVALID_RESPONSE);
+  return { ok: true, value: { versionNo: body.versionNo, status: body.status as TranslationStatus, heldAt: body.heldAt } };
+}
+
+export async function resumePublication(episodeId: string, signal?: AbortSignal): Promise<EpisodeResult<PublishOutcome>> {
+  const result = await call({ path: `/api/episodes/${id(episodeId)}/publication/resume`, method: "POST", signal, ok: [200], onError: translationError });
   if (!result.ok) return result;
   const body = result.value;
   if (!isRecord(body) || !isInt(body.versionNo) || !isStr(body.status) || !isTime(body.publishedAt)) return fail(INVALID_RESPONSE);

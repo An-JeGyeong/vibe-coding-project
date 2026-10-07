@@ -1,7 +1,8 @@
 import type { TranslationStatus } from "@/lib/translation/types";
 
 export type PublicationEntry = { versionNo: number; sourceVersion: number; publishedAt: string };
-export type Publication = { current: PublicationEntry | null; history: PublicationEntry[] };
+export type Publication = { current: PublicationEntry | null; held: PublicationEntry | null; history: PublicationEntry[] };
+export type HoldOutcome = { versionNo: number; status: TranslationStatus; heldAt: string };
 export type PublishOutcome = { versionNo: number; status: TranslationStatus; publishedAt: string };
 
 // Public (reader) shapes: only translated text, order, page and the publish time ever reach the reader UI.

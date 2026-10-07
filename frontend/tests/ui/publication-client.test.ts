@@ -11,7 +11,7 @@ describe("operator publication requests follow CONTRACTS 20.1", () => {
     const { calls } = mockFetch((call) => call.path.endsWith("/publish")
       ? json(200, { versionNo: 2, status: "PUBLISHED", publishedAt: T })
       : json(200, { current: entry, history: [entry, { versionNo: 1, sourceVersion: 2, publishedAt: T }] }));
-    expect(await getPublication("7")).toEqual({ ok: true, value: { current: entry, history: [entry, { versionNo: 1, sourceVersion: 2, publishedAt: T }] } });
+    expect(await getPublication("7")).toEqual({ ok: true, value: { current: entry, held: null, history: [entry, { versionNo: 1, sourceVersion: 2, publishedAt: T }] } });
     expect(await publishTranslation("7", 2)).toEqual({ ok: true, value: { versionNo: 2, status: "PUBLISHED", publishedAt: T } });
     expect(calls.map((call) => `${call.method} ${call.path}`)).toEqual(["GET /api/episodes/7/publication", "POST /api/episodes/7/translations/2/publish"]);
     for (const call of calls) {
@@ -24,7 +24,7 @@ describe("operator publication requests follow CONTRACTS 20.1", () => {
   test("no current publication is a valid answer; a malformed one is refused", async () => {
     storeToken();
     mockFetch(() => json(200, { current: null, history: [] }));
-    expect(await getPublication("7")).toEqual({ ok: true, value: { current: null, history: [] } });
+    expect(await getPublication("7")).toEqual({ ok: true, value: { current: null, held: null, history: [] } });
     for (const body of [{}, { current: {}, history: [] }, { current: null, history: [{ versionNo: "2" }] }]) {
       mockFetch(() => json(200, body));
       expect((await getPublication("7")).ok, JSON.stringify(body)).toBe(false);

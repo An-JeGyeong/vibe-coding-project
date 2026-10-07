@@ -4,8 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { episodeFailureMessage } from "@/lib/episodes/messages";
 import type { EpisodeFailure } from "@/lib/episodes/types";
-import { getPublication, publishTranslation } from "@/lib/publication/client";
-import { publicationFailureMessage } from "@/lib/publication/messages";
+import { getPublication, holdPublication, publishTranslation, resumePublication } from "@/lib/publication/client";
+import { holdResumeFailureMessage, publicationFailureMessage } from "@/lib/publication/messages";
 import type { Publication } from "@/lib/publication/types";
 import { getOperatorTranslation, listOperatorTranslations } from "@/lib/review/client";
 import type { OperatorTranslationDetail, OperatorTranslationList } from "@/lib/review/types";
@@ -26,6 +26,7 @@ export function TranslationOverviewPanel({ episodeId, refreshKey = 0 }: { episod
   const [view, setView] = useState<OperatorTranslationDetail | null>(null);
   const [viewError, setViewError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<number | null>(null);
+  const [confirmingState, setConfirmingState] = useState<"hold" | "resume" | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const activeLoad = useRef<AbortController | null>(null);
@@ -55,6 +56,7 @@ export function TranslationOverviewPanel({ episodeId, refreshKey = 0 }: { episod
     setView(null);
     setViewError(null);
     setConfirming(null);
+    setConfirmingState(null);
     void load();
     return () => activeLoad.current?.abort();
   }, [load, refreshKey]);
@@ -90,7 +92,28 @@ export function TranslationOverviewPanel({ episodeId, refreshKey = 0 }: { episod
     if (conflict) { setConfirming(null); await load(); }
   }
 
+  async function onHoldResume(action: "hold" | "resume") {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setNotice(null);
+    const result = action === "hold" ? await holdPublication(episodeId) : await resumePublication(episodeId);
+    busyRef.current = false;
+    setBusy(false);
+    if (result.ok) {
+      setConfirmingState(null);
+      setNotice({ tone: "success", text: action === "hold" ? "공개를 보류했습니다. 독자에게 더 이상 보이지 않습니다." : "공개를 재개했습니다. 독자에게 다시 공개됩니다." });
+      await load();
+      return;
+    }
+    if (result.failure.kind === "unauthorized") { handleUnauthorized(); return; }
+    const conflict = result.failure.kind === "state_conflict" || result.failure.kind === "not_found";
+    setNotice({ tone: conflict ? "warning" : "danger", text: holdResumeFailureMessage(result.failure, action) });
+    if (conflict) { setConfirmingState(null); await load(); }
+  }
+
   const current = publication?.current ?? null;
+  const held = publication?.held ?? null;
   return <section aria-label="번역 현황" className="card card-body shadow-sm mb-3">
     <h2 className="h5">번역 현황</h2>
     <p className="text-secondary small">모든 번역 버전을 확인합니다. 작성 중인 초안도 포함됩니다. 승인된 번역만 발행할 수 있습니다.</p>
@@ -105,7 +128,17 @@ export function TranslationOverviewPanel({ episodeId, refreshKey = 0 }: { episod
       {publicationFailure && <p className="text-danger small" role="alert">{publicationFailureMessage(publicationFailure)}</p>}
       {publication && (current
         ? <p className="mb-1">현재 공개 중: <strong>번역 v{current.versionNo}</strong> (기준 원문 v{current.sourceVersion}) · 발행 <time>{current.publishedAt}</time></p>
-        : <p className="mb-1 text-secondary">공개 중인 번역 없음</p>)}
+        : held ? <p className="mb-1">보류 중: <strong>번역 v{held.versionNo}</strong> (독자에게 보이지 않음) · 마지막 발행 <time>{held.publishedAt}</time></p>
+          : <p className="mb-1 text-secondary">공개 중인 번역 없음</p>)}
+      {publication && (current || held) && (confirmingState === null
+        ? <button type="button" className={`btn btn-sm ${current ? "btn-outline-warning" : "btn-outline-success"} mb-1`} disabled={busy}
+          onClick={() => { setNotice(null); setConfirmingState(current ? "hold" : "resume"); }}>{current ? "공개 보류" : "공개 재개"}</button>
+        : <div className="d-flex gap-2 align-items-center flex-wrap mb-1">
+          <span>{confirmingState === "hold" ? "보류하면 독자에게 더 이상 보이지 않습니다. 나중에 공개를 재개할 수 있습니다." : "재개하면 다시 독자에게 공개됩니다."}</span>
+          <button type="button" className="btn btn-sm btn-warning" disabled={busy} onClick={() => void onHoldResume(confirmingState)}>
+            {busy ? "처리 중…" : confirmingState === "hold" ? "보류 확정" : "재개 확정"}</button>
+          <button type="button" className="btn btn-sm btn-outline-secondary" disabled={busy} onClick={() => setConfirmingState(null)}>취소</button>
+        </div>)}
       {publication && publication.history.length > 0 && <details>
         <summary className="small">발행 이력 {publication.history.length}건</summary>
         <ul className="small mb-0">
@@ -118,7 +151,7 @@ export function TranslationOverviewPanel({ episodeId, refreshKey = 0 }: { episod
       <thead><tr><th>버전</th><th>상태</th><th>기준 원문</th><th>제출 시각 (UTC)</th><th>결정</th><th /></tr></thead>
       <tbody>
         {list.items.map((item) => <tr key={item.versionNo}>
-          <td>v{item.versionNo}{current?.versionNo === item.versionNo && <span className="badge text-bg-success ms-2">공개 중</span>}</td>
+          <td>v{item.versionNo}{current?.versionNo === item.versionNo && <span className="badge text-bg-success ms-2">공개 중</span>}{held?.versionNo === item.versionNo && <span className="badge text-bg-warning ms-2">보류 중</span>}</td>
           <td>{STATUS_LABEL[item.status]}</td>
           <td>{item.sourceVersion === list.latestSourceVersion ? `원문 v${item.sourceVersion} (최신)` : `원문 v${item.sourceVersion} (이전)`}</td>
           <td>{item.submittedAt ? <time>{item.submittedAt}</time> : "—"}</td>
@@ -132,6 +165,7 @@ export function TranslationOverviewPanel({ episodeId, refreshKey = 0 }: { episod
             {item.status === "APPROVED" && confirming === item.versionNo && <div className="mt-2 d-flex gap-2 align-items-center flex-wrap">
               <span>{current
                 ? `발행하면 독자에게 공개됩니다. 현재 공개 중인 v${current.versionNo}을 대체합니다. 발행할까요?`
+                : held ? `발행하면 독자에게 공개됩니다. 보류 중인 v${held.versionNo} 대신 공개됩니다. 발행할까요?`
                 : "발행하면 독자에게 공개됩니다. 발행할까요?"}</span>
               <button type="button" className="btn btn-success btn-sm" disabled={busy} onClick={() => void onPublish(item.versionNo)}>{busy ? "처리 중…" : "발행 확정"}</button>
               <button type="button" className="btn btn-outline-secondary btn-sm" disabled={busy} onClick={() => setConfirming(null)}>취소</button>
