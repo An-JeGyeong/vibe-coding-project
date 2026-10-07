@@ -985,3 +985,28 @@ backend/에서 격리 DB_URL 및 COMPOSE_PROJECT_NAME/COMPOSE_FILE을 process �
 커밋 관계: V32는 276a79b, 테스트는 6cd5835. Codex가 작성해 stage한 백엔드 Java 6개(review/translation의 Dao·Models·Service)가 공유 작업 트리의 병행 프런트 커밋 1a75e64에 함께 포함됐습니다. 별도 코드 커밋을 시도할 때 이미 포함된 것을 확인했고, 이력 재작성 없이 해당 커밋을 보존했습니다. 프런트 파일은 Codex가 수정하지 않았으며 프런트 테스트 결과로 이 백엔드 검증을 대신하지 않았습니다. 이후 테스트/문서는 대상 파일만 stage·즉시 --only 커밋했습니다.
 
 정리: ID·이름을 대조한 이번 MySQL만 docker stop --timeout 10으로 종료(코드 0, --rm 자동 정리). 검증 포트 3321 리스너 0, 기존 3306·8080·8081·3000 리스너도 종료 시 0. 기존 vibe-coding-project-mysql-1 컨테이너·볼륨은 보존했습니다. 임시 환경변수는 실행한 PS 프로세스 종료로 소멸, 비밀번호·토큰 값은 문서/Git에 포함하지 않았습니다. PROJECT_CONTEXT.md의 줄바꿈 M 보존. 증빙은 ignored backend/build/verification/review-comments-1e2f20c의 로그·XML·스냅샷에 보관했습니다. 실제 브라우저 연동은 10/12 통합 검증으로 이월, 개발 DB V32 적용은 별도 사용자 승인 전까지 미적용입니다.
+
+### 작업 이력 조회 백엔드 — 2026-10-07 (Codex 직접 실행)
+
+기준: 460ebf1의 CONTRACTS.md 24절·D-052. 병행 프런트 커밋 47e46a0은 보존했고 frontend/는 수정하거나 검증하지 않았습니다. 코드 519b611(신규 history의 Controller·Service·DAO·Models·Failure 및 AuthSecurity/AuthErrors 등록), 신규 테스트 a08a069. 기존 테스트·V1~V32·인덱스는 변경하지 않았습니다.
+
+GET /api/history는 OPERATOR 전용이며 domain_audit의 허용된 메타데이터만 SELECT합니다. actor/ASSIGNED subject는 id·displayName만, 번역 이벤트는 내부 번역 ID 대신 회차 안 version_no를 반환하고, 제목은 현재 회차 제목입니다. 원문·번역 본문·반려 사유·블록 코멘트·토큰·IP·auth_audit를 조회 응답에 포함하지 않습니다. occurred_at DESC, id DESC로 정렬하고 회차·이벤트 필터 후 total/페이지를 계산합니다. 미정의/반복 쿼리·잘못된 값은 400, 없는 회차는 빈 목록 200. 본문 있는 GET은 JSON/비JSON 모두 무시합니다(24.1). readOnly 트랜잭션이며 조회 시 감사 행을 만들거나 갱신하지 않습니다. 다른 역할은 기존 ACCESS_DENIED 인증 감사를 기록한 뒤 403, 비로그인은 401. DB 장애는 상세 없는 503 SERVICE_UNAVAILABLE, Cache-Control: no-store 및 기존 오류 형식 유지.
+
+환경: PowerShell 5.1.26100.9444, Docker Linux, MySQL 8.4.11. mangabridge-history-460ebf1(--rm, tmpfs), 127.0.0.1:3322, history_verify만 사용했습니다. 앱 계정 SELECT 1 및 Docker healthy 확인, 변경 없는 V1~V32 적용·validate 후 무작위 임시 비밀번호로 데모 4계정 시드. 개발 DB(3306) 연결·조회·변경 없음. AUTH_CLIENT_IP_MODE 미설정. 별도 API/프런트 서버나 실제 브라우저는 미실행이며 테스트 서버는 RANDOM_PORT입니다.
+
+backend/에서 process 환경변수 DB_URL·DB_USERNAME·DB_PASSWORD·CORS_ALLOWED_ORIGINS 및 격리 COMPOSE_PROJECT_NAME/COMPOSE_FILE을 주입한 실제 명령:
+
+```powershell
+.\gradlew.bat -I build/verification/schema-tool.init.gradle schemaMigrate --no-daemon
+.\gradlew.bat bootRun --args='--demo-auth-seed=true --spring.main.web-application-type=none' --no-daemon
+.\gradlew.bat build integrationTest --no-daemon --rerun-tasks
+.\gradlew.bat build integrationTest --no-daemon --rerun-tasks
+```
+
+연속 전체 실행 2회: 첫 실행 14:14:13~14:17:35 KST, 사용자 재개 후 두 번째 18:55:22~18:58 KST. 각각 종료 코드 0, BUILD SUCCESSFUL(3m 22s / 3m 21s), 총 132개(단위 20 + 실제 MySQL 통합 112), 실패·오류·skipped 0. 두 실행 사이 백엔드 코드·테스트 내용 변경 없음. 신규 HistoryIntegrationTest 8개는 실제 생성→원문→배정→번역→반려/코멘트→재제출/승인→원문 변경/승인 무효화→새 승인본 발행→보류/재개로 11종 이벤트를 검증했습니다. 필드 정확 일치·현재 제목·계정 최소 필드·sourceVersion·translationVersionNo·subject·민감 내용/인증 감사 비노출 및 조회 전후 domain_audit/auth_audit 전체 행 내용 불변 확인. 정렬 동률·페이지 1/50/100·초과/매우 큰 offset·필터 조합·빈 목록·반복/미정의 쿼리·nullable 참조·역할 매트릭스/헤더·본문 위조·안전한 503(쿼리 장애 및 실제 연결 불가)·허용 CORS도 통과했습니다. GET 본문 검증은 JDK HttpClient로 실제 본문을 전송하여 JSON·text/plain·form 및 깨진 JSON도 무시되는지 확인했습니다. 기존 회귀 테스트 파일은 변경하지 않았습니다.
+
+검증 전/첫 실행 후/두 번째 후: demo_account 4/4/4(전체 내용의 집계 해시 동일), auth_login_limit 0/0/0(내용 동일), auth_token·auth_audit·episode·episode_source_version·source_block·domain_audit·episode_assignment·translation_version·translation_block·review_decision·publication·review_block_comment 모두 0/0/0. Flyway 성공 이력 32/32/32. 스냅샷 정확 일치. 테스트가 만든 계정·회차·버전·블록·결정·코멘트·발행·감사·토큰만 정리하며 기존 데이터/공유 IP 제한 키를 변경하지 않습니다. 개발 DB 전후 행 수는 미검증(연결/변경 없음).
+
+커밋 직전 git diff --cached --name-only 및 --check로 대상 목록/혼입 여부를 확인하고, 명시적으로 지정한 파일만 stage 후 즉시 git commit --only로 코드·테스트·README를 분리했습니다. 코드/테스트 staged 목록은 각각 7개/1개 대상과 일치했고 다른 파일 혼입 없음. PROJECT_CONTEXT.md M은 수정·stage·restore하지 않았습니다. 비밀번호·토큰 값은 문서/Git에 넣지 않았으며 임시 환경변수는 실행한 PS 프로세스 종료로 소멸했습니다.
+
+정리: 이름·ID를 대조한 이번 MySQL만 docker stop --timeout 10으로 종료(코드 0, --rm 자동 정리), 3322 및 기존 3306·8080·8081·3000 리스너 0. 기존 vibe-coding-project-mysql-1 컨테이너·볼륨 보존, 기존 서비스 종료·push·이력 재작성 없음. 증빙은 ignored backend/build/verification/history-460ebf1의 로그·XML·스냅샷에 보관했습니다. 발견된 백엔드 결함/미해결 사항 없음. 실제 브라우저·프런트 연동은 이번 범위에서 미검증이며 10/12 최종 통합 검증으로 이월합니다.
