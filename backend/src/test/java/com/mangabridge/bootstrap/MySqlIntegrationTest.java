@@ -37,7 +37,7 @@ class MySqlIntegrationTest {
         assertThat(response.getBody().status()).isEqualTo("UP");
         assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store");
         java.time.Instant.parse(response.getBody().time());
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("32");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("33");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE version = '1' AND success = 1", Integer.class)).isEqualTo(1);
         String body = http.getForObject("/api/health", String.class);
         assertThat(new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(response.getBody()).size()).isEqualTo(3);
@@ -63,7 +63,7 @@ class MySqlIntegrationTest {
                 .isEqualTo("utf8mb4");
         assertThat(jdbc.queryForObject("SELECT DEFAULT_COLLATION_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = DATABASE()", String.class))
                 .isEqualTo("utf8mb4_0900_ai_ci");
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME NOT IN ('flyway_schema_history','demo_account','auth_token','auth_login_limit','auth_audit','episode','episode_source_version','source_block','domain_audit','episode_assignment','translation_version','translation_block','review_decision','publication','review_block_comment')", Integer.class))
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME NOT IN ('flyway_schema_history','demo_account','auth_token','auth_login_limit','auth_audit','episode','episode_source_version','source_block','domain_audit','episode_assignment','translation_version','translation_block','review_decision','publication','review_block_comment','source_page_image')", Integer.class))
                 .as("only approved domain tables exist").isZero();
         HikariDataSource pool = (HikariDataSource) source;
         assertThat(pool.getConnectionTimeout()).isEqualTo(2000);
