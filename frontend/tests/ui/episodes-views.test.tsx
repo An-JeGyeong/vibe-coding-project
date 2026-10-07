@@ -166,6 +166,11 @@ describe("episode detail and editor", () => {
     expect(screen.getByRole("button", { name: "v1 보기" })).toBeTruthy();
   });
 
+  test("the detail page links to the work history of this episode", async () => {
+    await openDetail();
+    expect(screen.getByRole("link", { name: "이 회차의 작업 이력" }).getAttribute("href")).toBe("/history?episodeId=7");
+  });
+
   test("a new episode without source starts with one empty block", async () => {
     server({ detail: () => json(200, detailBody(0)), versions: () => json(200, { items: [] }) });
     renderWithAuth(<EpisodeDetailPage />);

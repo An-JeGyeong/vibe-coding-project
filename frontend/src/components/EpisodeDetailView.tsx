@@ -139,7 +139,7 @@ export function EpisodeDetailView({ episodeId }: { episodeId: string }) {
   if (!detail) return null;
 
   return <>
-    <p><Link href="/episodes">← 회차 목록</Link></p>
+    <p className="d-flex justify-content-between"><Link href="/episodes">← 회차 목록</Link><Link href={`/history?episodeId=${encodeURIComponent(episodeId)}`}>이 회차의 작업 이력</Link></p>
     <h1 className="h2 mb-1">{detail.title}</h1>
     <p className="text-secondary">{detail.latestSourceVersion === 0 ? "아직 저장된 원문이 없습니다." : `최신 원문 버전: v${detail.latestSourceVersion}`}</p>
     {loadFailure && <div className="alert alert-warning" role="alert">{episodeFailureMessage(loadFailure)}</div>}
