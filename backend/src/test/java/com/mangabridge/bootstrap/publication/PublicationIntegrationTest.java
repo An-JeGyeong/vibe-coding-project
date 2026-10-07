@@ -144,7 +144,8 @@ class PublicationIntegrationTest {
         assertThat(((Number)audit.get("actor_account_id")).longValue()).isEqualTo(users.get(Role.OPERATOR).id());
         assertThat(((Number)audit.get("translation_version_id")).longValue()).isEqualTo(target);assertThat(((Number)audit.get("source_version")).intValue()).isEqualTo(1);
         var publication=get("/api/episodes/"+id+"/publication").getBody();
-        assertThat(publication.fieldNames()).toIterable().containsExactlyInAnyOrder("current","history");
+        assertThat(publication.fieldNames()).toIterable().containsExactlyInAnyOrder("current","held","history");
+        assertThat(before.get("held").isNull()).isTrue();assertThat(publication.get("held").isNull()).isTrue();
         assertThat(publication.get("current").fieldNames()).toIterable().containsExactlyInAnyOrder("versionNo","sourceVersion","publishedAt");
         assertThat(publication.get("history").size()).isEqualTo(1);
         var response=publicGet(id);assertThat(response.getStatusCode().value()).isEqualTo(200);assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store");
