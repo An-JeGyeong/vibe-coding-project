@@ -799,3 +799,54 @@ NOT NULL 규칙은 **모든 도메인·인증 테이블**에 적용한다. NULL 
 - backend(실제 MySQL): 20.3 표의 테스트, 역할 매트릭스(발행·publication 조회 × 4개 역할 + 비로그인, 역할 위조·본문 role 포함), 공개 API의 인증 무관 동작(헤더 없음·유효·만료·변조 토큰·READER 모두 200), 승인된 버전을 발행하면 감사 `TRANSLATION_PUBLISHED` 정확히 1건과 publication 1행·포인터 정합, 발행 후 운영자의 원문 변경이 공개 응답을 바꾸지 않음, 공개 응답에 원문·계정·상태·반려 사유가 없음, 기존 EpisodeSource·Assignment·Translation·Review·인증 통합 테스트는 수정 없이 통과(필드 추가가 없으므로 단언 변경 없음), 오류 비노출·비JSON 400, 기존 회귀·빌드. 통합 테스트가 만든 행만 정확히 정리하고 데모 계정·기존 데이터를 바꾸지 않으며 연속 2회 통과·전후 행 수를 비교한다.
 - frontend: 20.4 전부(운영자의 공개 상태·발행 확인·409 처리·중복 제출 방지, 독자 목록·상세·페이지 이동, 토큰 미첨부 확인, 404·503·통신 오류, 역할별 메뉴, 독자 화면의 비노출), 기존 회귀, 타입·빌드. 모킹 테스트 통과는 실제 연동 성공이 아니다.
 - **최종 통합 실제 연동(Codex, 격리 환경, 한 번에 수행 — 2026-10-07 사용자 결정으로 검증을 마지막에 합친다)**: ① Review 프런트 수정 4건(번역가 목록의 사유 요약, 원문 저장 후 운영자 번역 현황 갱신, 409+404 안내 병기, 교체된 감수자의 즉시 404 화면) ② 로그인 제한 제거(오입력 7회 이상 후에도 차단 없이 로그인 성공, 429 없음, 19절) ③ 발행: 운영자가 승인된 버전 발행(확인 단계) → 공개 상태 표시 → 비로그인 브라우저에서 `/read` 목록과 `/read/{id}`에 번역 블록만 보이고 원문·초안·상태가 없음 → 번역가가 새 번역을 제출·승인·미발행 상태일 때 공개 화면은 그대로 → 운영자가 원문을 수정해도 공개 화면은 그대로 → 새 승인본을 발행하면 공개 내용이 교체되고 이전 버전은 `PUBLISHED`로 남음 → 미발행 회차 URL은 404 안내 → 번역가·감수자·독자 계정으로 발행 시도 403(콘솔 fetch) → 만료·잘못된 토큰으로도 공개 API 200 → 감사 `TRANSLATION_PUBLISHED`와 publication 행·포인터 정합을 확인한다.
+
+## 21. Publication 보강 — 발행 보류와 재발행 — PROPOSED (2026-10-07, 사용자 승인 대기)
+
+작성: Claude Code. 구현: backend=Codex, frontend=Claude Code. 근거: PROJECT_CONTEXT.md 4절 선택 기능 4번(필수 기능 완료 후 사용자 지시), 6절 상태 전이(`PUBLISHED → ON_HOLD`, `ON_HOLD → PUBLISHED`), DECISIONS.md D-049(이 절과 함께 승인 대기). 20절의 발행·공개 API 규칙은 아래에서 **대체하는 부분만** 바뀐다. **이 노드는 마이그레이션이 없다**(`ON_HOLD`는 V12의 상태 CHECK에 이미 있고 `publication`·감사는 기존 구조를 쓴다).
+
+### 범위
+- 포함: 운영자의 공개 보류(공개 중인 회차를 독자에게서 내림), 공개 재개(같은 번역 버전을 다시 공개), 보류 상태 조회, 감사.
+- 제외: 보류 사유 저장, 예약 보류·예약 발행, 독자에게 보류 사실 표시, 발행 이력 삭제.
+
+### 21.1 20절에서 대체되는 것 (이 목록에 없는 20절 규칙은 변경하지 않는다)
+- D-048의 "발행 취소·보류·재공개는 두지 않는다"와 20절 범위의 "발행 취소·보류·재공개 제외"는 보류·재개에 한해 대체된다. **발행 취소(공개본 삭제·이력 삭제)는 여전히 없다.**
+- `GET /api/episodes/{id}/publication`의 응답에 `held` 필드를 추가한다(가산적 변경). 기존 필드와 동작은 바뀌지 않는다.
+
+### 21.2 API
+시각은 UTC ISO-8601 `Z`, ID는 문자열, 모든 응답 `Cache-Control: no-store`. 경로 id가 `^[1-9][0-9]{0,17}$`가 아니거나 회차가 없으면 404 NOT_FOUND. 권한은 OPERATOR뿐(다른 역할 403 FORBIDDEN·ACCESS_DENIED 감사, 비로그인 401). 본문이 있으면 400.
+| API | 요청 | 성공 응답 |
+|---|---|---|
+| POST /api/episodes/{id}/publication/hold | 본문 없음 | 200 {"versionNo","status":"ON_HOLD","heldAt"} |
+| POST /api/episodes/{id}/publication/resume | 본문 없음 | 200 {"versionNo","status":"PUBLISHED","publishedAt"} |
+| GET /api/episodes/{id}/publication (확장) | — | 200 {"current":null\|{…},"held":null\|{"versionNo","sourceVersion","publishedAt"},"history":[…]} |
+- `current`는 포인터가 가리키는 버전이 `PUBLISHED`일 때만 값이 있고, `held`는 그 버전이 `ON_HOLD`일 때만 값이 있다(둘 중 많아야 하나가 non-null). `held.publishedAt`은 그 버전의 가장 최근 발행·재개 시각이다. 포인터가 없으면 둘 다 null.
+- 오류 코드: 400 INVALID_REQUEST, 401, 403, 404, 409 STATE_CONFLICT, 503, 500. 오류 형식은 12절과 같고 추가 필드는 `currentStatus`뿐이다.
+
+### 21.3 규칙 (모든 변경은 episode 행 `SELECT … FOR UPDATE` 후 하나의 트랜잭션)
+- **보류(hold)**: 회차의 `published_translation_version_id` 포인터가 있고 그 버전이 `PUBLISHED`일 때만 가능하다. 효과: 버전 상태 `ON_HOLD`, 감사 `PUBLICATION_HELD`(actor, episode_id, source_version, translation_version_id). **포인터는 바꾸지 않고 `publication` 행도 만들지 않는다.** 포인터가 없거나 이미 `ON_HOLD`이면 409 STATE_CONFLICT(`currentStatus`는 포인터 버전의 상태, 포인터가 없으면 필드 생략).
+- **재개(resume)**: 포인터가 있고 그 버전이 `ON_HOLD`일 때만 가능하다. 효과: 버전 상태 `PUBLISHED`, **`publication` 행 INSERT**(같은 번역 버전, 그 버전의 `source_version_no`, published_by=운영자, published_at=지금 — 재공개 이력이며 `GET …/publication`의 `history`에 한 건 늘고, 공개 목록·상세의 `publishedAt`은 재개 시각이 된다), 감사 `PUBLICATION_RESUMED`. 포인터가 없거나 `PUBLISHED`이면 409(같은 규칙). 재개는 원문 버전이 최신인지 검사하지 않는다(공개본은 원문이 바뀌어도 유지된다는 20절 규칙과 같다).
+- **독자 영향**: 보류 중인 회차는 공개 목록에서 빠지고 공개 상세는 20절의 미발행과 **같은 404 NOT_FOUND**이다(보류 사실을 독자에게 알리지 않는다). 공개 쿼리는 이미 "포인터 버전이 `PUBLISHED`"일 때만 공개하므로 별도 수정 없이 성립해야 하며, 테스트로 증명한다. 재개하면 같은 내용이 다시 보인다.
+- **보류 중의 발행**: 20절의 발행 API로 다른 `APPROVED` 버전을 발행하면 포인터가 새 버전으로 바뀌고 보류 중이던 버전은 `ON_HOLD`로 남는다(다시 재개할 수 없고 포인터에서 떠난다). 보류 중인 버전 자체를 발행 API로 발행하면 409(`currentStatus`=ON_HOLD)이며, 되돌리려면 재개를 쓴다.
+- **원문 변경과의 관계**: 원문 저장은 `PUBLISHED`와 `ON_HOLD` 버전을 건드리지 않는다(17.3은 DRAFT·REVIEW_PENDING·APPROVED만 무효화). 보류 중 원문이 바뀌어도 재개할 수 있다.
+- 감수자·번역가 API의 기존 동작은 바뀌지 않는다(`ON_HOLD`는 감수자에게 보이지 않는다, 번역가에게는 "보류"로 보인다 — 기존 상태 표시 그대로).
+- 동시 요청: 같은 회차에 hold·resume·publish가 동시에 오면 `FOR UPDATE`로 직렬화되고, 조건을 만족하지 못한 요청은 409이다. 같은 hold를 동시에 여러 번 보내면 정확히 하나만 성공한다.
+- 감사 저장 실패는 전체 롤백과 503. 롤백 시 상태·`publication`·포인터가 모두 변하지 않아야 한다.
+
+### 21.4 처리 함수
+| 이름 | 입력 → 출력 | 권한 | 상태 변경 | 실패 | 필수 테스트 |
+|---|---|---|---|---|---|
+| holdPublication | 호출자, episodeId → 결과 | OPERATOR | 포인터 버전 PUBLISHED→ON_HOLD, 감사 | 404/409/403/503 | 정상(상태·감사 1건·포인터 불변·publication 행 불변), 포인터 없음 409, 이미 보류 409, 동시 hold 하나만 성공, 감사 장애 롤백 |
+| resumePublication | 호출자, episodeId → 결과 | OPERATOR | ON_HOLD→PUBLISHED, publication INSERT, 감사 | 404/409/403/503 | 정상(상태·publication 1행 증가·감사·history 증가·publishedAt 갱신), 포인터 없음·PUBLISHED 409, 보류 중 원문 변경 후 재개 가능, 감사 장애 롤백 |
+| getPublication (확장) | episodeId → current/held/history | OPERATOR | 없음 | 404/401/403/503 | 발행 전 둘 다 null, 발행 후 current, 보류 후 held, 재개 후 current·history 순서 |
+| 공개 API 상호작용 | — | 누구나 | 없음 | — | 보류 중 목록에서 제외·상세 404(미발행과 동일 응답 본문), 재개 후 같은 내용·새 publishedAt, 보류 중 다른 승인 버전 발행 시 새 내용으로 교체 |
+
+### 21.5 프런트 계약 (Claude Code)
+- **운영자** `/episodes/{id}` "번역 현황"의 "공개 상태": 공개 중이면 "공개 보류" 버튼, 보류 중이면 "보류 중: 번역 vN (독자에게 보이지 않음)"과 "공개 재개" 버튼을 보인다. 번역 목록의 해당 버전에는 보류 중 표시를 붙인다. 보류·재개는 모두 확인 단계를 거친다(보류: "보류하면 독자에게 더 이상 보이지 않습니다. 나중에 공개를 재개할 수 있습니다.", 재개: "재개하면 다시 독자에게 공개됩니다."). 성공하면 공개 상태와 번역 목록을 다시 불러온다.
+- 오류: 409는 현재 상태 안내(이미 보류됨·이미 공개 중·공개된 번역 없음)와 새로고침, 404·403·401·503·통신 오류는 기존 방식(입력·확인 단계 유지 재시도). 중복 제출 방지·늦은 응답 무시. 보류 중 다른 승인 버전을 발행하는 확인 문구에는 "보류 중인 vN 대신 공개됩니다"를 포함한다.
+- **독자** 화면은 변경하지 않는다(보류 중 회차는 미공개와 같은 404 안내).
+
+### 21.6 파일 소유권·완료 조건
+- Codex 변경: backend/src/main(`publication` 패키지 확장, 보안·오류 처리 필요 시), backend/src/test, README 기록. **마이그레이션 없음.** 기존 EpisodeSource·Assignment·Translation·Review·인증 통합 테스트는 수정 없이 통과해야 하고, 기존 Publication 통합 테스트는 `GET …/publication` 응답 필드 목록 단언에 `held`를 추가하고 `held:null` 검증을 더하는 것만 허용한다(가산적 필드 추가와 필드 목록 정확 일치 단언은 양립하지 않는다 — 18절 정정과 같은 처리).
+- Claude Code 변경: frontend/src, frontend/tests/ui. 변경 금지: V1~V31, 기존 API의 기존 필드·동작(`held` 추가 제외), PROJECT_CONTEXT.md, 서로의 영역.
+- 테스트: 21.4 표, 역할 매트릭스(hold·resume × 4개 역할 + 비로그인), 본문 있으면 400, 없는 회차 404, 오류 비노출, 기존 회귀·빌드, 연속 2회 통과·전후 행 수 비교. frontend는 21.5 전부와 기존 회귀·타입·빌드.
+- **실제 브라우저 검증은 한 번만, 최소 시나리오로**: 운영자 발행 → 공개 보류(확인 취소 시 요청 없음, 확정 후 `/read` 목록에서 사라지고 `/read/{id}`가 404 안내) → 보류 중 원문 수정 후 공개 재개 → `/read/{id}`가 같은 내용으로 복귀하고 발행 이력이 한 건 늘어남 → 보류 중 다른 승인 버전 발행 시 공개 내용 교체 → 번역가·감수자·독자의 hold/resume 403(HTTP 확인) → 감사 `PUBLICATION_HELD`·`PUBLICATION_RESUMED`와 상태·publication 행 정합.
