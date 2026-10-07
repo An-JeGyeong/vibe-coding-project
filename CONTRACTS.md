@@ -862,7 +862,7 @@ NOT NULL 규칙은 **모든 도메인·인증 테이블**에 적용한다. NULL 
 ### 22.1 스키마 — V32 (파일당 DDL 하나, InnoDB·utf8mb4·UTC DATETIME(6))
 `review_block_comment`: id BIGINT AUTO_INCREMENT PK, review_decision_id BIGINT NOT NULL, translation_version_id BIGINT NOT NULL, source_seq INT NOT NULL, body VARCHAR(300) NOT NULL, created_at DATETIME(6) NOT NULL.
 - **모든 컬럼 NOT NULL**(NULL 허용 목록 변경 없음, 스키마 lint 테스트 통과). `CHECK (CHAR_LENGTH(body) BETWEEN 1 AND 300)`. `UNIQUE (review_decision_id, source_seq)`(한 결정에서 같은 블록에 의견 하나).
-- FK: review_decision_id → review_decision(id), **(translation_version_id, source_seq) → translation_block(translation_version_id, source_seq)**(의견은 그 버전에 실제로 있는 블록만 가리킨다), review_decision(id)가 같은 번역 버전임을 보장하도록 `review_decision`에 UNIQUE(id, translation_version_id)를 이미 쓸 수 없으면 서비스 검사와 테스트로 막는다(DB 제약이 어려우면 구현을 멈추고 제안). 모두 ON DELETE/UPDATE RESTRICT.
+- FK: review_decision_id → review_decision(id), **(translation_version_id, source_seq) → translation_block(translation_version_id, source_seq)**(의견은 그 버전에 실제로 있는 블록만 가리킨다), 코멘트의 `translation_version_id`가 그 결정(`review_decision_id`)의 번역 버전과 같다는 것은 `review_decision`에 `UNIQUE(id, translation_version_id)`가 없으므로 **DB 제약 없이 서비스 검사(코멘트 INSERT 전에 결정 행의 번역 버전과 일치 확인)와 통합 테스트로 보장한다**(2026-10-07 Codex 질의에 대한 정정: 이 경우 구현을 멈추지 않는다). 모두 ON DELETE/UPDATE RESTRICT.
 - 같은 결정에는 반려(REJECTED)에만 코멘트가 붙는다(서비스 규칙, 승인 결정에는 행이 생기지 않는다).
 
 ### 22.2 API 변경 (모두 가산적, 기존 필드·동작 유지)
