@@ -8,6 +8,7 @@ import { createTranslation, getTranslation, listTranslations, requestAiDraft, sa
 import { STATUS_LABEL, type TranslationDetail, type TranslationList } from "@/lib/translation/types";
 import { validateTranslationText } from "@/lib/translation/validation";
 import { translationProgress } from "@/lib/translation/progress";
+import { PageImageSlot, usePageImages } from "./PageImage";
 import { PagedBlocks } from "./PagedBlocks";
 import { ProgressBar } from "./ProgressBar";
 import { DecisionBox, decisionLabel, decisionSummary } from "./ReviewParts";
@@ -91,6 +92,7 @@ export function TranslationWorkspace({ episodeId, onLatestSourceVersion }: { epi
   }, [load]);
 
   textsRef.current = texts;
+  const images = usePageImages("mine", episodeId, !!detail && detail.blocks.some((block) => block.pageNo !== null));
   const dirty = !!detail && detail.editable && detail.blocks.some((block) => (texts[block.seq] ?? "") !== (block.text ?? ""));
 
   // Shared outcome handling for a failed action (401 signs out, conflicts offer a reload, anything else is a fixed message).
@@ -245,7 +247,7 @@ export function TranslationWorkspace({ episodeId, onLatestSourceVersion }: { epi
           : detail.status === "INVALIDATED" ? "원문이 바뀌어 무효화된 번역입니다. 읽기 전용이며, 새 번역을 시작할 수 있습니다."
           : "읽기 전용입니다."}
       </p>
-      <PagedBlocks blocks={detail.blocks} resetKey={detail.versionNo} note={(group) => {
+      <PagedBlocks blocks={detail.blocks} resetKey={detail.versionNo} imageSlot={(pageNo) => <PageImageSlot scope="mine" episodeId={episodeId} pageNo={pageNo} images={images} />} note={(group) => {
         const done = translationProgress(group, detail.editable ? texts : undefined);
         const gap = missing.some((seq) => group.some((block) => block.seq === seq));
         return `번역 ${done.done}/${done.total} 블록${gap ? " · 번역이 필요한 블록 있음" : ""}`;

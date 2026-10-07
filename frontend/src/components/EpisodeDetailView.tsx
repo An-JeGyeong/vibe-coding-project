@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AssignmentPanel } from "@/components/AssignmentPanel";
+import { PageImagesPanel } from "@/components/PageImagesPanel";
 import { TranslationOverviewPanel } from "@/components/TranslationOverviewPanel";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { getEpisode, getVersion, listVersions, saveSource } from "@/lib/episodes/client";
@@ -145,6 +146,8 @@ export function EpisodeDetailView({ episodeId }: { episodeId: string }) {
     {loadFailure && <div className="alert alert-warning" role="alert">{episodeFailureMessage(loadFailure)}</div>}
 
     <AssignmentPanel episodeId={episodeId} />
+    {detail.source && <PageImagesPanel key={detail.latestSourceVersion} episodeId={episodeId}
+      pageNumbers={[...new Set(detail.source.blocks.flatMap((block) => (block.pageNo === null ? [] : [block.pageNo])))].sort((a, b) => a - b)} />}
     <TranslationOverviewPanel episodeId={episodeId} refreshKey={sourceSaves} />
 
     <section aria-label="원문 편집" className="card card-body shadow-sm mb-3">

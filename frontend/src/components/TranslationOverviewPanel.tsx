@@ -11,6 +11,7 @@ import { getOperatorTranslation, listOperatorTranslations } from "@/lib/review/c
 import type { OperatorTranslationDetail, OperatorTranslationList } from "@/lib/review/types";
 import { STATUS_LABEL } from "@/lib/translation/types";
 import { translationProgress } from "@/lib/translation/progress";
+import { PageImageSlot, usePageImages } from "./PageImage";
 import { PagedBlocks } from "./PagedBlocks";
 import { ProgressBar } from "./ProgressBar";
 import { DecisionBox, decisionLabel, SideBySide } from "./ReviewParts";
@@ -116,6 +117,7 @@ export function TranslationOverviewPanel({ episodeId, refreshKey = 0 }: { episod
     if (conflict) { setConfirmingState(null); await load(); }
   }
 
+  const images = usePageImages("operator", episodeId, !!view && view.blocks.some((block) => block.pageNo !== null));
   const current = publication?.current ?? null;
   const held = publication?.held ?? null;
   return <section aria-label="번역 현황" className="card card-body shadow-sm mb-3">
@@ -185,7 +187,7 @@ export function TranslationOverviewPanel({ episodeId, refreshKey = 0 }: { episod
       {view.invalidatedAt && <p className="text-secondary small">무효화 시각 (UTC): <time>{view.invalidatedAt}</time></p>}
       <DecisionBox decision={view.decision} />
       <ProgressBar progress={translationProgress(view.blocks)} />
-      <PagedBlocks blocks={view.blocks} resetKey={view.versionNo} renderPage={(pageBlocks) => <SideBySide blocks={pageBlocks} comments={view.blockComments} />} />
+      <PagedBlocks blocks={view.blocks} resetKey={view.versionNo} imageSlot={(pageNo) => <PageImageSlot scope="operator" episodeId={episodeId} pageNo={pageNo} images={images} />} renderPage={(pageBlocks) => <SideBySide blocks={pageBlocks} comments={view.blockComments} />} />
     </div>}
   </section>;
 }
