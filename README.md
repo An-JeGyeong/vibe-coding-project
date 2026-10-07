@@ -924,3 +924,28 @@ B2 재현: 운영자가 승인 A v4 상세를 열고 원문을 바꿔 저장하�
 자동화 한계: 비밀번호 초기 입력은 사용자 수행, 이후 사용자 추가 승인으로 자동 입력. 대부분 의미 기반 UI click/fill, 사용자 탭 일부는 Playwright DOM이 비어 AX 숫자 조작으로 수행했습니다. 브라우저 상태/visibility를 강제로 바꾸거나 평가 코드로 앱 상태·스토리지·fetch를 주입하지 않았습니다. 두 탭 발행/교체 검증은 확인 단계를 먼저 열고 순차 처리한 오래된 화면 충돌이며 동시 네트워크 부하 시험이 아닙니다. C6/D7의 PowerShell 보완은 PS7 HTTP 응답 판독으로 실행했고 PS5.1 브라우저 콘솔 검증이라고 보고하지 않습니다. 초기 보완 요청의 HTTP 오류 응답 판독이 실패한 뒤 -SkipHttpErrorCheck로 재실행했습니다(제품 결함 아님). 최초 사용자 감수자/운영자 로그인은 요청한 자동화 탭 대신 사용자 탭에서 수행되어 실제 역할을 확인 후 연결했습니다.
 
 정리: PID·컨테이너 ID를 대조해 이번 API(재기동 후 12936)·프록시(48456)·격리 Next(30400)만 종료하고 일회용 컨테이너를 docker stop --timeout 10으로 종료했습니다. --rm 컨테이너 잔존 0, 검증 포트 리스너 0, 자동화 생성 탭만 닫고 사용자 탭은 보존했습니다. 초기/종료 기존 3306·8080·8081·3000 리스너와 실행 컨테이너는 모두 없었으며 기존 볼륨·컨테이너 삭제 없음. 개발 DB 행 수는 이번에는 읽지 않았으므로 전후 동일 검증으로 표시하지 않습니다(연결/변경 없음). 원본 빌드 산출물 동일, PROJECT_CONTEXT.md M 보존. 증거·핵심 승인/발행/공개 스크린샷은 ignored backend/build/verification/final-browser-5110b6f에 보관했습니다. 외부 배포·Vercel은 미검증입니다. 이번 기록만 별도 로컬 문서 커밋으로 남깁니다.
+
+### 발행 보류·재개 백엔드 검증 — 2026-10-07 (Codex 직접 실행)
+
+기준 계약: 64e0bd6의 CONTRACTS.md 21절·D-049. 병행 프런트 커밋 6fa45cf와 다음 노드 계약 초안 f35fffd를 보존하고, 백엔드 코드 a9b4877 및 테스트 810f66b를 로컬 커밋했습니다. 프런트·운영 Java의 다른 패키지·기존 마이그레이션은 수정하지 않았습니다. 보안 및 공통 오류 설정은 기존 PublicationController 적용 범위로 충분하여 변경하지 않았습니다. 공개 목록·상세 SQL도 변경하지 않았습니다.
+
+환경: PowerShell 5.1.26100.9444, Docker Linux, MySQL 8.4.11. 이번 일회용 컨테이너 mangabridge-publication-hold-64e0bd6(--rm, tmpfs), 127.0.0.1:3320, publication_hold_verify 스키마만 사용했습니다. V1~V31 적용·Flyway validate 및 앱 계정 SELECT 1/Docker healthy 확인 후 무작위 임시 비밀번호로 데모 4계정을 시드했습니다. AUTH_CLIENT_IP_MODE는 설정하지 않았습니다. 개발 DB(3306)에 연결하거나 적용하지 않았고, 별도 API·프런트 서버 및 브라우저는 실행하지 않았습니다.
+
+실행 명령(backend/ 작업 경로, process 환경변수로 위 격리 DB와 COMPOSE_PROJECT_NAME/COMPOSE_FILE 지정):
+
+```powershell
+.\gradlew.bat -I build/verification/schema-tool.init.gradle schemaMigrate --no-daemon
+.\gradlew.bat bootRun --args='--demo-auth-seed=true --spring.main.web-application-type=none' --no-daemon
+.\gradlew.bat build integrationTest --no-daemon --rerun-tasks
+.\gradlew.bat build integrationTest --no-daemon --rerun-tasks
+```
+
+최종 코드로 13:06~13:13 KST에 연속 2회 실행했습니다. 각각 종료 코드 0, BUILD SUCCESSFUL(2m 49s / 2m 50s), 테스트 113개(단위 20 + 실제 MySQL 통합 93), 실패·오류·skipped 모두 0입니다. 이번 신규 PublicationLifecycleIntegrationTest 8개는 정상 보류·재개와 응답/시각/감사, 포인터 없는 상태 및 반복 충돌, 보류 중 원문 변경 후 재개, 다른 승인본으로 교체, 동시 hold/resume 각 1건 성공, 감사 장애 전체 롤백, 역할/위조/미인증, 경로·본문·비JSON·CORS를 검증합니다. 보류 시 공개 목록 제외 및 미발행과 동일한 상세 404, 재개 시 같은 본문과 새로운 publishedAt, history 증가를 실제 DB로 확인했습니다.
+
+기존 테스트 변경은 PublicationIntegrationTest.publicationAndPublicFieldsMatchExactVersionAndAudit 한 곳의 필드 목록에 held 추가, 발행 전/후 held:null 검증 2개 추가뿐입니다. 그 외 기존 단언 및 인증·회차·배정·번역·감수 테스트는 변경하지 않았습니다.
+
+검증 전/첫 성공 후/두 번째 성공 후: demo_account 4/4/4(전체 내용의 집계 해시 동일), auth_login_limit 0/0/0(내용 동일), auth_token·auth_audit·episode·episode_source_version·source_block·domain_audit·episode_assignment·translation_version·translation_block·review_decision·publication 모두 0/0/0. Flyway 성공 이력 31/31/31. 테스트 자체 생성 행만 정리했고 세 읽기 전용 스냅샷이 정확히 일치했습니다. 개발 DB 전후 행 수는 조회하지 않았으므로 미검증입니다(연결·변경 없음).
+
+초기 신규 테스트 실행은 테스트의 JDBC 시각 단언에서 LocalDateTime을 Timestamp로 캐스팅해 1건 실패했습니다. 시각 조회 수정 중 compileTestJava 타입 추론 오류도 1회 발생했으며 해당 실행에는 테스트 결과가 없습니다. 명시적 Instant 조회로 테스트 코드를 수정한 뒤 위 2회 연속 통과를 새 XML 결과로 확인했습니다. 초기 실패와 컴파일 오류를 성공 결과로 재사용하지 않았습니다. 증빙은 ignored backend/build/verification/publication-hold-64e0bd6의 로그·XML·스냅샷에 보관했습니다.
+
+정리: ID와 이름 대조 후 이번 컨테이너만 docker stop --timeout 10으로 종료(종료 코드 0, --rm 자동 정리). 검증 포트 3320 리스너 0, 기존 3306·8080·8081·3000 리스너도 종료 시 0. 기존 vibe-coding-project-mysql-1 컨테이너는 보존했고 기존 컨테이너·볼륨 삭제나 서비스 종료는 수행하지 않았습니다. 비밀번호·토큰 값은 문서/커밋에 포함하지 않았고 PROJECT_CONTEXT.md의 M 상태를 보존했습니다. 실제 브라우저 연동은 이번 범위에서 미실행이며 10/12 최종 통합 검증으로 이월합니다.
