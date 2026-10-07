@@ -65,6 +65,7 @@ H3. 만료·변조 토큰으로도 /api/public/episodes 200. 비허용 Origin 40
 ■ I. 디자인·반응형 (P2)
 I1. 모바일 폭 375에서 /episodes/{id}, /assigned/{id}, /reviews/{id}/{versionNo}, /read/{id}, /history에 가로 스크롤이 없음(document.scrollWidth ≤ clientWidth), 헤더 메뉴가 줄바꿈되어 모두 보임, 페이지 이동 바와 이미지가 화면 안에 들어옴.
 I2. 데스크톱: 인디고 테마(헤더·기본 버튼·링크)가 화면 전반에 일관되게 적용됨.
+I3. 접근성(P2): 키보드로 Tab을 처음 누르면 "본문으로 건너뛰기" 링크가 나타나 본문(main)으로 이동함, 모든 입력란에 라벨이 있고 포커스 표시가 보임. 가능하면 각 주요 화면(운영자 상세, 번역가 작업, 감수자 검토 반려 모드, 독자)에서 axe-core(브라우저 콘솔에 주입)로 위반이 0건인지 확인.
 
 ■ J. 선택 — AI 실패 경로 (P2)
 J1. API를 AI_PROVIDER=anthropic, AI_API_KEY 미설정으로 재기동해 "AI 초안 불러오기" → "AI 초안을 만들지 못했습니다. 직접 번역할 수 있습니다." + "AI 초안 다시 시도", 입력 유지, 번역 저장은 정상.
