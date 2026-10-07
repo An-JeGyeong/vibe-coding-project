@@ -4,7 +4,7 @@ import { parseBlockComments } from "./comments";
 import { parseDecision } from "./decision";
 import type { EpisodeFailure, EpisodeResult } from "@/lib/episodes/types";
 import type {
-  CreatedTranslation, SaveTranslationOutcome, SubmitOutcome, TranslationDetail, TranslationDraftBlock, TranslationList,
+  AiDraftResult, CreatedTranslation, SaveTranslationOutcome, SubmitOutcome, TranslationDetail, TranslationDraftBlock, TranslationList,
   TranslationStatus, TranslationSummary,
 } from "./types";
 
@@ -22,6 +22,12 @@ export function translationError(status: number, body: unknown): EpisodeFailure 
   if (status === 409 && code === "VERSION_CONFLICT") return { kind: "revision_conflict", latestRevision: isInt(error.latestRevision) ? error.latestRevision : null };
   if (status === 409 && code === "STATE_CONFLICT") return { kind: "state_conflict", currentStatus: isStr(error.currentStatus) ? error.currentStatus : null };
   return null;
+}
+
+// AI failures have their own code on a 503 (CONTRACTS 25.1); a conflict is the usual translation one.
+function aiError(status: number, body: unknown): EpisodeFailure | null {
+  if (status === 503 && errorCode(body) === "AI_UNAVAILABLE") return { kind: "ai_unavailable" };
+  return translationError(status, body);
 }
 
 function summary(value: unknown): TranslationSummary | null {
@@ -43,6 +49,19 @@ export async function listTranslations(episodeId: string, signal?: AbortSignal):
   const items = body.items.map(summary);
   return items.every((item): item is TranslationSummary => item !== null)
     ? { ok: true, value: { latestSourceVersion: body.latestSourceVersion, items } } : fail(INVALID_RESPONSE);
+}
+
+export async function requestAiDraft(episodeId: string, versionNo: number, signal?: AbortSignal): Promise<EpisodeResult<AiDraftResult>> {
+  const result = await call({ path: `${base(episodeId)}/${versionNo}/ai-draft`, method: "POST", signal, ok: [200], onError: aiError });
+  if (!result.ok) return result;
+  const body = result.value;
+  if (!isRecord(body) || !isInt(body.versionNo) || !isStr(body.provider) || !Array.isArray(body.suggestions)) return fail(INVALID_RESPONSE);
+  const suggestions: AiDraftResult["suggestions"] = [];
+  for (const item of body.suggestions) {
+    if (!isRecord(item) || !isInt(item.seq) || !isStr(item.text)) return fail(INVALID_RESPONSE);
+    suggestions.push({ seq: item.seq, text: item.text });
+  }
+  return { ok: true, value: { versionNo: body.versionNo, provider: body.provider, suggestions } };
 }
 
 export async function createTranslation(episodeId: string, signal?: AbortSignal): Promise<EpisodeResult<CreatedTranslation>> {

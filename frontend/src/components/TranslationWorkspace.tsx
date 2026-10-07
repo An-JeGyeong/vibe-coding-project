@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { episodeFailureMessage } from "@/lib/episodes/messages";
 import type { EpisodeFailure } from "@/lib/episodes/types";
-import { createTranslation, getTranslation, listTranslations, saveTranslation, submitTranslation } from "@/lib/translation/client";
+import { createTranslation, getTranslation, listTranslations, requestAiDraft, saveTranslation, submitTranslation } from "@/lib/translation/client";
 import { STATUS_LABEL, type TranslationDetail, type TranslationList } from "@/lib/translation/types";
 import { validateTranslationText } from "@/lib/translation/validation";
 import { translationProgress } from "@/lib/translation/progress";
@@ -13,7 +13,7 @@ import { DecisionBox, decisionLabel, decisionSummary } from "./ReviewParts";
 import { VersionCompare } from "./VersionCompare";
 
 type Notice = { tone: "success" | "info" | "danger" | "warning"; text: string };
-type Busy = "save" | "submit" | "create" | null;
+type Busy = "save" | "submit" | "create" | "ai" | null;
 const isOpen = (status: string) => status === "DRAFT" || status === "REVIEW_PENDING";
 
 // Translator-only workspace (mounted by the page for a server-confirmed TRANSLATOR; the server enforces the role).
@@ -32,6 +32,11 @@ export function TranslationWorkspace({ episodeId, onLatestSourceVersion }: { epi
   const [notice, setNotice] = useState<Notice | null>(null);
   const [needsReload, setNeedsReload] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [aiConfirm, setAiConfirm] = useState(false);
+  const [aiFailed, setAiFailed] = useState(false);
+  const [aiMarks, setAiMarks] = useState<Set<number>>(new Set()); // blocks currently holding an unedited AI proposal
+  const aiTicket = useRef(0);
+  const textsRef = useRef<Record<number, string>>({});
   const busyRef = useRef(false);
   const selectedRef = useRef<number | null>(null);
   const activeLoad = useRef<AbortController | null>(null);
@@ -76,6 +81,7 @@ export function TranslationWorkspace({ episodeId, onLatestSourceVersion }: { epi
     setLoadFailure(null); setList(listed.value); setDetail(fetched.value); setPrevious(rejected);
     setTexts(Object.fromEntries(fetched.value.blocks.map((block) => [block.seq, block.text ?? ""])));
     setErrors({}); setMissing([]); setNeedsReload(false); setConfirming(false);
+    setAiConfirm(false); setAiFailed(false); setAiMarks(new Set()); aiTicket.current++; // marks and a pending AI answer belong to the loaded text
   }, [episodeId, handleUnauthorized, onLatestSourceVersion]);
 
   useEffect(() => {
@@ -83,6 +89,7 @@ export function TranslationWorkspace({ episodeId, onLatestSourceVersion }: { epi
     return () => activeLoad.current?.abort();
   }, [load]);
 
+  textsRef.current = texts;
   const dirty = !!detail && detail.editable && detail.blocks.some((block) => (texts[block.seq] ?? "") !== (block.text ?? ""));
 
   // Shared outcome handling for a failed action (401 signs out, conflicts offer a reload, anything else is a fixed message).
@@ -132,6 +139,32 @@ export function TranslationWorkspace({ episodeId, onLatestSourceVersion }: { epi
     if (!result.ok) { handleFailure(result.failure); return; }
     setNotice({ tone: "success", text: "검수에 제출했습니다. 제출한 번역은 수정할 수 없습니다." });
     await load(detail.versionNo);
+  });
+
+  // AI proposals only ever fill blocks that are still empty in the editor (CONTRACTS 25.4); nothing is saved or submitted.
+  const onAiDraft = () => run("ai", async () => {
+    if (!detail || !detail.editable) return;
+    const versionNo = detail.versionNo;
+    const ticket = ++aiTicket.current;
+    setAiConfirm(false);
+    setAiFailed(false);
+    const result = await requestAiDraft(episodeId, versionNo);
+    if (ticket !== aiTicket.current || selectedRef.current !== versionNo) return; // another version or a reload happened meanwhile
+    if (!result.ok) {
+      if (result.failure.kind === "ai_unavailable") setAiFailed(true);
+      handleFailure(result.failure);
+      return;
+    }
+    const known = new Set(detail.blocks.map((block) => block.seq));
+    const fill = result.value.suggestions.filter((item) => known.has(item.seq) && (textsRef.current[item.seq] ?? "") === ""); // typed meanwhile -> dropped
+    if (fill.length === 0) { setNotice({ tone: "info", text: "채울 블록이 없거나 제안을 받지 못했습니다." }); return; }
+    setTexts((previous) => {
+      const next = { ...previous };
+      for (const item of fill) if ((previous[item.seq] ?? "") === "") next[item.seq] = item.text;
+      return next;
+    });
+    setAiMarks((previous) => new Set([...previous, ...fill.map((item) => item.seq)]));
+    setNotice({ tone: "success", text: `AI 초안 ${fill.length}개를 채웠습니다. 검토하고 수정한 뒤 저장해야 반영됩니다.` });
   });
 
   const onCreate = () => run("create", async () => {
@@ -224,11 +257,13 @@ export function TranslationWorkspace({ episodeId, onLatestSourceVersion }: { epi
                 {detail.editable
                   ? <>
                     <label className="form-label small mb-1" htmlFor={`tr-${block.seq}`}>블록 {block.seq} 번역</label>
+                    {aiMarks.has(block.seq) && <span className="badge text-bg-info ms-2" title="AI가 제안한 초안입니다. 직접 검토하세요.">AI 초안</span>}
                     <textarea id={`tr-${block.seq}`} className="form-control" rows={3} value={value}
                       aria-invalid={errors[block.seq] || absent ? true : undefined}
                       onChange={(event) => {
                         const next = event.target.value;
                         setTexts((previous) => ({ ...previous, [block.seq]: next }));
+                        setAiMarks((previous) => { if (!previous.has(block.seq)) return previous; const marks = new Set(previous); marks.delete(block.seq); return marks; });
                         setMissing((previous) => previous.filter((seq) => seq !== block.seq));
                       }} />
                     {errors[block.seq] && <p className="text-danger small mt-1 mb-0" role="alert">{errors[block.seq]}</p>}
@@ -252,6 +287,15 @@ export function TranslationWorkspace({ episodeId, onLatestSourceVersion }: { epi
             <button type="button" className="btn btn-outline-secondary btn-sm" disabled={busy !== null} onClick={() => setConfirming(false)}>취소</button>
           </span>}
         {dirty && <span className="text-secondary small">저장한 뒤에 제출할 수 있습니다.</span>}
+        {!aiConfirm && <button type="button" className="btn btn-outline-secondary" disabled={busy !== null || confirming || loading} onClick={() => { setNotice(null); setAiConfirm(true); }}>
+          {busy === "ai" ? "AI 초안을 만드는 중…" : aiFailed ? "AI 초안 다시 시도" : "AI 초안 불러오기"}</button>}
+      </div>}
+      {detail.editable && aiConfirm && <div className="alert alert-secondary mt-2 mb-0" role="group" aria-label="AI 초안 확인">
+        <p className="mb-2">원문이 외부 AI 서비스로 전송됩니다(데모 데이터만 사용하세요). 번역이 비어 있는 블록에만 제안이 채워지며, 직접 검토·수정하고 저장해야 반영됩니다.</p>
+        <div className="d-flex gap-2">
+          <button type="button" className="btn btn-primary btn-sm" disabled={busy !== null} onClick={() => void onAiDraft()}>AI 초안 요청</button>
+          <button type="button" className="btn btn-outline-secondary btn-sm" disabled={busy !== null} onClick={() => setAiConfirm(false)}>취소</button>
+        </div>
       </div>}
     </section>}
   </>;

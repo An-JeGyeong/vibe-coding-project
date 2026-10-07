@@ -6,7 +6,8 @@ export type EpisodeFailure =
   | { kind: "conflict"; latestVersion: number | null }
   | { kind: "revision_conflict"; latestRevision: number | null }
   | { kind: "state_conflict"; currentStatus: string | null }
-  | { kind: "incomplete"; missingSeqs: number[] };
+  | { kind: "incomplete"; missingSeqs: number[] }
+  | { kind: "ai_unavailable" };
 export type EpisodeResult<T> = { ok: true; value: T } | { ok: false; failure: EpisodeFailure };
 
 export type SavedBy = { id: string; displayName: string };

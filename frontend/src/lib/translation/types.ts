@@ -16,6 +16,10 @@ export type SubmitOutcome = { versionNo: number; status: TranslationStatus; subm
 /** A block as sent to the server: only blocks that have a translation, identified by their source seq. */
 export type TranslationDraftBlock = { seq: number; text: string };
 
+/** One AI proposal (CONTRACTS 25.1). Never saved by the server: the translator reviews it in the editor. */
+export type AiSuggestion = { seq: number; text: string };
+export type AiDraftResult = { versionNo: number; provider: string; suggestions: AiSuggestion[] };
+
 export const STATUS_LABEL: Record<TranslationStatus, string> = {
   DRAFT: "작성 중", REVIEW_PENDING: "검수 대기", REJECTED: "반려됨", APPROVED: "승인됨",
   PUBLISHED: "발행됨", INVALIDATED: "무효화됨", ON_HOLD: "보류",
