@@ -949,3 +949,39 @@ B2 재현: 운영자가 승인 A v4 상세를 열고 원문을 바꿔 저장하�
 초기 신규 테스트 실행은 테스트의 JDBC 시각 단언에서 LocalDateTime을 Timestamp로 캐스팅해 1건 실패했습니다. 시각 조회 수정 중 compileTestJava 타입 추론 오류도 1회 발생했으며 해당 실행에는 테스트 결과가 없습니다. 명시적 Instant 조회로 테스트 코드를 수정한 뒤 위 2회 연속 통과를 새 XML 결과로 확인했습니다. 초기 실패와 컴파일 오류를 성공 결과로 재사용하지 않았습니다. 증빙은 ignored backend/build/verification/publication-hold-64e0bd6의 로그·XML·스냅샷에 보관했습니다.
 
 정리: ID와 이름 대조 후 이번 컨테이너만 docker stop --timeout 10으로 종료(종료 코드 0, --rm 자동 정리). 검증 포트 3320 리스너 0, 기존 3306·8080·8081·3000 리스너도 종료 시 0. 기존 vibe-coding-project-mysql-1 컨테이너는 보존했고 기존 컨테이너·볼륨 삭제나 서비스 종료는 수행하지 않았습니다. 비밀번호·토큰 값은 문서/커밋에 포함하지 않았고 PROJECT_CONTEXT.md의 M 상태를 보존했습니다. 실제 브라우저 연동은 이번 범위에서 미실행이며 10/12 최종 통합 검증으로 이월합니다.
+
+### 블록별 감수 코멘트 백엔드·V32 — 2026-10-07 (Codex 직접 실행)
+
+승인 기준: 5a1da8d의 CONTRACTS.md 22절·D-050 및 1e2f20c의 22.1 정정. V32(276a79b)는 review_block_comment 한 테이블을 CREATE하는 DDL 하나이며, 6컬럼 모두 NOT NULL, InnoDB·utf8mb4·DATETIME(6), 본문 길이 CHECK와 결정/seq UNIQUE 및 요청한 RESTRICT FK 2개를 둡니다. V1~V31 파일은 변경하지 않았습니다.
+
+결정과 코멘트의 번역 버전 일치는 **DB 복합 FK가 아닌 서비스 검사로 보장**합니다. INSERT 전에 실제 결정 행을 조회해 translation_version_id와 REJECTED 여부를 확인하며, 불일치는 쓰기 없이 전체 롤백/503입니다. 검증 테스트: ReviewBlockCommentIntegrationTest.serviceRejectsDecisionVersionMismatchBeforeAnyCommentInsert(다른 번역 버전의 실제 결정 ID를 주입, INSERT 미호출 및 결정·상태·감사·코멘트 불변 확인). 코멘트 N건은 결정 INSERT·상태·REVIEW_REJECTED 감사와 같은 트랜잭션이며, 일부 INSERT 후 장애도 모두 롤백합니다.
+
+반려 요청의 선택 comments와 상세 3곳의 blockComments만 가산 확장했습니다. 본문 변환 없이 0~50개·실제 번역 블록 seq·중복 금지·1~300 코드포인트·공백/제어문자 제한을 검사합니다. 상세는 현재 배정된 번역가·감수자와 운영자에게만 seq 오름차순으로 반환하고, 비반려 버전은 항상 []입니다. 목록·공개 응답과 새 DRAFT에는 코멘트를 추가/복사하지 않았습니다. 승인 본문 금지·기존 보안/CORS/오류 설정은 그대로입니다. 입력/코멘트 DTO의 toString은 본문을 가립니다.
+
+환경: PowerShell 5.1.26100.9444, Docker Linux, MySQL 8.4.11. mangabridge-review-comments-1e2f20c(--rm, tmpfs), 127.0.0.1:3321, review_comment_verify 스키마만 사용했습니다. 앱 계정 SELECT 1 및 Docker healthy 확인 후 V1~V32 적용·Flyway validate, 임시 무작위 비밀번호로 데모 4계정 시드. 개발 DB(3306)는 연결·조회·V32 적용하지 않았습니다. AUTH_CLIENT_IP_MODE 미설정. 실제 브라우저와 별도 프런트/API 서버는 이번 범위에서 미실행입니다.
+
+backend/에서 격리 DB_URL 및 COMPOSE_PROJECT_NAME/COMPOSE_FILE을 process 환경에 주입해 실행한 명령:
+
+```powershell
+.\gradlew.bat -I build/verification/schema-tool.init.gradle schemaMigrate --no-daemon
+.\gradlew.bat bootRun --args='--demo-auth-seed=true --spring.main.web-application-type=none' --no-daemon
+.\gradlew.bat build integrationTest --no-daemon --rerun-tasks
+.\gradlew.bat build integrationTest --no-daemon --rerun-tasks
+```
+
+최종 테스트 코드로 13:27~13:34 KST에 연속 2회 실행: 각각 종료 코드 0, BUILD SUCCESSFUL(3m 18s / 3m 13s), 총 124개(단위 20 + 실제 MySQL 통합 104), 실패·오류·skipped 모두 0. 신규 코멘트 통합 테스트 10개: 선택/빈 의견, N개 및 50개·300코드포인트 경계와 원문만 있는 seq 거부, 검증 오류·상태 불변, 버전 일치 서비스 방어, 부분 저장 장애 롤백, 중복/동시 반려·승인, 상세·목록 범위, 새 DRAFT 복사 제외, 담당자 교체 인계/기존 담당자 404, 독자·비배정·공개 비노출, 역할/위조/비JSON 및 실제 NOT NULL·CHECK·UNIQUE·FK·RESTRICT 검사. 기존 NOT NULL lint도 그대로 통과했습니다. 빈 DB V1~V32 및 데이터가 있는 V31→V32에서 validate/재적용 0개·기존 행/내용·V1~V31 체크섬 보존을 검증했습니다.
+
+기존 단언/설정 변경 목록(그 외 업무 테스트 단언은 유지):
+
+- TranslationIntegrationTest.creationDetailListNoopRevisionAndSubmissionFollowExactContract: 번역가 상세 필드 목록 1곳에 blockComments 및 [] 검증 추가.
+- ReviewIntegrationTest.reviewerVisibilityAndOperatorAllStatesAndPaths: 감수자·운영자 상세 필드 목록 2곳에 blockComments 및 [] 검증 추가.
+- MySqlIntegrationTest.mysqlHealthAndBaseline: 최신 Flyway 기대값 31→32. mysqlCharsetCollationUtcDedicatedAccountAndInnoDb: 승인 테이블 목록에 review_block_comment만 추가.
+- DomainSchemaMigrationIntegrationTest: 빈 DB 기대 이력/적용 수 31→32, populatedV9UpgradePreservesEveryOldColumnAndChecksum의 적용 수 22→23. v31PreservesAllPopulatedV30RowsAndAddsRequiredRevisionDefault는 target(31)을 명시해 기존 모든 단언 유지. v32PreservesAllPopulatedV31RowsAndChecksums를 신규 추가.
+
+초기 전체 실행은 124개 중 4건 실패: Bootstrap의 V31 버전/테이블 기대값 2곳, 새 테스트의 auth_audit.reason(기존 고정 코드 컬럼) 오인 1곳, MySQL CHECK 3819가 UncategorizedSQLException으로 번역되는 경우의 예외 분류 1곳. 최신 스키마 기대값을 갱신하고 신규 테스트를 수정했으며 MySQL 오류 번호 단언은 유지했습니다. 수정 후 위 2회 성공만 완료 결과로 사용했습니다. 초기 실패 후에도 정리 스냅샷은 기준과 일치했습니다.
+
+검증 전/첫 성공 후/두 번째 성공 후: demo_account 4/4/4(전체 내용의 집계 해시 동일), auth_login_limit 0/0/0(내용 동일), auth_token·auth_audit·episode·episode_source_version·source_block·domain_audit·episode_assignment·translation_version·translation_block·review_decision·publication·review_block_comment 모두 0/0/0. Flyway 성공 이력 32/32/32. 세 스냅샷이 정확히 같으며 테스트가 만든 행만 정리했습니다. 개발 DB 전후 행 수는 미검증(연결/변경 없음).
+
+커밋 관계: V32는 276a79b, 테스트는 6cd5835. Codex가 작성해 stage한 백엔드 Java 6개(review/translation의 Dao·Models·Service)가 공유 작업 트리의 병행 프런트 커밋 1a75e64에 함께 포함됐습니다. 별도 코드 커밋을 시도할 때 이미 포함된 것을 확인했고, 이력 재작성 없이 해당 커밋을 보존했습니다. 프런트 파일은 Codex가 수정하지 않았으며 프런트 테스트 결과로 이 백엔드 검증을 대신하지 않았습니다. 이후 테스트/문서는 대상 파일만 stage·즉시 --only 커밋했습니다.
+
+정리: ID·이름을 대조한 이번 MySQL만 docker stop --timeout 10으로 종료(코드 0, --rm 자동 정리). 검증 포트 3321 리스너 0, 기존 3306·8080·8081·3000 리스너도 종료 시 0. 기존 vibe-coding-project-mysql-1 컨테이너·볼륨은 보존했습니다. 임시 환경변수는 실행한 PS 프로세스 종료로 소멸, 비밀번호·토큰 값은 문서/Git에 포함하지 않았습니다. PROJECT_CONTEXT.md의 줄바꿈 M 보존. 증빙은 ignored backend/build/verification/review-comments-1e2f20c의 로그·XML·스냅샷에 보관했습니다. 실제 브라우저 연동은 10/12 통합 검증으로 이월, 개발 DB V32 적용은 별도 사용자 승인 전까지 미적용입니다.
