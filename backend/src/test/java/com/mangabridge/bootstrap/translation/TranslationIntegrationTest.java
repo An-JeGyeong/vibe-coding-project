@@ -184,7 +184,8 @@ class TranslationIntegrationTest {
         assertThat(created.getBody().get("revision").intValue()).isEqualTo(1);
         error(start(id,translator),409,"STATE_CONFLICT");
         var detail=get(translations(id)+"/1",translator.token());
-        assertThat(detail.getBody().fieldNames()).toIterable().containsExactlyInAnyOrder("versionNo","status","sourceVersion","revision","createdAt","submittedAt","editable","blocks","decision");
+        assertThat(detail.getBody().fieldNames()).toIterable().containsExactlyInAnyOrder("versionNo","status","sourceVersion","revision","createdAt","submittedAt","editable","blocks","decision","blockComments");
+        assertThat(detail.getBody().get("blockComments").isArray()).isTrue();assertThat(detail.getBody().get("blockComments").size()).isZero();
         assertThat(detail.getBody().get("decision").isNull()).isTrue();
         assertThat(detail.getBody().get("editable").booleanValue()).isTrue();
         assertThat(detail.getBody().get("createdAt").textValue()).endsWith("Z");

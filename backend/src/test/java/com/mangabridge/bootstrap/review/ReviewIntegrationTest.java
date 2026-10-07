@@ -217,7 +217,8 @@ class ReviewIntegrationTest {
     @Test void reviewerVisibilityAndOperatorAllStatesAndPaths() {
         var translator=identity(Role.TRANSLATOR);var reviewer=identity(Role.REVIEWER); String id=pending(translator,reviewer);
         var detail=get(reviews(id)+"/1",reviewer.token()).getBody();
-        assertThat(detail.fieldNames()).toIterable().containsExactlyInAnyOrder("versionNo","status","sourceVersion","submittedAt","decidable","decision","blocks");
+        assertThat(detail.fieldNames()).toIterable().containsExactlyInAnyOrder("versionNo","status","sourceVersion","submittedAt","decidable","decision","blocks","blockComments");
+        assertThat(detail.get("blockComments").isArray()).isTrue();assertThat(detail.get("blockComments").size()).isZero();
         assertThat(detail.get("decidable").booleanValue()).isTrue(); assertThat(detail.get("decision").isNull()).isTrue();
         assertThat(detail.get("blocks").size()).isEqualTo(2);
         assertThat(detail.get("blocks").get(0).get("source").textValue()).isEqualTo("원문 😀 1");
@@ -232,7 +233,8 @@ class ReviewIntegrationTest {
                 assertThat(get(reviews(id)+"/1",reviewer.token()).getBody().get("decidable").booleanValue()).isEqualTo(state.equals("REVIEW_PENDING"));
             } else { assertThat(list).isEmpty();error(get(reviews(id)+"/1",reviewer.token()),404,"NOT_FOUND"); }
             var op=get(operatorTranslations(id)+"/1"); assertThat(op.getStatusCode().value()).isEqualTo(200);
-            assertThat(op.getBody().fieldNames()).toIterable().containsExactlyInAnyOrder("versionNo","status","sourceVersion","createdAt","submittedAt","decision","invalidatedAt","blocks");
+            assertThat(op.getBody().fieldNames()).toIterable().containsExactlyInAnyOrder("versionNo","status","sourceVersion","createdAt","submittedAt","decision","invalidatedAt","blocks","blockComments");
+            assertThat(op.getBody().get("blockComments").isArray()).isTrue();assertThat(op.getBody().get("blockComments").size()).isZero();
             assertThat(op.getBody().get("status").textValue()).isEqualTo(state);
             assertThat(get(operatorTranslations(id)).getBody().get("items").size()).isEqualTo(1);
         }
