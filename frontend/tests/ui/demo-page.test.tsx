@@ -122,7 +122,7 @@ describe("protected /demo screen", () => {
     renderWithAuth(<DemoPage />);
     fireEvent.click(await screen.findByRole("button", { name: "로그아웃" }));
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/login"));
-    expect(calls.at(-1)).toMatchObject({ path: "/api/auth/logout", method: "POST" });
+    expect(calls.some((call) => call.path === "/api/auth/logout" && call.method === "POST")).toBe(true); // the dashboard cards may still be loading, so the logout is not necessarily the last request
     expect(storedToken()).toBeNull();
     expect(screen.queryByText(USERS.OPERATOR.displayName)).toBeNull();
     expect(screen.queryByText("업무 메뉴")).toBeNull();

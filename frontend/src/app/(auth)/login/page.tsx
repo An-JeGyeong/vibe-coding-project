@@ -14,7 +14,7 @@ export default function LoginPage() {
     if (auth.status === "authenticated") router.replace("/demo");
   }, [auth.status, router]);
 
-  return <main className="container login-main py-5">
+  return <main id="main-content" className="container login-main py-5">
     <p className="text-uppercase text-secondary small mb-1">MANGABRIDGE · DEMO AUTH</p>
     <h1 className="h2 mb-3">로그인</h1>
     {auth.status === "initializing" && <p role="status">로그인 상태를 확인하는 중…</p>}

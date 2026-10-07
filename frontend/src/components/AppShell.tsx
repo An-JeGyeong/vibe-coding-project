@@ -16,6 +16,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const current = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
   return <>
+    <a href="#main-content" className="skip-link">본문으로 건너뛰기</a>
     <header className="app-header bg-dark text-white">
       <div className="container d-flex flex-wrap align-items-center gap-2 py-2">
         <Link href={user ? "/demo" : "/login"} className="app-brand text-white text-decoration-none fw-bold me-2">망가브릿지</Link>

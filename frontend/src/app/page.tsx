@@ -20,7 +20,7 @@ export default function Home() {
     return () => controller.abort();
   }, []);
 
-  return <main className="container app-main py-5">
+  return <main id="main-content" className="container app-main py-5">
     <p className="text-uppercase text-secondary small mb-1">MANGABRIDGE · PROJECT BOOTSTRAP</p>
     <h1 className="h2 mb-3">망가브릿지</h1>
     <p>로컬 서버와 데이터베이스 연결 상태를 확인합니다.</p>

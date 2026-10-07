@@ -17,10 +17,10 @@ export default function DemoPage() {
   }, [auth.status, router]);
 
   // Nothing protected is rendered until the server has confirmed the user through /api/auth/me.
-  if (auth.status === "initializing") return <main className="container app-main py-5"><p role="status">로그인 상태를 확인하는 중…</p></main>;
-  if (auth.status === "unauthenticated") return <main className="container app-main py-5"><p role="status">로그인 화면으로 이동하는 중…</p></main>;
+  if (auth.status === "initializing") return <main id="main-content" className="container app-main py-5"><p role="status">로그인 상태를 확인하는 중…</p></main>;
+  if (auth.status === "unauthenticated") return <main id="main-content" className="container app-main py-5"><p role="status">로그인 화면으로 이동하는 중…</p></main>;
   if (auth.status === "check_failed") {
-    return <main className="container app-main py-5">
+    return <main id="main-content" className="container app-main py-5">
       <h1 className="h2 mb-3">로그인 상태를 확인하지 못했습니다</h1>
       <div className="alert alert-warning" role="alert">
         <p>{auth.failure ? failureMessage(auth.failure) : "잠시 후 다시 시도하세요."} 로그아웃되지는 않았습니다.</p>
@@ -31,7 +31,7 @@ export default function DemoPage() {
 
   const user = auth.user!;
   const info = ROLE_INFO[user.role];
-  return <main className="container app-main py-5">
+  return <main id="main-content" className="container app-main py-5">
     <p className="text-uppercase text-secondary small mb-1">MANGABRIDGE · DEMO AUTH</p>
     <h1 className="h2 mb-3">데모 화면</h1>
     <section aria-label="현재 사용자" className="card card-body shadow-sm mt-3">

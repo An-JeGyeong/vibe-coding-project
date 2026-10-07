@@ -8,7 +8,7 @@ import { publicFailureMessage } from "@/lib/publication/messages";
 export default function ReadEpisodePage() {
   const params = useParams<{ id: string }>();
   const valid = /^[1-9][0-9]{0,17}$/.test(params.id);
-  return <main className="container py-5">
+  return <main id="main-content" className="container py-5">
     {valid
       ? <PublicEpisodeReader key={params.id} episodeId={params.id} />
       : <div className="alert alert-warning" role="alert">

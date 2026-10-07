@@ -202,7 +202,7 @@ export function TranslationWorkspace({ episodeId, onLatestSourceVersion }: { epi
       {list.items.length === 0
         ? <p className="text-secondary empty-note">아직 번역이 없습니다. 새 번역을 시작하면 최신 원문(v{list.latestSourceVersion}) 기준으로 작성할 수 있습니다.</p>
         : <div className="table-responsive"><table className="table align-middle">
-          <thead><tr><th>버전</th><th>상태</th><th>기준 원문</th><th>제출 시각 (UTC)</th><th>결정</th><th /></tr></thead>
+          <thead><tr><th>버전</th><th>상태</th><th>기준 원문</th><th>제출 시각 (UTC)</th><th>결정</th><th><span className="visually-hidden">동작</span></th></tr></thead>
           <tbody>
             {list.items.map((item) => <tr key={item.versionNo}>
               <td>v{item.versionNo}</td>

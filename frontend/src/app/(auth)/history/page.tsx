@@ -11,7 +11,7 @@ function HistoryContent() {
 }
 
 export default function HistoryPage() {
-  return <main className="container py-5">
+  return <main id="main-content" className="container py-5">
     <p className="text-uppercase text-secondary small mb-1">MANGABRIDGE · HISTORY</p>
     <h1 className="h2 mb-3">작업 이력</h1>
     <OperatorGate>

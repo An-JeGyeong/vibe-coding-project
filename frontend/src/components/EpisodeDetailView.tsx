@@ -207,7 +207,7 @@ export function EpisodeDetailView({ episodeId }: { episodeId: string }) {
     <section id="section-history" aria-label="버전 이력" className="card card-body shadow-sm"><details className="fold" open>
       <summary><h2 className="h5">버전 이력</h2></summary>
       {versions.length === 0 ? <p className="text-secondary empty-note">저장된 버전이 없습니다.</p> : <div className="table-responsive"><table className="table align-middle">
-        <thead><tr><th>버전</th><th>저장 시각 (UTC)</th><th>저장자</th><th>블록 수</th><th /></tr></thead>
+        <thead><tr><th>버전</th><th>저장 시각 (UTC)</th><th>저장자</th><th>블록 수</th><th><span className="visually-hidden">동작</span></th></tr></thead>
         <tbody>
           {versions.map((item) => <tr key={item.version}>
             <td>v{item.version}</td><td><time>{item.savedAt}</time></td><td>{item.savedBy.displayName}</td><td>{item.blockCount}</td>

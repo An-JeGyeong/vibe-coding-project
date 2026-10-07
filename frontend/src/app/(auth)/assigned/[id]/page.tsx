@@ -6,7 +6,7 @@ import { AssigneeGate } from "@/components/OperatorGate";
 
 export default function AssignedDetailPage() {
   const params = useParams<{ id: string }>();
-  return <main className="container py-5">
+  return <main id="main-content" className="container py-5">
     <AssigneeGate><AssignedDetailView key={params.id} episodeId={params.id} /></AssigneeGate>
   </main>;
 }
