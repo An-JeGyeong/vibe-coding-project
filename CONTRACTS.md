@@ -1052,3 +1052,56 @@ NOT NULL 규칙은 **모든 도메인·인증 테이블**에 적용한다. NULL 
 - Claude Code 변경: frontend/src, frontend/tests/ui. 변경 금지: V1~V32, 기존 API의 기존 필드·동작, PROJECT_CONTEXT.md, 서로의 영역.
 - 테스트: 26.3 표, 연속 2회 통과·전후 행 수 비교(이미지 테이블 포함 정리). frontend는 26.4 전부(Blob URL 표시·해제, 역할별 요청 범위, 실패 시 텍스트 작업 유지, 업로드 로컬 검사와 중복 방지, 페이지 묶음·이동·입력 유지, 이미지 없는 페이지, 미지정 페이지)와 기존 회귀·타입·빌드.
 - **실제 브라우저 검증은 한 번만, 마지막 통합 검증(10/12)에 합친다**: 운영자가 PNG·JPEG 업로드·교체 → 번역가가 한 페이지씩 이미지와 원문을 보며 번역·AI 초안 수정·저장 → 감수자가 페이지별로 대조하고 의견 → 독자 화면·공개 API에 이미지 비노출 → 교체된 번역가의 404 → 작업 이력에 `PAGE_IMAGE_SAVED`.
+
+## 27. 번역본 페이지 이미지와 만화 뷰어 — PROPOSED (2026-10-08, 사용자 승인 대기)
+
+작성: Claude Code. 구현: backend=Codex(마이그레이션 V34 포함), frontend=Claude Code. 근거: 사용자 결정(2026-10-08, 독자가 번역된 만화 이미지를 뷰어로 읽는 화면 추가, 권장안 승인), DECISIONS.md D-055. 인증·역할·오류 형식은 12·19절, 번역은 17절, 감수는 18절, 발행·공개 API는 20·21절, 원본 페이지 이미지는 26절을 따른다. **원본 이미지(26절)는 계속 독자에게 노출하지 않는다.** 이 절은 번역가가 올리는 **번역본(식자 완료) 이미지**를 다룬다. 마이그레이션 V34 하나가 있다(새 테이블 1개, NOT NULL 규칙 적용).
+
+### 범위
+- 포함: 번역가의 번역본 페이지 이미지 업로드(번역 버전별), 번역가·감수자·운영자 열람, 발행된 버전의 번역본 이미지 공개 API, 만화 뷰어(스크롤·페이지 넘김·읽기 방향 전환·이전화/다음화), 번역본 이미지가 없는 회차의 텍스트 리더 대체.
+- 제외: 앱 안의 식자 편집기, 이미지 삭제·자르기·OCR, 버전 간 이미지 복사, 작품·표지·카테고리·메인(28절), 댓글·관심, 이미지 다운로드 제한(DRM).
+
+### 27.1 스키마 — V34 (파일당 DDL 하나, InnoDB·utf8mb4·UTC DATETIME(6))
+`translation_page_image`: translation_version_id BIGINT NOT NULL, page_no INT NOT NULL, content_type VARCHAR(32) NOT NULL(ascii_bin), byte_size INT NOT NULL, image_data MEDIUMBLOB NOT NULL, uploaded_by BIGINT NOT NULL, updated_at DATETIME(6) NOT NULL. **PRIMARY KEY (translation_version_id, page_no)**. FK(RESTRICT): translation_version_id → translation_version(id), uploaded_by → demo_account(id). CHECK: content_type IN ('image/png','image/jpeg','image/webp'), byte_size BETWEEN 1 AND 5242880, page_no BETWEEN 1 AND 9999. 모든 컬럼 NOT NULL(NULL 허용 목록 변경 없음). 이미지는 번역 버전과 페이지 번호에 묶이며, 페이지 번호는 그 버전이 묶인 원문 버전의 블록이 가진 `page_no`여야 한다(서비스 검사).
+
+### 27.2 API (모든 응답 `Cache-Control: no-store`, 시각 UTC ISO-8601 `Z`, 경로 id `^[1-9][0-9]{0,17}$`, versionNo `{0,8}`, pageNo `{0,3}`, 위반 404)
+| API | 권한 | 요청 | 성공 응답 |
+|---|---|---|---|
+| PUT /api/my/episodes/{id}/translations/{versionNo}/page-images/{pageNo} | 배정된 TRANSLATOR | 본문=이미지 바이트, Content-Type image/png·jpeg·webp, 1 B~5 MiB | 201(신규) 또는 200(교체) {"pageNo","contentType","byteSize","updatedAt"} |
+| GET /api/my/episodes/{id}/translations/{versionNo}/page-images | 배정된 TRANSLATOR·REVIEWER | — | 200 {"items":[{"pageNo","contentType","byteSize","updatedAt"}]} (pageNo 오름차순) |
+| GET …/page-images/{pageNo} (같은 경로) | 배정된 TRANSLATOR·REVIEWER | — | 200 이미지 바이트, 저장된 Content-Type, `X-Content-Type-Options: nosniff` |
+| GET /api/episodes/{id}/translations/{versionNo}/page-images, …/{pageNo} | OPERATOR | — | 위와 같은 형식 |
+| GET /api/public/episodes/{id}/pages | 누구나 | — | 200 {"items":[{"pageNo"}]} — 현재 공개 버전의 번역본 이미지가 있는 페이지, 오름차순. 이미지가 없으면 빈 배열 |
+| GET /api/public/episodes/{id}/pages/{pageNo}/image | 누구나 | — | 200 이미지 바이트(위와 같은 헤더) |
+- **업로드 규칙**: 버전 상태가 `DRAFT`일 때만 저장·교체(그 밖은 409 STATE_CONFLICT, `currentStatus` 포함). 번역가는 그 회차에 **현재 배정된** 경우만(미배정·교체된 이전 번역가·없는 버전 404, D-038). 검증은 26.2와 같다(허용 3종, 빈 본문·5 MiB 초과 400, 경계 5 MiB 허용, 선언과 시작 바이트 불일치 400, 상한은 본문 전체를 읽기 전에 거절). 페이지가 원문 버전 블록에 없으면 404. **제출·승인·발행 이후에는 수정할 수 없다.** 저장은 `domain_audit`에 `TRANSLATION_PAGE_IMAGE_SAVED`(actor, episode_id, source_version, translation_version_id) 한 건을 같은 트랜잭션으로 남기고 바이트·파일명은 저장하지 않는다. 실패 시 전체 롤백과 503.
+- **열람 규칙**: 번역가는 자기 회차의 모든 번역 버전, 감수자는 18절에서 보이는 상태(`REVIEW_PENDING`·`APPROVED`·`REJECTED`)의 버전만(그 밖은 404), 운영자는 모든 버전. 역할 위반 403(ACCESS_DENIED 감사), 비로그인 401. 보안 규칙 순서: `/api/my/episodes/*/translations/*/page-images/**`는 TRANSLATOR·REVIEWER 허용이며 기존 번역가 전용 규칙(`/api/my/episodes/*/translations/**`)보다 **먼저** 평가되어야 한다. `/api/public/**`는 기존대로 permitAll·GET 전용.
+- **공개 규칙(20·21절과 같은 기준)**: 회차의 공개 포인터가 가리키는 버전이 `PUBLISHED`일 때만 그 버전의 이미지를 돌려준다. 미발행·보류 중·없는 회차·이미지 없는 페이지는 동일한 404 NOT_FOUND(`/pages` 목록은 회차가 공개 중이 아니면 404, 공개 중인데 이미지가 없으면 200 `[]`). 독자에게는 pageNo와 바이트 외의 정보를 주지 않으며 **원본 이미지는 어떤 경로로도 노출하지 않는다**. 공개 이미지 응답에 `Cross-Origin-Resource-Policy: same-origin`을 붙이지 않는다(프런트가 다른 출처의 API 이미지를 `<img>`로 직접 표시). 인증 헤더는 판정하지 않는다.
+- 오류: 400, 401, 403, 404, 409 STATE_CONFLICT, 503, 500. 형식은 12절과 같고 내부 예외·비밀은 노출하지 않는다. 24절 작업 이력의 허용 `event`에 `TRANSLATION_PAGE_IMAGE_SAVED`를 **추가**한다(가산적 변경).
+
+### 27.3 처리 함수
+| 이름 | 입력 → 출력 | 권한 | 상태 변경 | 실패 | 필수 테스트 |
+|---|---|---|---|---|---|
+| saveTranslationPageImage | 호출자, 회차, 버전, 페이지, 바이트, Content-Type → 메타 | 배정된 TRANSLATOR | 이미지 행 저장(신규/교체), 감사 | 400/403/404/409/503 | PNG·JPEG·WEBP 바이트 정확 왕복, 신규 201·교체 200, 허용 밖·선언 불일치·빈 본문·5 MiB+1 400(경계 허용), 원문에 없는 페이지 404, DRAFT 아닌 버전 409, 미배정·이전 번역가 404와 새 번역가 인계, 역할 매트릭스, 감사 1건·바이트 비저장, 감사 장애 롤백 |
+| list/get 번역본 이미지 | 호출자, 회차, 버전(, 페이지) → 목록/바이트 | 번역가·감수자·운영자 | 없음 | 401/403/404/503 | 정렬·형식, 바이트·Content-Type·nosniff·no-store, 감수자는 보이는 상태만, 타 번역가 회차 404, 독자 403 |
+| 공개 번역본 이미지 | 회차(, 페이지) → 목록/바이트 | 누구나 | 없음 | 404/503 | 발행된 버전의 이미지만, 발행 전·보류 중·없는 회차·이미지 없는 페이지 동일 404, 보류 후 재개 시 복귀, 새 DRAFT·승인·원문 변경이 공개 응답을 바꾸지 않음, 교체 발행 시 새 버전의 이미지, 원본 이미지 비노출, 인증 무관 동일 응답, POST 등 405, CORP 헤더 없음 |
+| 스키마 | V34 | — | — | — | NOT NULL·CHECK·PK·FK 위반 거부와 정상 허용(실제 MySQL), NOT NULL lint 통과, V1~V33 불변 |
+
+### 27.4 프런트 계약 (Claude Code)
+- **번역가** `/assigned/{id}` 페이지 단위 편집(26.4): 페이지마다 원본 이미지와 번역본 이미지를 나란히(좁은 화면은 위아래) 보이고, "번역본 이미지" 영역에 업로드·교체(허용 3종·5 MiB·시작 바이트를 로컬에서 먼저 검사, 중복 방지, 고정 오류 문구)를 둔다. DRAFT에서만 올릴 수 있고 제출된 버전은 읽기 전용. 이미지는 Blob URL로 표시하고 해제한다.
+- **감수자** 검토 화면과 **운영자** 번역 현황 상세: 같은 페이지 화면에 원본/번역본 이미지를 나란히 읽기 전용으로 보인다. 번역본 이미지가 없는 페이지는 안내만 보이고 텍스트 작업은 계속된다.
+- **운영자 발행 확인**: 원문에 페이지 번호가 있는데 번역본 이미지가 없는 페이지가 있으면 확인 문구에 그 개수를 알린다(차단하지 않음).
+- **뷰어** `/read/{id}`(로그인 불필요, 공개 API만, 토큰 없음): 공개 `/pages`로 이미지 페이지를 구성하고 공개 이미지 URL을 `<img>`로 직접 표시한다. 번역본 이미지가 없으면 기존 **텍스트 리더**(23.3)를 그대로 보인다.
+  - 상단 바: 회차 제목, 회차 목록(`/read`) 링크, 이전화·다음화, 설정 버튼. 하단 바: 이전화·다음화.
+  - **보기 방식**: ① 스크롤: 이미지를 세로로 이어 보임(폭 맞춤, 읽기 폭 상한). ② 페이지 넘김: 한 쪽 또는 **두 쪽 펼침**(넓은 화면에서만, 첫 페이지는 단독 표지). "N / M"과 페이지 선택, 마지막 도달 시 다음화 안내.
+  - **읽기 방향**: **오른쪽→왼쪽(기본, 일본 만화)**과 왼쪽→오른쪽을 설정으로 전환. 오른쪽→왼쪽에서는 첫 페이지가 오른쪽에 놓이고 **왼쪽 영역 클릭 또는 ←키가 다음**, 오른쪽 영역·→키가 이전. 왼쪽→오른쪽은 반대. 화면 양쪽 가장자리의 화살표 버튼도 같은 규칙. 모바일은 좌우 스와이프도 같은 규칙(세로 스크롤과 충돌하지 않게).
+  - **설정 패널**(보기 방식, 한 쪽/두 쪽, 읽기 방향)은 `localStorage`(키 `mangabridge.viewer.settings.v1`)에 저장하며 저장소가 막혀도 동작한다. 마지막 본 페이지는 회차 id·페이지 번호·공개 시각만 저장(`mangabridge.viewer.position.v1`)하고 공개본이 바뀌면 폐기한다.
+  - **미리 불러오기**: 현재 위치의 앞뒤 1~2쪽. 이미지 로드 실패는 해당 쪽에만 "이미지를 불러오지 못했습니다"와 다시 시도를 보이고 나머지는 계속 읽을 수 있다. `<img alt="페이지 N">`. 모든 조작은 키보드로 가능하고 설정 패널은 포커스를 가둔 채 Esc로 닫힌다. 움직임 줄이기 설정을 존중한다.
+  - 이전화/다음화는 공개 목록(20절)에서 찾고 실패하면 링크만 숨긴다. 독자 화면은 로그인 상태·역할에 따라 달라지지 않는다.
+
+### 27.5 파일 소유권·완료 조건
+- Codex 변경: `backend/src/main/resources/db/migration/V34__…`, backend/src/main(신규 패키지, 보안 규칙 순서, 이력 허용 event 추가), backend/src/test, README 기록.
+  - **기존 통합 테스트는 수정 없이 통과해야 한다. 단, V34 적용에 따른 기계적 변경만 허용(26.5와 같은 처리)**: `MySqlIntegrationTest`의 최신 마이그레이션 버전 33→34와 허용 테이블 목록에 `translation_page_image` 추가, `DomainSchemaMigrationIntegrationTest`의 전체 적용·이력 수 33→34와 V9 업그레이드 적용 수 24→25. `HistoryIntegrationTest`는 바꾸지 않고 새 이벤트 조회는 새 테스트에서 검증한다. 변경한 단언 목록(파일·테스트명·사유)을 보고한다. 이 범위 밖의 기존 테스트가 깨지면 임의로 고치지 말고 멈춰 보고한다.
+  - 개발 DB(3306)에는 승인·백업 절차 후에만 V34를 적용한다.
+- Claude Code 변경: frontend/src, frontend/tests/ui. 변경 금지: V1~V33, 기존 API의 기존 필드·동작(이력 허용 event 추가 제외), PROJECT_CONTEXT.md, 서로의 영역.
+- 테스트: 27.3 표, 연속 2회 통과·전후 행 수 비교. frontend는 27.4 전부(업로드·로컬 검사·중복 방지, 원본/번역본 병기, 뷰어의 스크롤·한 쪽·두 쪽·방향 전환과 클릭·키·스와이프 규칙, 설정 저장과 저장소 차단, 미리 불러오기, 이미지 실패 격리, 텍스트 리더 대체, 이전화/다음화)와 기존 회귀·타입·빌드.
+- **실제 브라우저 검증은 28절과 합쳐 최종 1회, 짧게**: 번역가 번역본 이미지 업로드 → 감수자·운영자가 원본과 나란히 확인 → 승인·발행 → 비로그인 독자가 `/read/{id}`에서 스크롤·페이지 넘김·방향 전환(왼쪽 영역 클릭=다음 쪽)·이전화/다음화 → 보류 시 404 → 공개 화면·응답에 원본 이미지 없음.
