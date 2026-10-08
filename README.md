@@ -1175,3 +1175,31 @@ README 2절과 같이 PowerShell 5.1 프로세스 환경에 격리 DB_URL·DB_US
 테스트 전·1회차 후·2회차 후 스냅샷은 모두 동일합니다. demo_account 4행 및 전체 내용 집계 SHA-256 불변, auth_login_limit 0행, auth_token·auth_audit·episode·episode_source_version·source_block·domain_audit·episode_assignment·translation_version·translation_block·review_decision·publication·review_block_comment·source_page_image·translation_page_image 각각 0행, Flyway 성공 이력 34행. 테스트가 만든 행만 정리했습니다. 이미지·파일명·비밀번호·토큰을 응답 오류/감사/로그에 기록하지 않았으며 변경 파일에 비밀값을 추가하지 않았습니다.
 
 정리: 소유 컨테이너 ID bd72156d5ba557e2e807a5ec6dc3752f5fab0d0d3f3695564a1601664deb7ac5를 대조한 뒤 docker stop --timeout 10(종료 코드 0), --rm 자동 정리 및 3326 리스너 0 확인. 테스트 프로세스 종료, 기존 개발 컨테이너 ID 49c9b14620e0939b29af2b10cd881ae7273ff17e8317d629f44400997a2e7daf와 vibe-coding-project_mysql_data 볼륨은 running/healthy로 유지했습니다. 기존 8080·8081·3000 및 frontend/.next·next-env.d.ts에는 조작하지 않았습니다. 증빙은 worktree의 ignored backend/build/verification/translated-27(로그·XML·전후 스냅샷)에 있습니다. 계약과 다른 구현이나 추가 정책 결정은 없습니다. 개발 DB V34 적용과 실제 브라우저 검증은 미실행입니다.
+
+### 작품·표지·공개 카탈로그·조회수 백엔드 — CONTRACTS 28절 (2026-10-09)
+
+검증자: Codex 직접 실행. 정정 승인 계약 b480168 기준의 별도 worktree에서 구현했습니다. 단계별 주 작업 트리 커밋은 ① 61f6541(V35·운영자 API), ② 2ce32b9(공개 카탈로그), ③ 0070674(조회수·인기 합계)이며, d16881c에서 저장 제약 오류의 안전한 503 처리와 신규 테스트를 보완했습니다. 최종 테스트 대상 worktree 커밋 76f4f28과 주 작업 트리 d16881c의 backend 내용이 동일함을 확인했습니다. 병행된 Claude Code 프런트·STATUS 커밋은 보존했습니다.
+
+환경: PowerShell 5.1.26100.9444, 실제 MySQL 8.4.11, 일회용 mangabridge-work28(--rm, /var/lib/mysql tmpfs), work28_verify/3335, 데모 계정 4개, V1~V35. Docker healthy는 앱 계정의 실제 SELECT 1로 확인했습니다. Spring 테스트는 random port를 사용했고 별도 프런트·상시 API 서버는 기동하지 않았습니다. 개발 DB(3306)는 연결하지 않았으며 V35를 적용하지 않았습니다. 실제 브라우저·외부 AI 검증은 미실행입니다.
+
+명령: 프로세스 환경변수로 격리 DB를 주입한 PS 5.1에서 `gradlew.bat build integrationTest --no-daemon --rerun-tasks`를 연속 2회 실행했습니다. 최종 1회차 08:45:45~08:49:58 KST, 2회차 08:50:14~08:54:26 KST 모두 BUILD SUCCESSFUL/종료 코드 0입니다. 각 실행 **Test Files 27 / Tests 202**, 실패·오류·건너뛰기 0(단위 9개 클래스/38개, 실제 MySQL 통합 18개 클래스/164개). 신규 테스트는 2개 클래스/22개입니다. 단계별 테스트는 `gradlew.bat test integrationTest --tests "*Work*Test" --no-daemon --rerun-tasks`로 ① 47개, ② 51개, ③ 보강 후 57개가 통과했습니다. 초기 신규 테스트의 잘못된 픽스처 컬럼명·URI 이중 인코딩은 테스트를 교정해 재실행했으며 기존 테스트는 허용 범위 외 변경하지 않았습니다.
+
+| CONTRACTS 28.5 항목 | 결과 |
+|---|---|
+| createWork / updateWork | 통과: 전체 입력 경계·기본값·revision 증가/충돌·동일 내용 무변경, 표지 필수/배너 5개 및 동시 경쟁, 역할 강제, 쓰기 후 장애 롤백·안전한 503 |
+| saveWorkCover | 통과: PNG/JPEG/WEBP 정확 왕복·201/200, 5 MiB 허용/+1 거부, 초과 길이 본문 읽기 전 거부, 형식/시작 바이트/빈 본문/없는 작품 검사 |
+| assignEpisodeWork / unassign / getEpisodeWork | 통과: 연결·재연결·번호 변경·중복 409·없는 대상 404·해제 멱등 204·한 회차 한 작품 |
+| 공개 카탈로그 5개 | 통과: 공개 정의·보류/재개·장르/정렬/페이지/입력 검증·공개 회차만·표지 헤더/CORP 없음·홈 섹션 한도와 정렬·미연결 latest의 workId:null·인증 무관·비공개 정보 비노출 |
+| recordView | 통과: 공개 회차 204/+1·병렬 증가·보류/미공개 404·인기에서 보류 제외·인증 무관·POST 외 405·허용/비허용 CORS·장애 롤백 |
+| 스키마 | 통과: V35의 5 CREATE TABLE(승인 예외), 25개 NOT NULL 컬럼·10 CHECK·7 RESTRICT FK·PK/UNIQUE, 정상 및 위반 삽입, 10개 한글 장르 utf8mb4_bin 저장/조회·허용 밖 값 거부, 기존 nullable lint·빈 DB/V9 업그레이드·Flyway validate. V1~V34 불변 |
+
+기존 단언 변경 목록(승인된 기계적 변경만):
+
+- MySqlIntegrationTest.mysqlHealthAndBaseline: 최신 버전 34→35.
+- MySqlIntegrationTest.mysqlCharsetCollationUtcDedicatedAccountAndInnoDb: 허용 테이블에 work·work_genre·work_cover·work_episode·episode_view_count 추가.
+- DomainSchemaMigrationIntegrationTest.emptyDatabaseMigratesAllThirtyTwoAndValidatesTwice: 전체 적용/성공 이력 34→35(기존 테스트 이름 유지).
+- DomainSchemaMigrationIntegrationTest.populatedV9UpgradePreservesEveryOldColumnAndChecksum: V9 이후 적용 수 25→26.
+
+HistoryIntegrationTest와 기존 공개 API 405 테스트를 포함한 나머지 기존 단언은 변경하지 않았습니다. 테스트 전·최종 1회차 후·2회차 후 스냅샷은 동일합니다. demo_account 4행과 전체 내용 집계 SHA-256 불변, auth_login_limit 0행, 나머지 데이터 테이블(신규 5개 포함) 모두 0행, Flyway 성공 이력 35행. 테스트 생성 행만 정리했습니다. 비밀번호·토큰·AI 키를 변경 파일에 추가하지 않았습니다.
+
+정리: 소유 ID cd347a36d713f8052bc1882d4e23d33b330d10d8d5195a322324a3c3a7e2210e를 대조해 docker stop --timeout 10(종료 코드 0), --rm 자동 정리와 3335 리스너 0을 확인했습니다. 테스트 프로세스는 종료됐습니다. 기존 개발 컨테이너 ID 49c9b14620e0939b29af2b10cd881ae7273ff17e8317d629f44400997a2e7daf·vibe-coding-project_mysql_data 볼륨은 보존했습니다(개발 컨테이너는 검증 전후 exited; 기동/종료 조작 없음). 기존 8080/8081/3000·frontend/.next·next-env.d.ts는 조작하지 않았습니다. 증빙은 worktree의 ignored backend/build/verification/work28에 있습니다. 계약과 다른 구현이나 미해결 계약 모호성은 없습니다. 개발 DB 적용과 브라우저 검증은 별도 승인 작업입니다.
