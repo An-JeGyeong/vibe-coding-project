@@ -1115,9 +1115,9 @@ NOT NULL 규칙은 **모든 도메인·인증 테이블**에 적용한다. NULL 
 - 제외: 베스트 리뷰, 댓글, 관심, 태그 검색(장르만), 멤버십·결제, 작품·표지 삭제, 별도 배너 이미지(표지를 크게 보임), 조회수 중복 제거(어뷰징 방지), 개인화 추천, 작품 검색(제목 검색은 기존 회차 목록 검색을 유지).
 - 작품에 연결되지 않은 기존 회차는 그대로 `/read`·`/read/{id}`에서 읽을 수 있다(작품 페이지에는 나오지 않고 메인의 "최신 공개 회차"에는 표지 없이 나온다).
 
-### 28.1 스키마 — V35 (파일당 DDL 하나, InnoDB·utf8mb4·UTC DATETIME(6), 모든 컬럼 NOT NULL)
+### 28.1 스키마 — V35 (InnoDB·utf8mb4·UTC DATETIME(6), 모든 컬럼 NOT NULL; **정정 2026-10-09: 이 마이그레이션만 "파일당 DDL 하나"의 예외로, V35 한 파일에 CREATE TABLE 5개를 둔다**(테이블 5개를 만들려면 문장 5개가 필요하고, 새 테이블 묶음이라 V35 하나가 단순하다. 아래 순서대로 FK 대상이 먼저 만들어지게 쓴다. 기존 테이블 변경 DDL은 여전히 금지))
 - `work`: id BIGINT AUTO_INCREMENT PK, title VARCHAR(100), author VARCHAR(100), description VARCHAR(2000)(빈 문자열 허용), reading_direction VARCHAR(3) ascii_bin CHECK IN ('RTL','LTR'), is_public TINYINT(1) CHECK IN (0,1), is_featured TINYINT(1) CHECK IN (0,1), is_banner TINYINT(1) CHECK IN (0,1), revision INT CHECK >= 1, created_by BIGINT → demo_account(id), created_at, updated_at. title·author는 공백만으로 둘 수 없다(서비스 검사).
-- `work_genre`: work_id BIGINT, genre VARCHAR(20) ascii_bin, PRIMARY KEY (work_id, genre), FK work(id), CHECK genre IN ('판타지','액션','로맨스','코미디','일상','미스터리','스릴러','SF','스포츠','드라마'). 작품당 1~3개는 서비스가 검사한다.
+- `work_genre`: work_id BIGINT, genre VARCHAR(20) **CHARACTER SET utf8mb4 COLLATE utf8mb4_bin**(정정 2026-10-09: 한글 장르 값은 ascii 컬럼에 저장할 수 없다. 영문 값 컬럼인 reading_direction·content_type은 ascii_bin 그대로), PRIMARY KEY (work_id, genre), FK work(id), CHECK genre IN ('판타지','액션','로맨스','코미디','일상','미스터리','스릴러','SF','스포츠','드라마'). 작품당 1~3개는 서비스가 검사한다.
 - `work_cover`: work_id BIGINT PK(FK work), content_type VARCHAR(32) ascii_bin CHECK 허용 3종, byte_size INT CHECK BETWEEN 1 AND 5242880, image_data MEDIUMBLOB, uploaded_by → demo_account(id), updated_at.
 - `work_episode`: episode_id BIGINT PK(FK episode(id)), work_id BIGINT(FK work), episode_no INT CHECK BETWEEN 1 AND 9999, **UNIQUE (work_id, episode_no)**. 회차는 최대 한 작품에만 속한다.
 - `episode_view_count`: episode_id BIGINT PK(FK episode(id)), view_count BIGINT CHECK >= 0.
