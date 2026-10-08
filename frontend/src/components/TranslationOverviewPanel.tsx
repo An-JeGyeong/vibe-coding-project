@@ -14,6 +14,8 @@ import { translationProgress } from "@/lib/translation/progress";
 import { usePageImages } from "./PageImage";
 import { PagedBlocks } from "./PagedBlocks";
 import { PageImagePair, useTranslatedImages } from "./TranslatedPageImages";
+import { listTranslatedImages } from "@/lib/translatedPages/client";
+import { missingImagePages } from "@/lib/translatedPages/missing";
 import { StatusBadge } from "./StatusBadge";
 import { ProgressBar } from "./ProgressBar";
 import { DecisionBox, decisionLabel, SideBySide } from "./ReviewParts";
@@ -121,6 +123,17 @@ export function TranslationOverviewPanel({ episodeId, refreshKey = 0 }: { episod
 
   const images = usePageImages("operator", episodeId, !!view && view.blocks.some((block) => block.pageNo !== null));
   const translatedImages = useTranslatedImages("operator", episodeId, view?.versionNo ?? 0, !!view && view.blocks.some((block) => block.pageNo !== null));
+  // Best effort: how many numbered pages of the version being published have no translated image; a failed lookup just shows nothing.
+  const [gap, setGap] = useState<{ versionNo: number; count: number } | null>(null);
+  useEffect(() => {
+    if (confirming === null) return;
+    const request = new AbortController();
+    void Promise.all([getOperatorTranslation(episodeId, confirming, request.signal), listTranslatedImages("operator", episodeId, confirming, request.signal)]).then(([detail, listed]) => {
+      if (request.signal.aborted || !detail.ok || !listed.ok) return;
+      setGap({ versionNo: confirming, count: missingImagePages(detail.value.blocks, listed.value.map((item) => item.pageNo)).length });
+    });
+    return () => request.abort();
+  }, [confirming, episodeId]);
   const current = publication?.current ?? null;
   const held = publication?.held ?? null;
   return <section id="section-translations" aria-label="번역 현황" className="card card-body shadow-sm mb-3">
@@ -175,7 +188,7 @@ export function TranslationOverviewPanel({ episodeId, refreshKey = 0 }: { episod
               <span>{current
                 ? `발행하면 독자에게 공개됩니다. 현재 공개 중인 v${current.versionNo}을 대체합니다. 발행할까요?`
                 : held ? `발행하면 독자에게 공개됩니다. 보류 중인 v${held.versionNo} 대신 공개됩니다. 발행할까요?`
-                : "발행하면 독자에게 공개됩니다. 발행할까요?"}</span>
+                : "발행하면 독자에게 공개됩니다. 발행할까요?"}{gap?.versionNo === item.versionNo && gap.count > 0 && ` 번역본 이미지가 없는 페이지가 ${gap.count}개 있습니다(발행은 막지 않으며, 독자 뷰어에는 이미지가 있는 페이지만 표시됩니다).`}</span>
               <button type="button" className="btn btn-success btn-sm" disabled={busy} onClick={() => void onPublish(item.versionNo)}>{busy ? "처리 중…" : "발행 확정"}</button>
               <button type="button" className="btn btn-outline-secondary btn-sm" disabled={busy} onClick={() => setConfirming(null)}>취소</button>
             </div>}

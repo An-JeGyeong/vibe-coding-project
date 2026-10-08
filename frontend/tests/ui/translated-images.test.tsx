@@ -1,6 +1,8 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import AssignedDetailPage from "@/app/(auth)/assigned/[id]/page";
+import { OperatorGate } from "@/components/OperatorGate";
+import { TranslationOverviewPanel } from "@/components/TranslationOverviewPanel";
 import ReviewDetailPage from "@/app/(auth)/reviews/[episodeId]/[versionNo]/page";
 import type { Role } from "@/lib/auth/types";
 import { fetchTranslatedImage, listTranslatedImages, uploadTranslatedImage } from "@/lib/translatedPages/client";
@@ -174,5 +176,49 @@ describe("translated images in the screens (27.4)", () => {
     expect(screen.queryByLabelText(/번역본 이미지 (올리기|교체)/)).toBeNull();
     await waitFor(() => expect(calls.some((call) => call.path === `${BASE}/1`)).toBe(true));
     expect(calls.every((call) => call.method === "GET")).toBe(true);
+  });
+});
+
+describe("publish confirmation: pages without a translated image (27.4)", () => {
+  const approved = { decision: "APPROVED", decidedAt: T, reason: null };
+  const summary = { versionNo: 2, status: "APPROVED", sourceVersion: 3, revision: 1, createdAt: T, submittedAt: T, decision: approved };
+  const detailBlocks = [{ seq: 1, pageNo: 1, source: "a", text: "가" }, { seq: 2, pageNo: 2, source: "b", text: "나" }, { seq: 3, pageNo: 3, source: "c", text: "다" }, { seq: 4, pageNo: null, source: "d", text: "라" }];
+  async function openOperator(images: unknown) {
+    const api = server("OPERATOR", {
+      "GET /api/episodes/7/translations": () => json(200, { latestSourceVersion: 3, items: [summary] }),
+      "GET /api/episodes/7/publication": () => json(200, { current: null, history: [] }),
+      "GET /api/episodes/7/translations/2": () => json(200, { ...summary, blocks: detailBlocks, blockComments: [] }),
+      "GET /api/episodes/7/translations/2/page-images": () => (images === null ? json(503, errorBody("SERVICE_UNAVAILABLE")) : json(200, images)),
+      "GET /api/episodes/7/pages": () => json(200, { items: [] }),
+    });
+    renderWithAuth(<OperatorGate><TranslationOverviewPanel episodeId="7" /></OperatorGate>);
+    await screen.findByRole("region", { name: "공개 상태" });
+    await screen.findByText("승인됨");
+    return api;
+  }
+
+  test("the confirmation says how many numbered pages have no translated image, and still lets the operator publish", async () => {
+    const { calls } = await openOperator({ items: [meta(1)] });
+    fireEvent.click(screen.getByRole("button", { name: "v2 발행" }));
+    expect(await screen.findByText(/번역본 이미지가 없는 페이지가 2개 있습니다/)).toBeTruthy();
+    expect((screen.getByRole("button", { name: "발행 확정" }) as HTMLButtonElement).disabled).toBe(false); // advisory only
+    expect(calls.some((call) => call.method === "POST")).toBe(false);
+  });
+
+  test("nothing is added when every numbered page has an image, or when the lookup fails", async () => {
+    const first = await openOperator({ items: [meta(1), meta(2), meta(3)] });
+    fireEvent.click(screen.getByRole("button", { name: "v2 발행" }));
+    await waitFor(() => expect(first.calls.some((call) => call.path === "/api/episodes/7/translations/2/page-images")).toBe(true));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(screen.queryByText(/번역본 이미지가 없는 페이지/)).toBeNull();
+    expect(screen.getByText(/발행하면 독자에게 공개됩니다/)).toBeTruthy();
+  });
+
+  test("a failed lookup only hides the extra sentence", async () => {
+    await openOperator(null);
+    fireEvent.click(screen.getByRole("button", { name: "v2 발행" }));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(screen.queryByText(/번역본 이미지가 없는 페이지/)).toBeNull();
+    expect(screen.getByRole("button", { name: "발행 확정" })).toBeTruthy();
   });
 });
