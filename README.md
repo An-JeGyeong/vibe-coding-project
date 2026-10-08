@@ -1149,3 +1149,29 @@ README 2절과 같이 PowerShell 5.1 프로세스 환경에 격리 DB_URL·DB_US
 
 검증 파일/메타데이터/스크린샷은 ignored backend/build/verification/final-browser-f360f5a에 있습니다. 핵심 화면 6장과 모바일 실패 증거 2장입니다. 공개본 교체 전의 일부 즉시 isVisible 조회는 로딩 중이었으므로 통과 근거로 사용하지 않았습니다. 개발 DB(3306)는 연결·변경하지 않았으며 기존 8080/8081/3000 및 기존 컨테이너·볼륨에는 종료·삭제 작업을 하지 않았습니다. 정리 결과는 아래에 이어 기록합니다.
 정리 확인: 실제 검증 API PID 43936, 프런트 66704, 프록시 12200을 소유 확인 후 종료했습니다. 임시 입력 창은 이미 종료된 상태였습니다. 일회용 컨테이너 ID ede92f3e777afc038dd0ff9a09a5ca4da1ca147181e3744962dce4a6cf9cb829를 대조한 뒤 docker stop --timeout 10(종료 코드 0), --rm 자동 정리 확인. 3325/8093/8092/3010 리스너 모두 0. 기존 개발 컨테이너 ID 49c9b14620e0939b29af2b10cd881ae7273ff17e8317d629f44400997a2e7daf와 vibe-coding-project_mysql_data 볼륨 유지, running/healthy. 8080/8081/3000은 종료 조작하지 않았으며 최종 리스너 0. 남은 제품 문제는 모바일 두 상세 화면 가로 스크롤이며 코드 수정 없이 Claude Code에 전달할 재현 기록을 남겼습니다.
+
+### 번역본 페이지 이미지 백엔드 — CONTRACTS 27절 (2026-10-08)
+
+검증자: Codex 직접 실행. 승인 계약 70a6a78 기준의 별도 worktree에서 구현·검증했습니다. 검증한 코드·테스트 커밋은 290790e이며, 주 작업 트리에 통합한 백엔드 기준은 96b6b21입니다(동일 backend 파일 내용 확인). Claude Code의 프런트 커밋 ab907b5·cc308d7을 보존했습니다. 실제 브라우저·뷰어 검증은 이번에 실행하지 않았으며 28절과 함께 최종 검증으로 이월합니다.
+
+환경: PowerShell 5.1.26100.9444, MySQL 8.4.11, 일회용 컨테이너 mangabridge-translated-27(--rm, /var/lib/mysql tmpfs), DB translated27_verify/3326. 시드로 만든 데모 계정 4개와 V1~V34를 사용했습니다. 테스트 서버는 Spring random port이며 별도 프런트·상시 API 서버는 기동하지 않았습니다. 기존 개발 DB(3306)는 연결·변경하지 않았고 V34도 적용하지 않았습니다.
+
+실행 명령: 환경변수를 프로세스에만 주입한 PowerShell 5.1에서 `gradlew.bat build integrationTest --no-daemon --rerun-tasks`를 연속 2회 실행했습니다. 1회차(15:56~16:01 KST)는 BUILD SUCCESSFUL/종료 코드 0, 2회차(16:03~16:08 KST)도 BUILD SUCCESSFUL/종료 코드 0입니다. 각 회차 **Test Files 25 / Tests 180**, 실패·오류·건너뛰기 모두 0(단위 테스트 8개 클래스/35개, 실제 MySQL 통합 테스트 17개 클래스/145개). 신규 테스트는 2개 클래스/15개입니다. 테스트 중 외부 AI 호출은 하지 않았습니다.
+
+| CONTRACTS 27.3 항목 | 결과 |
+|---|---|
+| saveTranslationPageImage | 통과: PNG·JPEG·WEBP 정확 왕복, 신규 201·교체 200, 선언/시작 바이트·빈 본문·미지원 형식 거부, 5 MiB 허용·+1은 400, 알려진 초과 길이는 스트림 열기 전 거부/미상 길이는 상한+1까지만 읽음. 원문 버전에 없는 페이지·미배정·이전 담당자 404, 비DRAFT 상태 409/currentStatus, 역할 강제·위조 거부·ACCESS_DENIED, 이미지/감사 실패 롤백·안전한 503, 동시 교체 직렬화, 감사와 새 이력 이벤트 조회 |
+| list/get 번역본 이미지 | 통과: pageNo 정렬·정확한 메타 필드, 저장 바이트·Content-Type·nosniff·no-store, 감수자 가시 상태 3종만, 타 번역가/교체 이전 담당자 404·새 담당자 인계, 독자 403, DB 장애 503 |
+| 공개 번역본 이미지 | 통과: 공개 포인터의 PUBLISHED 이미지만 반환. 미발행·보류·없는 회차·없는 페이지 동일 404, 공개 중 이미지 없는 목록은 items:[], 보류/재개·교체 발행·공개본 불변·새 버전 이미지 미복사, 원본 이미지 비노출, 인증 헤더 무시·GET 외 405, 허용 CORS preflight·비허용 Origin 403, CORP 헤더 없음 |
+| 스키마 | 통과: V34의 7개 NOT NULL, PK·CHECK 3개·RESTRICT FK 2개·ascii_bin, 정상 삽입 및 NULL/CHECK/PK/FK 위반 거부, 기존 NOT NULL lint·빈 DB/V9 업그레이드·Flyway validate. V1~V33 파일 불변 |
+
+기존 단언 변경은 승인 범위의 다음 4곳뿐이며 HistoryIntegrationTest와 나머지 기존 테스트는 변경하지 않았습니다.
+
+- MySqlIntegrationTest.mysqlHealthAndBaseline: 최신 버전 33→34.
+- MySqlIntegrationTest.mysqlCharsetCollationUtcDedicatedAccountAndInnoDb: 허용 테이블에 translation_page_image 추가.
+- DomainSchemaMigrationIntegrationTest.emptyDatabaseMigratesAllThirtyTwoAndValidatesTwice: 전체 적용 수·성공 이력 수 33→34(기존 테스트 이름 유지).
+- DomainSchemaMigrationIntegrationTest.populatedV9UpgradePreservesEveryOldColumnAndChecksum: V9 이후 적용 수 24→25.
+
+테스트 전·1회차 후·2회차 후 스냅샷은 모두 동일합니다. demo_account 4행 및 전체 내용 집계 SHA-256 불변, auth_login_limit 0행, auth_token·auth_audit·episode·episode_source_version·source_block·domain_audit·episode_assignment·translation_version·translation_block·review_decision·publication·review_block_comment·source_page_image·translation_page_image 각각 0행, Flyway 성공 이력 34행. 테스트가 만든 행만 정리했습니다. 이미지·파일명·비밀번호·토큰을 응답 오류/감사/로그에 기록하지 않았으며 변경 파일에 비밀값을 추가하지 않았습니다.
+
+정리: 소유 컨테이너 ID bd72156d5ba557e2e807a5ec6dc3752f5fab0d0d3f3695564a1601664deb7ac5를 대조한 뒤 docker stop --timeout 10(종료 코드 0), --rm 자동 정리 및 3326 리스너 0 확인. 테스트 프로세스 종료, 기존 개발 컨테이너 ID 49c9b14620e0939b29af2b10cd881ae7273ff17e8317d629f44400997a2e7daf와 vibe-coding-project_mysql_data 볼륨은 running/healthy로 유지했습니다. 기존 8080·8081·3000 및 frontend/.next·next-env.d.ts에는 조작하지 않았습니다. 증빙은 worktree의 ignored backend/build/verification/translated-27(로그·XML·전후 스냅샷)에 있습니다. 계약과 다른 구현이나 추가 정책 결정은 없습니다. 개발 DB V34 적용과 실제 브라우저 검증은 미실행입니다.
