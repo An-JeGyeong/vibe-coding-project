@@ -195,6 +195,10 @@ describe("manga viewer (27.4)", () => {
     expect((screen.getAllByRole("img")[1] as HTMLImageElement).getAttribute("loading")).toBe("lazy");
     expect(screen.getByText(/마지막 쪽입니다/)).toBeTruthy();
     expect(screen.queryByTestId("zone-left")).toBeNull();
+    const second = screen.getAllByRole("img")[1] as HTMLImageElement;
+    expect(second.style.minHeight).toBe("60vh"); // a placeholder height until loaded, so lazy images are not all zero-height
+    fireEvent.load(second);
+    expect(second.style.minHeight).toBe("");
     fireEvent.keyDown(window, { key: "ArrowLeft" }); // arrow keys keep their normal scrolling here
     expect(shownPages()).toHaveLength(3);
   });

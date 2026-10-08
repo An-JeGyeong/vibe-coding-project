@@ -24,16 +24,19 @@ function useWide() {
 function ViewerImage({ episodeId, pageNo, scroll }: { episodeId: string; pageNo: number; scroll: boolean }) {
   const [attempt, setAttempt] = useState(0);
   const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   if (failed) {
     return <div className="viewer-failed" role="group" aria-label={`페이지 ${pageNo}`}>
       <p className="mb-2">이미지를 불러오지 못했습니다.</p>
-      <button type="button" className="btn btn-outline-light btn-sm" onClick={() => { setFailed(false); setAttempt((count) => count + 1); }}>다시 시도</button>
+      <button type="button" className="btn btn-outline-light btn-sm" onClick={() => { setFailed(false); setLoaded(false); setAttempt((count) => count + 1); }}>다시 시도</button>
     </div>;
   }
   return (
     // eslint-disable-next-line @next/next/no-img-element -- a public image from another origin, shown as is
     <img className={scroll ? "viewer-img-scroll" : "viewer-img"} src={publicImageUrl(episodeId, pageNo, attempt)} alt={`페이지 ${pageNo}`}
-      loading={scroll ? "lazy" : undefined} onError={() => setFailed(true)} />
+      loading={scroll ? "lazy" : undefined} onLoad={() => setLoaded(true)} onError={() => setFailed(true)}
+      // a not-yet-loaded image has no height; without a placeholder every lazy image would sit at zero height and none would ever load
+      style={scroll && !loaded ? { minHeight: "60vh" } : undefined} />
   );
 }
 
@@ -162,7 +165,7 @@ export function MangaViewer({ episodeId, title, publishedAt, pages, previous, ne
             const step = stepForSwipe(t.clientX - start.x, t.clientY - start.y, direction);
             if (step !== null) go(step);
           }}>
-          <div className={`viewer-spread ${direction}`}>
+          <div className={`viewer-spread ${direction}${unit.length > 1 ? " two" : ""}`}>
             {unit.map((page) => <ViewerImage key={page} episodeId={episodeId} pageNo={page} scroll={false} />)}
           </div>
           <div className="viewer-zone viewer-zone-left" aria-hidden="true" data-testid="zone-left" onClick={() => go(stepForSide("left", direction))} />

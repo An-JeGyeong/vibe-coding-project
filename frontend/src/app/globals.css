@@ -120,12 +120,12 @@ body .btn-outline-secondary {
 .viewer a:not(.btn) { color: #aab4ff; }
 .viewer-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; background: #20222c; }
 .viewer-stage { position: relative; display: flex; justify-content: center; min-height: 12rem; touch-action: pan-y; }
-.viewer-spread { display: flex; justify-content: center; align-items: flex-start; max-width: 100%; }
+.viewer-spread { display: flex; justify-content: center; align-items: flex-start; width: 100%; }
 .viewer-spread.rtl { flex-direction: row-reverse; }
-.viewer-img { display: block; max-width: 100%; max-height: calc(100vh - 8rem); object-fit: contain; }
-.viewer-spread .viewer-img { max-width: 50%; }
+.viewer-img { display: block; max-width: 100%; max-height: calc(100vh - 12rem); object-fit: contain; }
+.viewer-spread.two .viewer-img { max-width: 50%; }
 .viewer-scroll { max-width: 900px; margin: 0 auto; }
-.viewer-img-scroll { display: block; width: 100%; height: auto; }
+.viewer-img-scroll { display: block; width: 100%; height: auto; background: #20222c; }
 .viewer-failed { padding: 3rem 1rem; text-align: center; background: #20222c; width: 100%; }
 .viewer-zone { position: absolute; top: 0; bottom: 0; width: 35%; cursor: pointer; }
 .viewer-zone-left { left: 0; }
