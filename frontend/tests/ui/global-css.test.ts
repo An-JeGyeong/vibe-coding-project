@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, test } from "vitest";
 
 // CSS rules that keep layout bugs away cannot be exercised in jsdom (no layout), so the rule itself is pinned here.
-const css = readFileSync(new URL("../../src/app/globals.css", import.meta.url), "utf8");
+const css = readFileSync(resolve(process.cwd(), "src/app/globals.css"), "utf8"); // the test environment has no file: URL for this module
 
 describe("global css guards", () => {
   test("a scrolling table is a positioned scroller, so the absolutely positioned screen-reader header text cannot widen the page on phones", () => {
