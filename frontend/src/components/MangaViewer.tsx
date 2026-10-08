@@ -81,10 +81,14 @@ function SettingsPanel({ settings, wide, onChange, onClose }: { settings: Viewer
   </div>;
 }
 
-export function MangaViewer({ episodeId, title, publishedAt, pages, previous, next }: {
+export function MangaViewer({ episodeId, title, publishedAt, pages, previous, next, listHref = "/read", defaultDirection }: {
   episodeId: string; title: string; publishedAt: string; pages: number[]; previous: PublicEpisode | null; next: PublicEpisode | null;
+  /** Where the "목록" link goes: the work page when the episode belongs to a work. */
+  listHref?: string;
+  /** The work's reading direction; used only while the reader has not chosen one. */
+  defaultDirection?: Direction;
 }) {
-  const [settings, setSettings] = useState<ViewerSettings>(loadSettings);
+  const [settings, setSettings] = useState<ViewerSettings>(() => loadSettings(defaultDirection));
   const wide = useWide();
   const [open, setOpen] = useState(false);
   const [pageNo, setPageNo] = useState(() => {
@@ -149,7 +153,7 @@ export function MangaViewer({ episodeId, title, publishedAt, pages, previous, ne
 
   return <section className="viewer" aria-label={`${title} 뷰어`}>
     <div className="viewer-bar">
-      <Link href="/read" className="btn btn-outline-light btn-sm">목록</Link>
+      <Link href={listHref} className="btn btn-outline-light btn-sm">목록</Link>
       <h1 className="h6 mb-0 flex-grow-1 text-truncate">{title}</h1>
       {episodeLinks}
       <button type="button" className="btn btn-outline-light btn-sm" onClick={() => setOpen(true)}>설정</button>

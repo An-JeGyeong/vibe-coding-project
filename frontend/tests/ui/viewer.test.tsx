@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import ReadEpisodePage from "@/app/(public)/read/[id]/page";
 import { buildUnits, stepForKey, stepForSide, stepForSwipe, unitIndexOf } from "@/lib/viewer/navigation";
@@ -26,6 +26,8 @@ function open(pageList: unknown = pages(1, 2, 3), extra: (call: FetchCall) => Re
     throw new Error(`unexpected ${call.method} ${call.path}`);
   });
 }
+// the page is on screen AND the key listener (a passive effect) is registered, even on a loaded machine
+async function ready() { await screen.findByRole("img", { name: "페이지 1" }); await act(async () => {}); }
 const shownPages = () => screen.getAllByRole("img").map((image) => image.getAttribute("alt"));
 const click = (name: RegExp | string) => fireEvent.click(screen.getByRole("button", { name }));
 function setWidth(width: number) {
@@ -79,7 +81,7 @@ describe("manga viewer (27.4)", () => {
   test("right-to-left by default: clicking the left area goes to the next page, the right area goes back; edges stop", async () => {
     open();
     render(<ReadEpisodePage />);
-    await screen.findByRole("img", { name: "페이지 1" });
+    await ready();
     expect((screen.getByRole("button", { name: "다음 쪽" }) as HTMLButtonElement).className).toContain("viewer-arrow-left");
     fireEvent.click(screen.getByTestId("zone-right"));
     expect(shownPages()).toEqual(["페이지 1"]); // before the first page: nothing happens
@@ -97,7 +99,7 @@ describe("manga viewer (27.4)", () => {
   test("keys and the edge arrows follow the same rule; keys typed in the page picker do not turn pages", async () => {
     open();
     render(<ReadEpisodePage />);
-    await screen.findByRole("img", { name: "페이지 1" });
+    await ready();
     fireEvent.keyDown(window, { key: "ArrowLeft" });
     expect(shownPages()).toEqual(["페이지 2"]);
     fireEvent.keyDown(window, { key: "ArrowRight" });
@@ -117,7 +119,7 @@ describe("manga viewer (27.4)", () => {
   test("switching to left-to-right in the settings mirrors the rule and is remembered", async () => {
     open();
     const first = render(<ReadEpisodePage />);
-    await screen.findByRole("img", { name: "페이지 1" });
+    await ready();
     click("설정");
     fireEvent.click(screen.getByLabelText("왼쪽→오른쪽"));
     click("닫기");
@@ -138,7 +140,7 @@ describe("manga viewer (27.4)", () => {
   test("swiping follows the direction rule", async () => {
     open();
     render(<ReadEpisodePage />);
-    await screen.findByRole("img", { name: "페이지 1" });
+    await ready();
     const stage = screen.getByTestId("zone-left").parentElement!;
     fireEvent.touchStart(stage, { changedTouches: [{ clientX: 100, clientY: 50 }] });
     fireEvent.touchEnd(stage, { changedTouches: [{ clientX: 220, clientY: 55 }] });
@@ -154,7 +156,7 @@ describe("manga viewer (27.4)", () => {
   test("two-page spread on a wide screen: the first page alone, then pairs, the first page of a pair on the right in rtl", async () => {
     open(pages(1, 2, 3, 4, 5));
     render(<ReadEpisodePage />);
-    await screen.findByRole("img", { name: "페이지 1" });
+    await ready();
     click("설정");
     fireEvent.click(screen.getByLabelText("두 쪽 펼침"));
     click("닫기");
@@ -171,7 +173,7 @@ describe("manga viewer (27.4)", () => {
   test("on a narrow screen the spread is not offered and one page is shown", async () => {
     open(pages(1, 2, 3));
     render(<ReadEpisodePage />);
-    await screen.findByRole("img", { name: "페이지 1" });
+    await ready();
     click("설정");
     fireEvent.click(screen.getByLabelText("두 쪽 펼침"));
     click("닫기");
@@ -187,7 +189,7 @@ describe("manga viewer (27.4)", () => {
   test("scroll mode shows every page in a column with the end notice and the next episode", async () => {
     open();
     render(<ReadEpisodePage />);
-    await screen.findByRole("img", { name: "페이지 1" });
+    await ready();
     click("설정");
     fireEvent.click(screen.getByLabelText("스크롤"));
     click("닫기");
@@ -206,7 +208,7 @@ describe("manga viewer (27.4)", () => {
   test("episode links: previous and next in the top and bottom bars, disabled at the ends", async () => {
     open();
     const { unmount } = render(<ReadEpisodePage />);
-    await screen.findByRole("img", { name: "페이지 1" });
+    await ready();
     expect(screen.getAllByRole("link", { name: /이전화/ }).map((link) => link.getAttribute("href"))).toEqual(["/read/1", "/read/1"]);
     expect(screen.getAllByRole("link", { name: /다음화/ }).map((link) => link.getAttribute("href"))).toEqual(["/read/3", "/read/3"]);
     expect(screen.getByRole("link", { name: "목록" }).getAttribute("href")).toBe("/read");
@@ -214,7 +216,7 @@ describe("manga viewer (27.4)", () => {
     nav.params = { id: "2" };
     open(pages(1), (call) => (call.path === "/api/public/episodes" ? json(503, errorBody("SERVICE_UNAVAILABLE")) : undefined));
     render(<ReadEpisodePage />);
-    await screen.findByRole("img", { name: "페이지 1" });
+    await ready();
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(screen.queryByRole("link", { name: /이전화|다음화/ })).toBeNull(); // a failure only hides the links
   });
@@ -254,7 +256,7 @@ describe("manga viewer (27.4)", () => {
   test("the last page is remembered with the publication time and a replaced publication discards it", async () => {
     open();
     const first = render(<ReadEpisodePage />);
-    await screen.findByRole("img", { name: "페이지 1" });
+    await ready();
     fireEvent.click(screen.getByTestId("zone-left"));
     expect(JSON.parse(window.localStorage.getItem(POSITION_KEY)!)).toEqual({ "2": { pageNo: 2, publishedAt: T } });
     first.unmount();
@@ -270,7 +272,7 @@ describe("manga viewer (27.4)", () => {
     vi.stubGlobal("localStorage", { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); }, removeItem: () => undefined });
     open();
     render(<ReadEpisodePage />);
-    await screen.findByRole("img", { name: "페이지 1" });
+    await ready();
     const opener = screen.getByRole("button", { name: "설정" });
     opener.focus();
     fireEvent.click(opener);
@@ -290,7 +292,7 @@ describe("manga viewer (27.4)", () => {
   test("keys do not turn pages while the settings panel is open", async () => {
     open();
     render(<ReadEpisodePage />);
-    await screen.findByRole("img", { name: "페이지 1" });
+    await ready();
     click("설정");
     fireEvent.keyDown(window, { key: "ArrowLeft" });
     expect(shownPages()).toEqual(["페이지 1"]);

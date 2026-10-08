@@ -8,7 +8,10 @@ import { publicFailureMessage } from "@/lib/publication/messages";
 import type { PublicEpisode, PublicEpisodeList, PublicEpisodeView } from "@/lib/publication/types";
 import { filterByTitle, loadAllPublicEpisodes, neighbours, type AllPublicEpisodes } from "@/lib/reader/episodes";
 import { hasPosition, loadPosition, savePosition, type ReadPosition } from "@/lib/reader/position";
+import { getEpisodeWork, getWork, recordView } from "@/lib/catalog/client";
+import type { EpisodeWork, WorkEpisode } from "@/lib/catalog/types";
 import { listPublicPages } from "@/lib/viewer/client";
+import { shouldCountView } from "@/lib/viewer/views";
 import { MangaViewer } from "./MangaViewer";
 
 const PAGE_SIZE = 20;
@@ -116,6 +119,8 @@ export function PublicEpisodeReader({ episodeId }: { episodeId: string }) {
   const [position, setPosition] = useState<ReadPosition | null>(null);
   // translated page images of the published version (CONTRACTS 27): "pending" until asked; none or a failure means the text reader
   const [imagePages, setImagePages] = useState<number[] | "pending">("pending");
+  // the work this episode belongs to (CONTRACTS 28.6): "pending" until asked; null means no public work, and the plain behaviour applies
+  const [workInfo, setWorkInfo] = useState<{ work: EpisodeWork; episodes: WorkEpisode[] | null } | "pending" | null>("pending");
   const activeLoad = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
@@ -163,6 +168,25 @@ export function PublicEpisodeReader({ episodeId }: { episodeId: string }) {
     return () => request.abort();
   }, [shown, episodeId]);
 
+  useEffect(() => {
+    if (!shown) return;
+    const request = new AbortController();
+    setWorkInfo("pending");
+    void getEpisodeWork(episodeId, request.signal).then(async (found) => {
+      if (request.signal.aborted) return;
+      if (!found.ok) { setWorkInfo(null); return; }
+      const detail = await getWork(found.value.workId, request.signal);
+      if (request.signal.aborted) return;
+      setWorkInfo({ work: found.value, episodes: detail.ok ? [...detail.value.episodes].sort((a, b) => a.episodeNo - b.episodeNo) : null });
+    });
+    return () => request.abort();
+  }, [shown, publishedAt, episodeId]);
+
+  useEffect(() => {
+    // one view per episode and browser session; the answer is never shown
+    if (shown && shouldCountView(episodeId)) void recordView(episodeId);
+  }, [shown, episodeId]);
+
   function jumpTo(seq: number) {
     const element = document.getElementById(`block-${seq}`);
     element?.scrollIntoView?.({ behavior: "smooth", block: "start" });
@@ -183,16 +207,23 @@ export function PublicEpisodeReader({ episodeId }: { episodeId: string }) {
     </div>;
   }
   if (!view) return null;
-  if (imagePages === "pending") return <p role="status">불러오는 중…</p>;
+  if (imagePages === "pending" || workInfo === "pending") return <p role="status">불러오는 중…</p>;
+  // inside a work the neighbours are the work's own episodes (by episode number); otherwise the whole public list decides
+  const workNear = workInfo?.episodes ? (() => {
+    const index = workInfo.episodes.findIndex((entry) => entry.episodeId === episodeId);
+    return index < 0 ? null : { previous: workInfo.episodes[index - 1] ?? null, next: workInfo.episodes[index + 1] ?? null };
+  })() : null;
+  const neighbourPair = workNear ?? near;
   if (imagePages.length > 0) {
     return <MangaViewer key={`${episodeId}-${view.publishedAt}`} episodeId={episodeId} title={view.title} publishedAt={view.publishedAt} pages={imagePages}
-      previous={near?.previous ?? null} next={near?.next ?? null} />;
+      previous={neighbourPair?.previous ?? null} next={neighbourPair?.next ?? null}
+      listHref={workInfo ? `/works/${encodeURIComponent(workInfo.work.workId)}` : "/read"} defaultDirection={workInfo ? (workInfo.work.readingDirection === "LTR" ? "ltr" : "rtl") : undefined} />;
   }
 
   const resume = position && view.blocks.some((block) => block.seq === position.seq) ? position : null;
-  const neighbourLinks = near && (near.previous || near.next) && <nav aria-label="이웃 회차" className="d-flex justify-content-between my-3">
-    <span>{near.previous && <Link href={`/read/${encodeURIComponent(near.previous.episodeId)}`}>← 이전 회차 {near.previous.title}</Link>}</span>
-    <span>{near.next && <Link href={`/read/${encodeURIComponent(near.next.episodeId)}`}>다음 회차 {near.next.title} →</Link>}</span>
+  const neighbourLinks = neighbourPair && (neighbourPair.previous || neighbourPair.next) && <nav aria-label="이웃 회차" className="d-flex justify-content-between my-3">
+    <span>{neighbourPair.previous && <Link href={`/read/${encodeURIComponent(neighbourPair.previous.episodeId)}`}>← 이전 회차 {neighbourPair.previous.title}</Link>}</span>
+    <span>{neighbourPair.next && <Link href={`/read/${encodeURIComponent(neighbourPair.next.episodeId)}`}>다음 회차 {neighbourPair.next.title} →</Link>}</span>
   </nav>;
   return <article className="reader-article">
     <p><Link href="/read">← 공개 회차 목록</Link></p>

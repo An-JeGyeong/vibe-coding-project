@@ -7,17 +7,19 @@ export const POSITION_KEY = "mangabridge.viewer.position.v1";
 export type ViewerSettings = { mode: ViewMode; spread: boolean; direction: Direction };
 export const DEFAULT_SETTINGS: ViewerSettings = { mode: "page", spread: false, direction: "rtl" };
 
-export function loadSettings(): ViewerSettings {
+/** `fallbackDirection` is the work's reading direction: it only applies while the reader has not chosen one (CONTRACTS 28.6). */
+export function loadSettings(fallbackDirection: Direction = DEFAULT_SETTINGS.direction): ViewerSettings {
+  const defaults: ViewerSettings = { ...DEFAULT_SETTINGS, direction: fallbackDirection };
   try {
     const parsed: unknown = JSON.parse(window.localStorage.getItem(SETTINGS_KEY) ?? "null");
-    if (typeof parsed !== "object" || parsed === null) return DEFAULT_SETTINGS;
+    if (typeof parsed !== "object" || parsed === null) return defaults;
     const value = parsed as Record<string, unknown>;
     return {
-      mode: value.mode === "scroll" || value.mode === "page" ? value.mode : DEFAULT_SETTINGS.mode,
-      spread: typeof value.spread === "boolean" ? value.spread : DEFAULT_SETTINGS.spread,
-      direction: value.direction === "ltr" || value.direction === "rtl" ? value.direction : DEFAULT_SETTINGS.direction,
+      mode: value.mode === "scroll" || value.mode === "page" ? value.mode : defaults.mode,
+      spread: typeof value.spread === "boolean" ? value.spread : defaults.spread,
+      direction: value.direction === "ltr" || value.direction === "rtl" ? value.direction : defaults.direction,
     };
-  } catch { return DEFAULT_SETTINGS; }
+  } catch { return defaults; }
 }
 
 export function saveSettings(settings: ViewerSettings) {

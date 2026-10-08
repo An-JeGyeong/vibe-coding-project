@@ -142,3 +142,17 @@ body .btn-outline-secondary {
 .home-card { color: inherit; }
 .home-card:hover { box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.15) !important; }
 .home-card-cover { aspect-ratio: 3 / 4; display: flex; align-items: center; justify-content: center; font-size: 3rem; font-weight: 700; color: #fff; background: linear-gradient(135deg, #3d4fb8, #20222c); border-radius: var(--bs-card-inner-border-radius) var(--bs-card-inner-border-radius) 0 0; }
+
+/* Catalog: covers, work cards, banner, work page */
+.cover-img, .cover-placeholder { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; }
+.cover-placeholder { display: flex; align-items: center; justify-content: center; font-size: 3rem; font-weight: 700; color: #fff; background: linear-gradient(135deg, #3d4fb8, #20222c); }
+.work-card { color: inherit; }
+.work-card:hover { box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.15) !important; }
+.work-card-cover, .home-card-cover.cover-img { border-radius: var(--bs-card-inner-border-radius) var(--bs-card-inner-border-radius) 0 0; }
+.work-detail-cover { border-radius: 0.5rem; max-width: 320px; }
+.home-banner { background: #20222c; color: #fff; border-radius: 0.5rem; padding: 1rem; }
+.home-banner-slide { display: flex; gap: 1.25rem; align-items: center; }
+.home-banner-cover { width: 9rem; flex: none; border-radius: 0.4rem; }
+.home-banner-text { min-width: 0; }
+.home-banner-controls { display: flex; gap: 0.75rem; align-items: center; justify-content: center; margin-top: 0.75rem; }
+@media (max-width: 575.98px) { .home-banner-cover { width: 6rem; } }

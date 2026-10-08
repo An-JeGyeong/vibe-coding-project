@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 import HomePage from "@/app/(public)/page";
 import PublicLayout from "@/app/(public)/layout";
@@ -10,6 +10,7 @@ const ep = (n: number) => ({ episodeId: String(n), title: `${n}화`, publishedAt
 // The public list is ordered by episode id ascending (CONTRACTS 20).
 function listServer(total: number, extra?: (call: FetchCall) => Response | undefined) {
   return mockFetch((call) => {
+    if (call.path === "/api/public/home") return json(503, errorBody("SERVICE_UNAVAILABLE")); // the catalog is down: the simple list is the page
     const special = extra?.(call);
     if (special) return special;
     const url = new URL(call.url);
@@ -20,7 +21,7 @@ function listServer(total: number, extra?: (call: FetchCall) => Response | undef
   });
 }
 
-describe("reader main page, simple form (28.7 a)", () => {
+describe("reader main page when the catalog is unavailable: the simple latest list (28.7 a)", () => {
   test("many episodes: the newest 12 are shown newest first, read with the public list only and no token", async () => {
     window.sessionStorage.setItem("mangabridge.demoAuth.accessToken", "should-never-be-sent");
     const { calls } = listServer(30);
@@ -28,7 +29,7 @@ describe("reader main page, simple form (28.7 a)", () => {
     const cards = await screen.findAllByRole("link", { name: /화/ });
     const titles = cards.filter((link) => link.getAttribute("href")?.startsWith("/read/")).map((link) => within(link).getByRole("heading").textContent);
     expect(titles).toEqual(["30화", "29화", "28화", "27화", "26화", "25화", "24화", "23화", "22화", "21화", "20화", "19화"]);
-    expect(calls.map((call) => new URL(call.url).search)).toEqual(["?limit=12&offset=0", "?limit=12&offset=18"]);
+    expect(calls.filter((call) => call.path === "/api/public/episodes").map((call) => new URL(call.url).search)).toEqual(["?limit=12&offset=0", "?limit=12&offset=18"]);
     for (const call of calls) expect(call.headers.Authorization ?? call.headers.authorization).toBeUndefined();
     expect(screen.getByRole("link", { name: "30화 공개 2026-10-08" }).getAttribute("href")).toBe("/read/30");
     expect(screen.getByRole("heading", { name: "번역된 만화를 읽어 보세요" })).toBeTruthy();
@@ -39,7 +40,7 @@ describe("reader main page, simple form (28.7 a)", () => {
     const { calls } = listServer(3);
     render(<HomePage />);
     await screen.findByRole("heading", { name: "3화" });
-    expect(calls).toHaveLength(1);
+    expect(calls.filter((call) => call.path === "/api/public/episodes")).toHaveLength(1);
     expect(screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent)).toEqual(["3화", "2화", "1화"]);
   });
 
@@ -54,11 +55,11 @@ describe("reader main page, simple form (28.7 a)", () => {
     let healthy = false;
     listServer(2, () => (healthy ? undefined : json(503, errorBody("SERVICE_UNAVAILABLE"))));
     render(<HomePage />);
-    expect(await screen.findByRole("alert")).toBeTruthy();
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "다시 시도" })).toHaveLength(2)); // the catalog notice and the failed latest list
     healthy = true;
-    fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "다시 시도" })[1]); // the latest-list retry (the first one retries the catalog)
     expect(await screen.findByRole("heading", { name: "2화" })).toBeTruthy();
-    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText("작품 정보를 불러오지 못해 최신 회차만 보여 드립니다.")).toBeTruthy();
   });
 
   test("a saved reading position is offered as a continue badge", async () => {
