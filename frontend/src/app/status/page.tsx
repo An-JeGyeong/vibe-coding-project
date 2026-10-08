@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { checkHealth, healthLabel, type HealthResult } from "@/lib/api";
 
-export default function Home() {
+export default function StatusPage() {
   const [result, setResult] = useState<HealthResult | null>(null);
   const [loading, setLoading] = useState(true);
 

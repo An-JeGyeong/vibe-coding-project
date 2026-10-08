@@ -136,3 +136,9 @@ body .btn-outline-secondary {
 .viewer-arrow-right { right: 0.25rem; }
 .viewer-end { margin: 0; padding: 0.75rem 1rem; text-align: center; background: #20222c; }
 .viewer-settings { position: absolute; top: 3rem; right: 0.75rem; z-index: 5; width: min(20rem, calc(100% - 1.5rem)); color: var(--bs-body-color); }
+
+/* Reader main page */
+.home-hero { padding: 1.5rem 0 0.5rem; }
+.home-card { color: inherit; }
+.home-card:hover { box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.15) !important; }
+.home-card-cover { aspect-ratio: 3 / 4; display: flex; align-items: center; justify-content: center; font-size: 3rem; font-weight: 700; color: #fff; background: linear-gradient(135deg, #3d4fb8, #20222c); border-radius: var(--bs-card-inner-border-radius) var(--bs-card-inner-border-radius) 0 0; }
