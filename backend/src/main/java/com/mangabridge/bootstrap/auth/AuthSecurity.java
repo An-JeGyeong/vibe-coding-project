@@ -36,6 +36,8 @@ public class AuthSecurity {
                 .requestMatchers("/api/assignable-accounts").hasRole("OPERATOR")
                 .requestMatchers("/api/history").hasRole("OPERATOR")
                 .requestMatchers("/api/my/episodes/*/pages","/api/my/episodes/*/pages/**").hasAnyRole("TRANSLATOR","REVIEWER")
+                .requestMatchers(org.springframework.http.HttpMethod.PUT,"/api/my/episodes/*/translations/*/page-images/**").hasRole("TRANSLATOR")
+                .requestMatchers("/api/my/episodes/*/translations/*/page-images","/api/my/episodes/*/translations/*/page-images/**").hasAnyRole("TRANSLATOR","REVIEWER")
                 .requestMatchers("/api/my/episodes/*/translations","/api/my/episodes/*/translations/**").hasRole("TRANSLATOR")
                 .requestMatchers("/api/my/reviews","/api/my/episodes/*/reviews","/api/my/episodes/*/reviews/**").hasRole("REVIEWER")
                 .requestMatchers("/api/my/**").hasAnyRole("TRANSLATOR","REVIEWER")

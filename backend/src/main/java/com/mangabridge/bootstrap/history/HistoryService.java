@@ -15,7 +15,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class HistoryService {
     private static final Set<String> KEYS=Set.of("episodeId","event","limit","offset");
     private static final Set<String> EVENTS=Set.of("EPISODE_CREATED","SOURCE_SAVED","ASSIGNED","TRANSLATION_CREATED",
-            "TRANSLATION_SUBMITTED","REVIEW_APPROVED","REVIEW_REJECTED","APPROVAL_INVALIDATED","TRANSLATION_PUBLISHED","PUBLICATION_HELD","PUBLICATION_RESUMED","PAGE_IMAGE_SAVED");
+            "TRANSLATION_SUBMITTED","REVIEW_APPROVED","REVIEW_REJECTED","APPROVAL_INVALIDATED","TRANSLATION_PUBLISHED","PUBLICATION_HELD","PUBLICATION_RESUMED","PAGE_IMAGE_SAVED","TRANSLATION_PAGE_IMAGE_SAVED");
     private final HistoryDao dao;
     private final TransactionTemplate read;
     public HistoryService(HistoryDao dao,PlatformTransactionManager manager) {
