@@ -14,6 +14,7 @@ export const EVENT_LABEL: Record<string, string> = {
   PUBLICATION_HELD: "공개 보류",
   PUBLICATION_RESUMED: "공개 재개",
   PAGE_IMAGE_SAVED: "페이지 이미지 저장",
+  TRANSLATION_PAGE_IMAGE_SAVED: "번역본 이미지 저장",
   AI_DRAFT_REQUESTED: "AI 초안 요청", // shown in the list; the API does not accept it as a filter
 };
 
@@ -30,6 +31,7 @@ export function describeEvent(item: HistoryItem): string {
     case "REVIEW_REJECTED": return `번역${version} 반려`;
     case "APPROVAL_INVALIDATED": return `번역${version} 승인 무효화`;
     case "TRANSLATION_PUBLISHED": return `번역${version} 발행`;
+    case "TRANSLATION_PAGE_IMAGE_SAVED": return version ? `${base} (번역${version})` : base;
     case "PUBLICATION_HELD": return version ? `${base} (번역${version})` : base;
     case "PUBLICATION_RESUMED": return version ? `${base} (번역${version})` : base;
     case "AI_DRAFT_REQUESTED": return version ? `${base} (번역${version})` : base;

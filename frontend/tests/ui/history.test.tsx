@@ -90,6 +90,7 @@ describe("event wording (24.3)", () => {
     expect(at("PUBLICATION_RESUMED", { translationVersionNo: 3 })).toBe("공개 재개 (번역 v3)");
     expect(at("REVIEW_REJECTED", { translationVersionNo: null })).toBe("번역 반려");
     expect(at("PAGE_IMAGE_SAVED")).toBe("페이지 이미지 저장");
+    expect(at("TRANSLATION_PAGE_IMAGE_SAVED", { translationVersionNo: 2 })).toBe("번역본 이미지 저장 (번역 v2)");
     expect(at("AI_DRAFT_REQUESTED", { translationVersionNo: 2 })).toBe("AI 초안 요청 (번역 v2)");
     expect(at("SOMETHING_NEW")).toBe("기타 작업");
     expect(HISTORY_EVENTS).toHaveLength(12);

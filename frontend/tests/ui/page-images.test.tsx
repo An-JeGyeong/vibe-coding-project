@@ -273,6 +273,7 @@ describe("page images in the page-by-page screens", () => {
       "GET /api/my/episodes/7/translations/2": () => json(200, { ...summary, editable: true, blocks: withPages ? blocks : blocks.map((b) => ({ ...b, pageNo: null })), blockComments: [] }),
       "GET /api/my/episodes/7/pages": () => json(200, { items: [meta(1)] }),
       "GET /api/my/episodes/7/pages/1/image": () => imageResponse(),
+      "GET /api/my/episodes/7/translations/2/page-images": () => json(200, { items: [] }),
       ...routes,
     });
     renderWithAuth(<AssignedDetailPage />);

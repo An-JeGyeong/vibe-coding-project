@@ -8,12 +8,12 @@ const TIMEOUT_MS = 30_000; // images are larger than JSON bodies
 const id = (value: string) => encodeURIComponent(value);
 const root = (scope: PageImageScope, episodeId: string) => (scope === "operator" ? `/api/episodes/${id(episodeId)}` : `/api/my/episodes/${id(episodeId)}`);
 
-function meta(value: unknown): PageImageMeta | null {
+export function meta(value: unknown): PageImageMeta | null {
   return isRecord(value) && isInt(value.pageNo) && isStr(value.contentType) && isInt(value.byteSize) && isTime(value.updatedAt)
     ? { pageNo: value.pageNo, contentType: value.contentType, byteSize: value.byteSize, updatedAt: value.updatedAt } : null;
 }
 
-function statusFailure(status: number): EpisodeFailure {
+export function statusFailure(status: number): EpisodeFailure {
   switch (status) {
     case 400: return { kind: "invalid_request" };
     case 401: return { kind: "unauthorized", code: "AUTH_REQUIRED" };
@@ -34,7 +34,7 @@ export async function listPageImages(scope: PageImageScope, episodeId: string, s
 }
 
 // Binary requests: the bearer token goes in the header (an <img src> cannot send it), never in the URL.
-async function binary(path: string, init: { method: string; body?: Blob; contentType?: string; signal?: AbortSignal }): Promise<{ ok: true; response: Response } | { ok: false; failure: EpisodeFailure }> {
+export async function binary(path: string, init: { method: string; body?: Blob; contentType?: string; signal?: AbortSignal }): Promise<{ ok: true; response: Response } | { ok: false; failure: EpisodeFailure }> {
   const base = process.env.NEXT_PUBLIC_API_BASE_URL;
   if (!base) return { ok: false, failure: { kind: "misconfigured" } };
   const stored = readToken();
