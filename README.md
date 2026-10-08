@@ -1096,3 +1096,56 @@ README 2절과 같이 PowerShell 5.1 프로세스 환경에 격리 DB_URL·DB_US
 각 커밋 직전 명시한 파일 목록과 git diff --cached --name-only 및 --check를 대조했습니다. 변경 파일의 실제 키 패턴 검사 0건, 비밀번호·이미지·파일명 감사 저장 없음, 이미지 레코드 toString 가림을 확인했습니다. 시드 비밀번호는 프로세스 환경에서만 사용하고 정리했으며 기록·Git에 포함하지 않았습니다. PROJECT_CONTEXT.md의 기존 줄바꿈 M, 공통 계약·결정 문서, frontend는 수정·stage·restore하지 않았습니다.
 
 정리: 이름·ID를 대조한 이번 컨테이너만 docker stop --timeout 10으로 종료(코드 0, --rm 자동 정리), 3324 리스너 0. 기존 vibe-coding-project-mysql-1(ID 접두사 49c9b14620e0)은 healthy, 3306 리스너 1로 보존했습니다. 8080·8081·3000 리스너는 정리 확인 시 0이며 종료 조작하지 않았습니다. 기존 볼륨·컨테이너 삭제, push·이력 재작성 없음. 증빙은 ignored backend/build/verification/page-c016d34의 로그·XML·스냅샷입니다. 개발 DB V33 적용은 별도 승인·백업 후 수행해야 하며, 실제 브라우저 연동은 10/12 최종 통합 검증으로 이월합니다.
+
+### 최종 실제 브라우저 통합 검증 — f360f5a (2026-10-08)
+
+검증자: Codex 직접 실행. 사용자에게서 격리 계정 비밀번호 입력 완료와 자동 로그인 허가를 받은 뒤 수행했습니다. 기존 Claude Code API/자동 테스트 결과를 이번 브라우저 검증으로 재사용하지 않았습니다. 대상은 CONTRACTS 18~26절과 사용자 제공 최종 통합 시나리오 A1~L1입니다. 소스 수정 없이 README만 기록했습니다.
+
+환경: MySQL 8.4.11, 임시 컨테이너 mangabridge-final-browser-f360f5a(--rm, /var/lib/mysql tmpfs), DB final_browser_oct8/3325, Spring 8093, 메타데이터 프록시 8092, Next.js 3010, Codex In-app Browser. CORS 출처는 http://localhost:3010 하나입니다. AUTH_CLIENT_IP_MODE 미설정, 정상 AI 검증은 mock이며 실제 외부 AI 호출은 하지 않았습니다. 선택 장애 검증 때만 본인 API를 anthropic/키 없음으로 재기동했습니다. 이미지 digest는 sha256:6ea90827b1100f8f2ae306a539f86d2c264a26ed435a2a9f75551dd5c3aeb242입니다.
+
+빌드 확인: git archive f360f5a의 frontend 격리 사본에서 NEXT_PUBLIC_API_BASE_URL=http://localhost:8092로 npm.cmd run build -- --webpack 성공, /history·/read 및 페이지 이미지 UI 존재 확인. source-commit.txt=f360f5a, 격리 .next/BUILD_ID 파일 SHA-256=B8B65C248C262E88CA16615BF1423A873F9DDBA94651F80741DFB565F69862F6. 기존 frontend/.next·next-env.d.ts는 변경하지 않았습니다. Spring bootJar 및 격리 시드 실행 성공, Flyway V1~V33 적용. 환경 주입·시드는 PowerShell 5.1(5.1.26100.9444), 선택 장애 검증의 실제 API 재기동도 PowerShell 5.1입니다(추가 PowerShell 7.6.5 재기동 시도는 기존 8093 프로세스와 충돌해 종료되었고 검증 서버로 사용하지 않음).
+
+| 항목 | 결과와 직접 확인 범위 |
+|---|---|
+| A1 | 통과: 역할별 공통 헤더·메뉴·사용자·뱃지·화면별 제목, 헤더 로그아웃 후 /login 및 안내 |
+| A2 | 통과: 회차 A의 5블록(p1/p2/미지정), 배정, 5개 구역 링크의 hash 이동, 원문·이력 접힘/펼침 |
+| A3 | 통과: PNG 신규 201·JPEG 교체 200·썸네일, GIF/가짜 PNG/5 MiB+1 로컬 거부 및 추가 PUT 없음; 원문에 존재하는 페이지만 업로드 UI; 회차 B의 페이지 번호 없는 원문 안내 |
+| A4 | 통과: 운영자 번역 상세에 페이지 이미지 표시 |
+| B1 | 통과: 시작 전 1/작성 중 1 대시보드 숫자·칩·링크 |
+| B2 | 통과: 페이지 이동·선택·전체 보기, p1 이미지, p2 이미지 없음, 미지정 이미지 영역 없음, 원본 크기/폭 맞춤 |
+| B3 | 통과: 페이지 간 입력 유지, 실시간 진행률·미저장 표시, action-bar computed position=sticky/bottom=0 |
+| B4 | 통과: 취소 시 AI POST 없음, 빈 4블록만 mock 채움·수동 입력 유지·수정 시 AI 표시 제거·자동 저장 없음·명시 저장/제출; 성공 AI 감사 1건 |
+| C1 | 통과: 감수자 대기 건수·목록·읽기 전용 병기·페이지 이미지 |
+| C2 | 통과: 두 페이지 의견 2개, 301자/공백만 로컬 거부·취소 시 POST 없음·확정 후 읽기 전용 의견 |
+| D1 | 통과: 40자 초과 사유 한 줄 요약/줄바꿈 병합/말줄임, 상세 전체 사유·개행·의견; 승인/무결정 버전 요약 없음 |
+| D2 | 통과: v2 복사·직전 반려 의견 읽기 전용·수정/저장/제출 |
+| D3 | 통과: 기본 v1/v2 비교, 변경 1/같음 4·변경만 보기·이전 의견·동일 버전 안내 |
+| E1 | 통과: 승인 취소 시 POST 없음·승인 확정, 감수자 /assigned 비교 |
+| F1 | 통과: 승인된 v2 발행 확인/성공·공개 상태, 운영자 비교·진행률; 추가 v3 교체 발행도 확인 |
+| F2 | 통과: 보류 취소·확정·독자 차단·재개·동일 버전 복귀, 재개로 publication 이력 1건 증가 |
+| F3 | 통과(실제 동작 기록): 최신순·한국어 기존 이벤트·회차/종류 필터·25건의 20/5 페이지 이동. 이미지/AI 이벤트는 화면에서 모두 ‘기타 작업’; 둘 다 UI 종류 필터에는 없음. PAGE_IMAGE_SAVED API 필터 200(total 2), AI_DRAFT_REQUESTED 필터 400. 사유·의견·텍스트 없음 |
+| F4 | 통과: 운영자 현황 카드에 공개 중/번역 없음 칩 |
+| G1 | 통과: 보류 중 목록 제외·상세 동일 404 안내·재개 후 복귀. 번역문/페이지/발행 시각만 표시, 원문 이미지·결정·사유·상태 없음, HTML 문자열을 문자 그대로 표시 |
+| G2 | 미검증 일부: 검색 부분 일치/대소문자 무시/결과 없음, 블록 3 북마크·목록 이어 읽기·복원 확인. v3 교체 후 이전 위치 표시 없음. 공개 브라우저 요청 Authorization 없음 확인. 공개 회차가 하나여서 이전/다음 회차 링크는 미검증 |
+| G3 | 통과: 독자 로그인 후 공개 회차 읽기 링크·최근 공개 회차 카드·동일 공개 화면 |
+| H1 | 통과: 번역가/감수자/독자 × 발행/보류/재개/이미지 PUT/이력 GET 모두 403, 비로그인 모두 401(격리 HTTP 직접 확인) |
+| H2 | 통과: 독자 이미지 403·미배정 reviewer2 404·교체 이전 번역가 404·새 번역가 200·nosniff/no-store. 공개 JSON 필드는 episodeId/title/publishedAt/blocks 및 seq/pageNo/text뿐 |
+| H3 | 통과: 만료/변조 토큰 공개 GET 200·비허용 Origin 403·허용 이미지 PUT preflight 200 및 authorization/content-type 허용 |
+| I1 | 실패: 375px에서 운영자 상세 document.scrollWidth=462, 번역가 상세=428(화면 clientWidth 360~375). 감수 상세/공개 상세/이력은 scrollWidth<=clientWidth. 아래 재현 참고 |
+| I2 | 미검증 일부: 헤더 rgb(44,58,140)·본문 링크 rgb(61,79,184), 여러 상태 색 및 빈/로딩 UI 관찰. 모든 상태 뱃지·버튼 색의 전 화면 일치까지는 검증하지 않음 |
+| I3 | 미검증 일부: 첫 Tab에 본문 건너뛰기 링크 포커스, Enter 후 #main-content 및 실제 main 대상 존재, 사용한 입력의 라벨 확인. 전체 포커스 흐름·axe-core는 미실행 |
+| J1 | 통과: anthropic/키 없음으로 503 AI_UNAVAILABLE, 안전한 오류·다시 시도·입력 유지, 수동 저장 및 이후 제출/승인/발행 성공; 외부 호출 없음 |
+| K1 | 통과: 결정 3행(v1 반려/v2·v3 승인 각각 1), 의견 2행·결정/번역 버전 불일치 0, publication 3행(발행 2+재개 1), 포인터 v3/최근 발행 일치, 이미지 1행·JPEG 파일과 DB 바이트 SHA-256 일치 |
+| K2 | 통과: REVIEW_APPROVED 2/REVIEW_REJECTED 1/TRANSLATION_PUBLISHED 2/PUBLICATION_HELD 1/PUBLICATION_RESUMED 1/PAGE_IMAGE_SAVED 2/AI_DRAFT_REQUESTED 2(성공 1+선택 실패 1). 승인 무효화 시나리오는 이번 흐름에서 미실행, APPROVAL_INVALIDATED 0. 감사에는 텍스트 컬럼 없음, auth_login_limit 0/LOGIN_LIMITED 0 |
+| L1 | 미검증 일부: 2~7·9절 화면 대조 수행. 8절 승인 후 원문 변경 등 별도 실패 시나리오는 이번 실행에서 재현하지 않음. 문구 차이는 아래 기록, 대본 수정 없음 |
+
+추가 확인: 브라우저에서 같은 ID로 잘못된 로그인 7회가 모두 401 고정 안내, 바로 정상 로그인 200, 전체 프록시 기록 429=0. 기존 사용자 확인 보고와 구분해 Codex가 직접 수행했습니다.
+
+발견한 결함(수정하지 않음): 회차에 위와 같은 5블록·3번역 버전(긴 UTC 제출 시각·반려 사유 포함)을 만든 뒤 폭 375로 /episodes/1 또는 /assigned/1을 열면 표가 화면 폭을 넘어 문서에 가로 스크롤이 생깁니다. 번역가 버전 표의 DOM 폭 약 441px, 오른쪽 약 470px를 관측했습니다. failure-mobile-operator.jpg·failure-mobile-translator.jpg에 재현 화면이 있습니다. 감수/공개/이력은 같은 폭에서 통과했으므로 전 화면 모바일 통과로 표시하지 않습니다.
+
+대본 / 실제: ‘원문 버전 1로 저장했습니다.’ / ‘원문 버전 1으로 저장했습니다.’; ‘페이지 1 / 3’ / ‘p.1 (1 / 3)’; ‘이미지 저장·AI 요청이 한국어 문구로’ / 두 이벤트 모두 ‘기타 작업’. 새 이벤트 필터 UI가 없다는 사실은 F3 실제 결과로 남겼으며 계약/코드를 변경하지 않았습니다.
+
+증거/한계: Network 패널 대신 자체 메타데이터 프록시의 method/path/status/Origin/CORS 헤더/Authorization 존재 여부/오류 코드/공개 필드 이름만 기록했습니다(값·본문·토큰·비밀번호 미기록). UI는 문서화된 Playwright locator의 click/fill/check/select로 조작했고 evaluate는 DOM 읽기만 사용했습니다. 파일은 브라우저 filechooser.setFiles로 선택했고 일부 호출 지연이 있었습니다. 숨김 탭 visibilityState 변경·스크립트 이벤트 주입·실제 동시 클릭은 하지 않았습니다. 375px 검증은 새 탭에서 실제 innerWidth를 확인한 결과만 사용했습니다. 브라우저 로그인은 사용자 승인으로 임시 비밀번호 자동 입력, 계정 준비는 PS5.1 Read-Host와 격리 BCrypt 시드입니다. reviewer2 및 이미지 접근 인계용 translator2는 격리 DB에서만 추가; HTTP 검증 임시 토큰은 생성한 해시만 정확히 삭제했습니다. 회차 A·반려/승인/발행은 UI로 수행, 회차 B 최초 생성만 API로 수행했습니다. B 원문 API 픽스처의 400은 잘못된 검증 요청을 UI 저장으로 교정한 것이며 제품 결함으로 기록하지 않았습니다.
+
+검증 파일/메타데이터/스크린샷은 ignored backend/build/verification/final-browser-f360f5a에 있습니다. 핵심 화면 6장과 모바일 실패 증거 2장입니다. 공개본 교체 전의 일부 즉시 isVisible 조회는 로딩 중이었으므로 통과 근거로 사용하지 않았습니다. 개발 DB(3306)는 연결·변경하지 않았으며 기존 8080/8081/3000 및 기존 컨테이너·볼륨에는 종료·삭제 작업을 하지 않았습니다. 정리 결과는 아래에 이어 기록합니다.
+정리 확인: 실제 검증 API PID 43936, 프런트 66704, 프록시 12200을 소유 확인 후 종료했습니다. 임시 입력 창은 이미 종료된 상태였습니다. 일회용 컨테이너 ID ede92f3e777afc038dd0ff9a09a5ca4da1ca147181e3744962dce4a6cf9cb829를 대조한 뒤 docker stop --timeout 10(종료 코드 0), --rm 자동 정리 확인. 3325/8093/8092/3010 리스너 모두 0. 기존 개발 컨테이너 ID 49c9b14620e0939b29af2b10cd881ae7273ff17e8317d629f44400997a2e7daf와 vibe-coding-project_mysql_data 볼륨 유지, running/healthy. 8080/8081/3000은 종료 조작하지 않았으며 최종 리스너 0. 남은 제품 문제는 모바일 두 상세 화면 가로 스크롤이며 코드 수정 없이 Claude Code에 전달할 재현 기록을 남겼습니다.
