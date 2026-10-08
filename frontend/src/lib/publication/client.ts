@@ -51,7 +51,7 @@ export async function resumePublication(episodeId: string, signal?: AbortSignal)
 }
 
 // Public reads never carry the login token: the reader sees the same thing logged in or not.
-async function publicGet(path: string, signal?: AbortSignal): Promise<CallResult> {
+export async function publicGet(path: string, signal?: AbortSignal): Promise<CallResult> {
   const sent = await send(path, { method: "GET", signal });
   if (sent.kind === "failure") return fail(sent.failure);
   if (sent.status === 200) return { ok: true, value: parseJson(sent.text), status: 200 };

@@ -114,3 +114,25 @@ body .btn-outline-secondary {
 /* Visually hidden text inside a scrolling table (column header "동작") is absolutely positioned: without a positioned scroller it escapes
    the table's overflow clipping and widens the whole page on phones. */
 .table-responsive { position: relative; }
+
+/* Manga viewer (CONTRACTS 27.4) */
+.viewer { background: #15161c; color: #f1f1f4; border-radius: 0.5rem; overflow: hidden; position: relative; }
+.viewer a:not(.btn) { color: #aab4ff; }
+.viewer-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; background: #20222c; }
+.viewer-stage { position: relative; display: flex; justify-content: center; min-height: 12rem; touch-action: pan-y; }
+.viewer-spread { display: flex; justify-content: center; align-items: flex-start; max-width: 100%; }
+.viewer-spread.rtl { flex-direction: row-reverse; }
+.viewer-img { display: block; max-width: 100%; max-height: calc(100vh - 8rem); object-fit: contain; }
+.viewer-spread .viewer-img { max-width: 50%; }
+.viewer-scroll { max-width: 900px; margin: 0 auto; }
+.viewer-img-scroll { display: block; width: 100%; height: auto; }
+.viewer-failed { padding: 3rem 1rem; text-align: center; background: #20222c; width: 100%; }
+.viewer-zone { position: absolute; top: 0; bottom: 0; width: 35%; cursor: pointer; }
+.viewer-zone-left { left: 0; }
+.viewer-zone-right { right: 0; }
+.viewer-arrow { position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; width: 2.5rem; height: 4rem; border: 0; border-radius: 0.4rem; background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 2rem; line-height: 1; }
+.viewer-arrow:disabled { opacity: 0.25; }
+.viewer-arrow-left { left: 0.25rem; }
+.viewer-arrow-right { right: 0.25rem; }
+.viewer-end { margin: 0; padding: 0.75rem 1rem; text-align: center; background: #20222c; }
+.viewer-settings { position: absolute; top: 3rem; right: 0.75rem; z-index: 5; width: min(20rem, calc(100% - 1.5rem)); color: var(--bs-body-color); }

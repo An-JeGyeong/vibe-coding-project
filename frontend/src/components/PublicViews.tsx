@@ -8,6 +8,8 @@ import { publicFailureMessage } from "@/lib/publication/messages";
 import type { PublicEpisode, PublicEpisodeList, PublicEpisodeView } from "@/lib/publication/types";
 import { filterByTitle, loadAllPublicEpisodes, neighbours, type AllPublicEpisodes } from "@/lib/reader/episodes";
 import { hasPosition, loadPosition, savePosition, type ReadPosition } from "@/lib/reader/position";
+import { listPublicPages } from "@/lib/viewer/client";
+import { MangaViewer } from "./MangaViewer";
 
 const PAGE_SIZE = 20;
 
@@ -112,6 +114,8 @@ export function PublicEpisodeReader({ episodeId }: { episodeId: string }) {
   const [failure, setFailure] = useState<EpisodeFailure | null>(null);
   const [near, setNear] = useState<{ previous: PublicEpisode | null; next: PublicEpisode | null } | null>(null);
   const [position, setPosition] = useState<ReadPosition | null>(null);
+  // translated page images of the published version (CONTRACTS 27): "pending" until asked; none or a failure means the text reader
+  const [imagePages, setImagePages] = useState<number[] | "pending">("pending");
   const activeLoad = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
@@ -136,6 +140,18 @@ export function PublicEpisodeReader({ episodeId }: { episodeId: string }) {
   }, [load]);
 
   const shown = view !== null;
+  const publishedAt = view?.publishedAt;
+  useEffect(() => {
+    if (!shown) return;
+    const request = new AbortController();
+    setImagePages("pending");
+    void listPublicPages(episodeId, request.signal).then((result) => {
+      if (request.signal.aborted) return;
+      setImagePages(result.ok ? result.value : []);
+    });
+    return () => request.abort();
+  }, [shown, publishedAt, episodeId]);
+
   useEffect(() => {
     // previous / next episode: best effort, a failure only hides the links (CONTRACTS 23.3)
     if (!shown) return;
@@ -167,6 +183,11 @@ export function PublicEpisodeReader({ episodeId }: { episodeId: string }) {
     </div>;
   }
   if (!view) return null;
+  if (imagePages === "pending") return <p role="status">불러오는 중…</p>;
+  if (imagePages.length > 0) {
+    return <MangaViewer key={`${episodeId}-${view.publishedAt}`} episodeId={episodeId} title={view.title} publishedAt={view.publishedAt} pages={imagePages}
+      previous={near?.previous ?? null} next={near?.next ?? null} />;
+  }
 
   const resume = position && view.blocks.some((block) => block.seq === position.seq) ? position : null;
   const neighbourLinks = near && (near.previous || near.next) && <nav aria-label="이웃 회차" className="d-flex justify-content-between my-3">
