@@ -30,6 +30,7 @@ public class AuthSecurity {
             .logout(logout->logout.disable())
             .authorizeHttpRequests(auth->auth
                 .requestMatchers(org.springframework.http.HttpMethod.OPTIONS,"/**").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.POST,"/api/public/episodes/*/views").permitAll()
                 .requestMatchers("/api/public","/api/public/**").permitAll()
                 .requestMatchers("/api/health","/api/auth/login","/api/auth/logout","/error").permitAll()
                 .requestMatchers("/api/episodes","/api/episodes/**").hasRole("OPERATOR")

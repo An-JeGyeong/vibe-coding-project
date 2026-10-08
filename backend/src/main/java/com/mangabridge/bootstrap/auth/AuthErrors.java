@@ -18,7 +18,7 @@ import java.util.Map;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import static com.mangabridge.bootstrap.auth.AuthModels.*;
 
-@RestControllerAdvice(assignableTypes={AuthController.class,EpisodeController.class,AssignmentController.class,TranslationController.class,com.mangabridge.bootstrap.review.ReviewController.class,com.mangabridge.bootstrap.publication.PublicationController.class,com.mangabridge.bootstrap.history.HistoryController.class,com.mangabridge.bootstrap.ai.AiController.class,com.mangabridge.bootstrap.page.PageController.class,com.mangabridge.bootstrap.translatedpage.TranslationPageController.class,com.mangabridge.bootstrap.work.WorkController.class,com.mangabridge.bootstrap.work.CatalogController.class})
+@RestControllerAdvice(assignableTypes={AuthController.class,EpisodeController.class,AssignmentController.class,TranslationController.class,com.mangabridge.bootstrap.review.ReviewController.class,com.mangabridge.bootstrap.publication.PublicationController.class,com.mangabridge.bootstrap.history.HistoryController.class,com.mangabridge.bootstrap.ai.AiController.class,com.mangabridge.bootstrap.page.PageController.class,com.mangabridge.bootstrap.translatedpage.TranslationPageController.class,com.mangabridge.bootstrap.work.WorkController.class,com.mangabridge.bootstrap.work.CatalogController.class,com.mangabridge.bootstrap.work.ViewController.class})
 public class AuthErrors {
     static ErrorResponse body(String code) {
         String message=switch(code) {
