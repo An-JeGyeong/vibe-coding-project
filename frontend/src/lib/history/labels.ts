@@ -13,6 +13,8 @@ export const EVENT_LABEL: Record<string, string> = {
   TRANSLATION_PUBLISHED: "번역 발행",
   PUBLICATION_HELD: "공개 보류",
   PUBLICATION_RESUMED: "공개 재개",
+  PAGE_IMAGE_SAVED: "페이지 이미지 저장",
+  AI_DRAFT_REQUESTED: "AI 초안 요청", // shown in the list; the API does not accept it as a filter
 };
 
 export function describeEvent(item: HistoryItem): string {
@@ -30,6 +32,7 @@ export function describeEvent(item: HistoryItem): string {
     case "TRANSLATION_PUBLISHED": return `번역${version} 발행`;
     case "PUBLICATION_HELD": return version ? `${base} (번역${version})` : base;
     case "PUBLICATION_RESUMED": return version ? `${base} (번역${version})` : base;
+    case "AI_DRAFT_REQUESTED": return version ? `${base} (번역${version})` : base;
     default: return base;
   }
 }

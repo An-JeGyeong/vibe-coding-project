@@ -1,7 +1,8 @@
 // Work history (CONTRACTS 24): the operator's read-only view of the business audit trail.
+// The events the history API accepts as a filter (CONTRACTS 24.1 + 26.2). AI_DRAFT_REQUESTED is listed but not filterable (see labels).
 export const HISTORY_EVENTS = [
   "EPISODE_CREATED", "SOURCE_SAVED", "ASSIGNED", "TRANSLATION_CREATED", "TRANSLATION_SUBMITTED", "REVIEW_APPROVED",
-  "REVIEW_REJECTED", "APPROVAL_INVALIDATED", "TRANSLATION_PUBLISHED", "PUBLICATION_HELD", "PUBLICATION_RESUMED",
+  "REVIEW_REJECTED", "APPROVAL_INVALIDATED", "TRANSLATION_PUBLISHED", "PUBLICATION_HELD", "PUBLICATION_RESUMED", "PAGE_IMAGE_SAVED",
 ] as const;
 
 export type Person = { id: string; displayName: string };
