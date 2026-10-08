@@ -1105,3 +1105,82 @@ NOT NULL 규칙은 **모든 도메인·인증 테이블**에 적용한다. NULL 
 - Claude Code 변경: frontend/src, frontend/tests/ui. 변경 금지: V1~V33, 기존 API의 기존 필드·동작(이력 허용 event 추가 제외), PROJECT_CONTEXT.md, 서로의 영역.
 - 테스트: 27.3 표, 연속 2회 통과·전후 행 수 비교. frontend는 27.4 전부(업로드·로컬 검사·중복 방지, 원본/번역본 병기, 뷰어의 스크롤·한 쪽·두 쪽·방향 전환과 클릭·키·스와이프 규칙, 설정 저장과 저장소 차단, 미리 불러오기, 이미지 실패 격리, 텍스트 리더 대체, 이전화/다음화)와 기존 회귀·타입·빌드.
 - **실제 브라우저 검증은 28절과 합쳐 최종 1회, 짧게**: 번역가 번역본 이미지 업로드 → 감수자·운영자가 원본과 나란히 확인 → 승인·발행 → 비로그인 독자가 `/read/{id}`에서 스크롤·페이지 넘김·방향 전환(왼쪽 영역 클릭=다음 쪽)·이전화/다음화 → 보류 시 404 → 공개 화면·응답에 원본 이미지 없음.
+
+## 28. 작품·표지·장르·메인 화면 — PROPOSED (2026-10-08, 사용자 승인 대기)
+
+작성: Claude Code. 구현: backend=Codex(마이그레이션 V35 포함), frontend=Claude Code. 근거: 사용자 결정(2026-10-08, 독자용 상품형 메인과 작품 상세 추가, 권장안 승인), DECISIONS.md D-055·D-056. 인증·역할·오류 형식은 12·19절, 회차·원문은 13~15절, 발행·공개 API는 20·21절, 번역본 이미지와 뷰어는 27절을 따른다. **기존 API의 기존 필드·동작은 바꾸지 않는다**(회차 API·공개 회차 API 그대로). 마이그레이션 V35 하나가 있고 새 테이블만 만든다(기존 테이블 변경 없음, NOT NULL 규칙 적용).
+
+### 범위
+- 포함: 작품(제목·작가·소개·읽기 방향·장르 최대 3개·표지·공개 여부·메인 노출 표시), 회차의 작품 연결(회차 번호), 조회수, 공개 카탈로그 API(작품 목록·작품 상세·표지·메인 묶음·회차의 작품 정보), 운영자 작품 관리 화면, 독자용 메인 `/`, 작품 상세 `/works/{id}`, 뷰어의 읽기 방향 기본값·작품 안 이전화/다음화.
+- 제외: 베스트 리뷰, 댓글, 관심, 태그 검색(장르만), 멤버십·결제, 작품·표지 삭제, 별도 배너 이미지(표지를 크게 보임), 조회수 중복 제거(어뷰징 방지), 개인화 추천, 작품 검색(제목 검색은 기존 회차 목록 검색을 유지).
+- 작품에 연결되지 않은 기존 회차는 그대로 `/read`·`/read/{id}`에서 읽을 수 있다(작품 페이지에는 나오지 않고 메인의 "최신 공개 회차"에는 표지 없이 나온다).
+
+### 28.1 스키마 — V35 (파일당 DDL 하나, InnoDB·utf8mb4·UTC DATETIME(6), 모든 컬럼 NOT NULL)
+- `work`: id BIGINT AUTO_INCREMENT PK, title VARCHAR(100), author VARCHAR(100), description VARCHAR(2000)(빈 문자열 허용), reading_direction VARCHAR(3) ascii_bin CHECK IN ('RTL','LTR'), is_public TINYINT(1) CHECK IN (0,1), is_featured TINYINT(1) CHECK IN (0,1), is_banner TINYINT(1) CHECK IN (0,1), revision INT CHECK >= 1, created_by BIGINT → demo_account(id), created_at, updated_at. title·author는 공백만으로 둘 수 없다(서비스 검사).
+- `work_genre`: work_id BIGINT, genre VARCHAR(20) ascii_bin, PRIMARY KEY (work_id, genre), FK work(id), CHECK genre IN ('판타지','액션','로맨스','코미디','일상','미스터리','스릴러','SF','스포츠','드라마'). 작품당 1~3개는 서비스가 검사한다.
+- `work_cover`: work_id BIGINT PK(FK work), content_type VARCHAR(32) ascii_bin CHECK 허용 3종, byte_size INT CHECK BETWEEN 1 AND 5242880, image_data MEDIUMBLOB, uploaded_by → demo_account(id), updated_at.
+- `work_episode`: episode_id BIGINT PK(FK episode(id)), work_id BIGINT(FK work), episode_no INT CHECK BETWEEN 1 AND 9999, **UNIQUE (work_id, episode_no)**. 회차는 최대 한 작품에만 속한다.
+- `episode_view_count`: episode_id BIGINT PK(FK episode(id)), view_count BIGINT CHECK >= 0.
+- 모든 FK는 RESTRICT. 기존 테이블·V1~V34는 변경하지 않는다.
+
+### 28.2 공통 정의
+- **공개 회차**: 20절과 같다(공개 포인터가 가리키는 버전이 PUBLISHED). **공개 작품**: `is_public=1`이면서 작품에 연결된 공개 회차가 1개 이상. 조건을 하나라도 잃으면(보류 등) 공개 응답에서 사라진다.
+- **작품 요약**(공개): {"workId","title","author","genres":[장르 이름 오름차순],"hasCover","episodeCount"(공개 회차 수),"latestPublishedAt"(공개 회차 중 최신),"views"(공개 회차 조회수 합)}. 시각 UTC ISO-8601 `Z`, id는 문자열.
+- 장르 목록(고정, 이 순서로 표시): 판타지, 액션, 로맨스, 코미디, 일상, 미스터리, 스릴러, SF, 스포츠, 드라마.
+- 읽기 방향: `RTL`(오른쪽→왼쪽, 기본값)·`LTR`.
+- 공개 응답은 `Cache-Control: no-store`. 공개 API는 인증 헤더를 판정하지 않는다. 경로 id 규칙은 27절과 같고 위반은 404.
+
+### 28.3 운영자 API (OPERATOR 전용, 그 밖의 역할 403, 비로그인 401, 오류 형식은 12절)
+| API | 요청 | 성공 응답 |
+|---|---|---|
+| POST /api/works | {"title","author","description","readingDirection","genres":[1~3개]} | 201 {"id","revision":1} (기본값: 비공개, 추천·배너 아님) |
+| GET /api/works?limit&offset | limit 1~100(기본 20) | 200 {"items":[{"id","title","author","readingDirection","genres","isPublic","isFeatured","isBanner","hasCover","episodeCount"(연결된 전체 회차),"publicEpisodeCount","revision","updatedAt"}],"total"} id 내림차순 |
+| GET /api/works/{id} | — | 200 위 항목 + "description" + "episodes":[{"episodeId","episodeNo","title","published"(공개 여부)}] (episodeNo 오름차순) |
+| PUT /api/works/{id} | {"expectedRevision","title","author","description","readingDirection","genres","isPublic","isFeatured","isBanner"} | 200 {"revision","changed"} |
+| PUT /api/works/{id}/cover | 본문=이미지 바이트, Content-Type 허용 3종, 1 B~5 MiB(27절·26.2와 같은 검증) | 201(신규)·200(교체) {"contentType","byteSize","updatedAt"} |
+| GET /api/works/{id}/cover | — | 200 이미지 바이트(`nosniff`, `no-store`) — 비공개 작품 미리보기용 |
+| PUT /api/episodes/{id}/work | {"workId","episodeNo"} | 200 {"workId","episodeNo"} (연결·재연결·번호 변경) |
+| DELETE /api/episodes/{id}/work | — | 204 (연결 해제, 이미 없으면 204) |
+| GET /api/episodes/{id}/work | — | 200 {"work":null} 또는 {"work":{"workId","title","episodeNo"}} (회차가 없으면 404) |
+- **검증**: title·author 앞뒤 공백 제거 후 1~100자, description 0~2000자(제어 문자 금지, 줄바꿈 허용), genres는 고정 목록의 서로 다른 1~3개, readingDirection은 RTL/LTR. 위반 400. 알 수 없는 필드는 거절(기존 규칙).
+- **규칙**: `isBanner=true`는 표지가 있는 작품만 가능하고 동시에 최대 5개(초과·표지 없음은 409 `STATE_CONFLICT`, `reason`: `BANNER_LIMIT`/`COVER_REQUIRED`). `expectedRevision`이 다르면 409 `REVISION_CONFLICT`(최신 revision 포함, 18·17절 형식). 변경이 없으면 `changed:false`, revision 유지. 작품을 연결하려면 작품·회차가 있어야 한다(없으면 404), (workId, episodeNo)가 이미 다른 회차에 쓰이면 409 `STATE_CONFLICT` `reason: EPISODE_NO_TAKEN`. 표지 검증 실패 400, 없는 작품 404.
+- 작품 변경은 `domain_audit` 대상이 아니다(24절 이력은 회차 업무만, D-056). 대신 work.updated_at·revision이 변경을 나타낸다. 저장 실패는 전체 롤백과 503.
+
+### 28.4 공개 API (GET 전용·누구나)
+| API | 응답 |
+|---|---|
+| GET /api/public/home | 200 {"banners":[작품 요약 ≤5],"latest":[{"episodeId","title","publishedAt","workId"|null,"workTitle"|null,"episodeNo"|null}] ≤12 (공개일 내림차순, 같으면 id 내림차순),"popular":[작품 요약 ≤10 (views 내림차순, 같으면 workId 내림차순)],"featured":[작품 요약 ≤10 (is_featured인 공개 작품, updated_at 내림차순)]} — 비어 있어도 200이며 빈 배열 |
+| GET /api/public/works?genre=&sort=&limit&offset | genre는 고정 목록(생략=전체), sort=`latest`(latestPublishedAt 내림차순, 기본)·`popular`, limit 1~50(기본 20), 200 {"items":[작품 요약],"total"}. 잘못된 genre·sort·limit·offset·알 수 없는 쿼리는 400 |
+| GET /api/public/works/{id} | 공개 작품만, 200 {작품 요약 + "description","readingDirection","episodes":[{"episodeId","episodeNo","title","publishedAt"}] (공개 회차만, episodeNo 오름차순)} — 그 밖은 404 |
+| GET /api/public/works/{id}/cover | 공개 작품이면서 표지가 있을 때만 200 이미지(`nosniff`, CORP 헤더 없음), 그 밖은 404 |
+| GET /api/public/episodes/{id}/work | 공개 회차가 공개 작품에 속하면 200 {"workId","title","readingDirection","episodeNo"}. 그 밖(공개 회차가 아님, 작품에 속하지 않음, 작품이 공개가 아님, 없는 회차)은 모두 같은 **404 NOT_FOUND**이다(뷰어는 404를 "작품 없음"으로 처리한다) |
+| POST /api/public/episodes/{id}/views | 공개 회차이면 조회수를 1 올리고 204(본문 없음), 그 밖은 404. **공개 API 중 유일한 쓰기**이며 인증을 판정하지 않는다. 같은 호출을 여러 번 받아도 매번 1씩 올린다(중복 제거 없음) |
+- **조회수 의미**: 독자가 뷰어/리더에서 회차를 연 횟수의 근사값이며 어뷰징 방지는 범위 밖이다(D-056). 인기 순위는 이 값의 합이고 보류된 회차의 조회수는 합에 넣지 않는다.
+- 기존 `/api/public/episodes`·`/api/public/episodes/{id}`·27절 공개 API는 바뀌지 않는다. 그 밖의 `/api/public/**` 쓰기(POST/PUT/PATCH/DELETE)는 기존대로 405이다. `views` 경로는 POST만 허용하고 GET·PUT·PATCH·DELETE는 405이다. 보안 규칙에서 `POST /api/public/episodes/*/views`만 새로 permitAll이다.
+
+### 28.5 처리 함수와 필수 테스트
+| 이름 | 권한 | 필수 테스트 |
+|---|---|---|
+| createWork / updateWork | OPERATOR | 필드 검증 전부(길이·공백·장르 0·4개·중복·알 수 없는 장르·방향), 기본값, revision 증가·충돌 409(최신 revision), 변경 없음 `changed:false`, 배너 5개 한도와 표지 필수 409, 역할 매트릭스, 롤백 |
+| saveWorkCover | OPERATOR | PNG·JPEG·WEBP 바이트 정확 왕복, 신규 201·교체 200, 5 MiB 경계, 허용 밖·불일치·빈 본문 400, 없는 작품 404 |
+| assignEpisodeWork / unassign / getEpisodeWork | OPERATOR | 연결·재연결·번호 변경, (작품, 번호) 중복 409, 없는 작품·회차 404, 해제 멱등 204, 한 회차 한 작품 |
+| 공개 카탈로그(home·works·work·cover·episode work) | 누구나 | 공개 작품 정의(비공개·공개 회차 없음·보류 시 사라짐과 재개 시 복귀), 장르 필터·정렬·페이지·잘못된 파라미터 400, episodes 정렬과 공개 회차만, 표지 바이트·헤더·CORP 없음, 배너·최신·인기·추천 규칙과 한도·정렬, 작품에 속하지 않은 회차는 latest에 workId null, 인증 무관 동일 응답, 비공개 작품 정보(설명 등)가 응답에 없음 |
+| recordView | 누구나 | 공개 회차 204와 +1, 미공개·보류·없는 회차 404, 보류된 회차는 인기 합 제외, GET/PUT 405, 인증 무관 |
+| 스키마 | — | NOT NULL·CHECK·PK·FK·UNIQUE 위반 거부와 정상 허용(실제 MySQL), 기존 NOT NULL lint 통과, V1~V34 불변 |
+
+### 28.6 프런트 계약 (Claude Code)
+- **독자용 메인 `/`** (로그인 불필요, 공개 API만, 토큰 없음; 기존 `/` 헬스 체크 화면은 `/status`로 옮긴다): 위에서부터 ① 배너(표지 큰 이미지·제목·작가, 이전/다음 버튼과 현재 위치, **자동 넘김 없음**, 클릭하면 작품 상세) ② 최신 공개 회차 카드(작품 제목·회차 번호·제목·공개일, 표지는 작품이 있을 때만, 클릭하면 뷰어) ③ 인기 작품 ④ 운영자 추천 ⑤ 장르별 작품(장르 탭 10개 + "전체", 선택한 장르의 작품 카드, `/api/public/works?genre=`를 장르를 고를 때만 불러온다) ⑥ footer(서비스 소개 한 줄, 공개 회차 목록 `/read` 링크, 로그인 링크; 쓰지 않는 약관·고객센터 링크는 두지 않는다). 섹션이 비면 그 섹션을 감춘다. 모든 비어 있음·오류·로딩 상태는 고정 문구, 한 요청의 실패가 다른 섹션을 막지 않는다(홈은 한 번에 오므로 홈 실패는 전체 재시도, 장르 탭 실패는 그 영역만). 표지는 `<img src>`로 공개 URL을 직접 쓰고 `alt`는 작품 제목, 없으면 글자 자리표시.
+- **작품 상세 `/works/{id}`**: 표지, 제목, 작가, 장르 배지, 소개(줄바꿈 유지), 읽기 방향 표시, 회차 목록(번호·제목·공개일, 오름/내림차순 전환, 기본 최신 회차가 위), "첫 화 보기"와 저장된 읽던 위치가 있으면 "이어 읽기"(27.4의 `mangabridge.viewer.position.v1`만 읽는다). 없는 작품은 고정 문구와 메인 링크. 메타 제목은 고정 문구(작품명은 화면에만).
+- **뷰어 보강**: `/read/{id}`는 `/api/public/episodes/{id}/work`로 작품을 찾으면 ① 사용자가 아직 방향을 정하지 않았을 때만(저장된 설정이 없을 때) **작품의 읽기 방향을 기본값**으로 쓰고 ② 이전화/다음화를 **작품의 회차 목록**(episodeNo 순)에서 찾고 ③ 상단의 "목록" 링크를 작품 상세로 바꾸며 ④ 회차 진입 시 `POST …/views`를 **세션당 회차마다 한 번만** 보낸다(`sessionStorage` 키 `mangabridge.viewer.counted.v1`, 저장소가 막히면 열 때마다 보내도 된다, 실패는 화면에 영향 없음). 작품이 없으면(404) 기존 27.4 동작(전체 공개 목록 기준 이웃)을 그대로 쓴다. 텍스트 리더에도 조회수 호출을 붙인다.
+- **운영자 작품 관리** `/works-admin` (OperatorGate, `(auth)` 그룹. 독자용 `/works/{id}`와 경로가 겹치지 않는다): 작품 목록(공개·추천·배너 배지, 표지 유무, 회차 수), 새 작품 만들기, 작품 편집 화면(`/works-admin/{id}`)에서 기본 정보·장르(체크박스, 3개 초과 시 입력 차단)·읽기 방향·공개·추천·배너 설정, 표지 업로드·교체(허용 3종·5 MiB·시작 바이트를 로컬에서 먼저 검사, 미리보기), 연결된 회차 목록. 변경 충돌(409)은 "다른 곳에서 변경되었습니다. 최신 내용을 불러오세요"로 안내하고 입력을 지우지 않는다. 배너 한도·표지 필수 위반은 고정 문구. 회차 상세(`/episodes/{id}`)에 **작품 연결 패널**(작품 선택·회차 번호 입력·연결·해제)을 추가한다.
+- 헤더: 공개 화면 헤더에 "홈"(`/`)·"회차 목록"(`/read`)·로그인, 운영자 화면 헤더에 "작품 관리" 링크. 공개 화면은 로그인 상태·역할에 따라 달라지지 않는다.
+
+### 28.7 파일 소유권·구현 순서·완료 조건
+- Codex 변경: `backend/src/main/resources/db/migration/V35__…`, backend/src/main(신규 `work` 패키지 등, 보안 규칙, 오류 처리), backend/src/test, README 기록.
+  - **기존 통합 테스트는 수정 없이 통과해야 한다. 단, V35 적용에 따른 기계적 변경만 허용(26.5·27.5와 같은 처리)**: `MySqlIntegrationTest`의 최신 마이그레이션 버전 34→35와 허용 테이블 목록에 `work`·`work_genre`·`work_cover`·`work_episode`·`episode_view_count` 추가, `DomainSchemaMigrationIntegrationTest`의 전체 적용·이력 수 34→35와 V9 업그레이드 적용 수 +1. 공개 API 405 테스트는 기존 경로에 대해 그대로 유지하고 `views` 경로는 새 테스트에서 검증한다. 변경한 단언 목록을 보고하고, 이 범위 밖의 기존 테스트가 깨지면 멈춰 보고한다.
+  - **구현 순서(사용량이 부족하면 앞 단계까지 커밋하고 멈춰도 된다)**: ① V35 + 운영자 API(작품·표지·회차 연결) ② 공개 카탈로그 GET 5개 ③ 조회수 쓰기와 인기·보류 반영. 단계마다 테스트를 통과시키고 커밋한다.
+  - 개발 DB(3306)에는 승인·백업 절차 후에만 V35를 적용한다.
+- Claude Code 변경: frontend/src, frontend/tests/ui. 변경 금지: V1~V34, 기존 API의 기존 필드·동작, PROJECT_CONTEXT.md, 서로의 영역.
+- **프런트 단계**: ⓐ(백엔드 없이 가능) 메인의 "간이판" — 기존 `/api/public/episodes`로 최신 공개 회차 카드만 보이는 `/`와 footer, 헬스 체크의 `/status` 이동 ⓑ 백엔드 ①~③ 이후 홈 API·작품 상세·뷰어 보강·운영자 작품 관리로 교체·확장. ⓐ는 ⓑ에서 홈 API 응답으로 대체되며 홈 API 실패 시의 대체 화면으로 남긴다.
+- 테스트: 28.5 표(Codex), frontend는 28.6 전부(메인 섹션별 표시·비어 있음·오류·장르 탭 지연 호출, 배너 이동·자동 넘김 없음, 작품 상세 정렬·이어 읽기, 뷰어의 방향 기본값 우선순위·작품 안 이웃·조회수 1회, 운영자 관리의 검증·충돌·장르 한도·표지 로컬 검사·연결 패널)와 기존 회귀·타입·빌드. 연속 2회 통과.
+- **실제 브라우저 검증은 최종 1회, 짧게**: 운영자가 작품 생성·표지·장르·배너/추천 설정·회차 연결 → 번역·발행(27절 흐름) → 비로그인 독자가 `/`에서 배너·최신·인기·추천·장르 탭 확인 → 작품 상세에서 회차 선택 → 뷰어(작품 방향 기본값, 이전/다음화, 조회수 증가) → 보류 시 작품·회차가 메인에서 사라짐 → 모바일 폭 확인.
