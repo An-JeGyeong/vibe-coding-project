@@ -13,6 +13,8 @@ import { getPublication, listPublicEpisodes } from "@/lib/publication/client";
 import { publicFailureMessage } from "@/lib/publication/messages";
 import { listOperatorTranslations, listPendingReviews } from "@/lib/review/client";
 import { listTranslations } from "@/lib/translation/client";
+import { listTranslatedImages } from "@/lib/translatedPages/client";
+import { getTypesettable, listTypesettable } from "@/lib/typeset/client";
 
 // "My to-do" cards on /demo (CONTRACTS 23.4). Each card loads on its own: a failing card never affects the others or the page.
 // A card is only mounted for the role the server confirmed, so other roles' requests are never sent.
@@ -117,6 +119,38 @@ function TranslatorCard() {
   </Card>;
 }
 
+function TypesetterCard() {
+  // per episode: waiting for an approval, still missing translated images, or complete (CONTRACTS 29.6)
+  const card = useCard<{ rows: Row[]; waiting: number; missing: number; complete: number }>(async (signal) => {
+    const mine = await listMyEpisodes(10, 0, signal);
+    if (!mine.ok) return mine;
+    let unauthorized: EpisodeResult<never> | null = null;
+    const states: ("none" | "missing" | "complete" | "unknown")[] = [];
+    const rows = await mapLimited(mine.value.items, 5, async (episode): Promise<Row> => {
+      const href = `/typeset/${encodeURIComponent(episode.id)}`;
+      const versions = await listTypesettable(episode.id, signal);
+      if (!versions.ok) { if (versions.failure.kind === "unauthorized") unauthorized = versions; states.push("unknown"); return { id: episode.id, title: episode.title, chip: null, href }; }
+      if (versions.value.length === 0) { states.push("none"); return { id: episode.id, title: episode.title, chip: { tone: "secondary", label: "승인된 번역 없음" }, href }; }
+      const newest = versions.value[0].versionNo;
+      const [detail, images] = await Promise.all([getTypesettable(episode.id, newest, signal), listTranslatedImages("mine", episode.id, newest, signal)]);
+      for (const result of [detail, images]) if (!result.ok && result.failure.kind === "unauthorized") unauthorized = result;
+      if (!detail.ok || !images.ok) { states.push("unknown"); return { id: episode.id, title: episode.title, chip: null, href }; }
+      const have = new Set(images.value.map((image) => image.pageNo));
+      const left = [...new Set(detail.value.blocks.flatMap((block) => (block.pageNo === null ? [] : [block.pageNo])))].filter((page) => !have.has(page)).length;
+      states.push(left > 0 ? "missing" : "complete");
+      return { id: episode.id, title: episode.title, chip: left > 0 ? { tone: "warning", label: `이미지 ${left}페이지 필요` } : { tone: "success", label: "이미지 완료" }, href };
+    });
+    if (unauthorized) return unauthorized;
+    return { ok: true, value: { rows, waiting: states.filter((state) => state === "none").length, missing: states.filter((state) => state === "missing").length, complete: states.filter((state) => state === "complete").length } };
+  });
+  return <Card title="식자 대기" label="식자 대기" {...card} message={episodeFailureMessage}>
+    {card.data && <>
+      <p className="small">이미지 필요 {card.data.missing}건 · 완료 {card.data.complete}건 · 승인 전 {card.data.waiting}건</p>
+      {card.data.rows.length === 0 ? <p className="text-secondary empty-note mb-0">배정된 회차가 없습니다.</p> : <RowList rows={card.data.rows} />}
+    </>}
+  </Card>;
+}
+
 function ReviewerCard() {
   const card = useCard<{ total: number; items: { episodeId: string; title: string; versionNo: number }[] }>(async (signal) => {
     const pending = await listPendingReviews(5, 0, signal);
@@ -160,6 +194,7 @@ export function DashboardCards({ role }: { role: Role }) {
     {role === "OPERATOR" && <OperatorCard />}
     {role === "TRANSLATOR" && <TranslatorCard />}
     {role === "REVIEWER" && <ReviewerCard />}
+    {role === "TYPESETTER" && <TypesetterCard />}
     {role === "READER" && <ReaderCard />}
   </section>;
 }

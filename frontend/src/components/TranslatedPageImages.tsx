@@ -12,8 +12,8 @@ import { PageImageSlot, usePageImages } from "./PageImage";
 // Translated (typeset) page images of one translation version (CONTRACTS 27.4).
 
 export function translatedUploadMessage(failure: EpisodeFailure): string {
-  if (failure.kind === "state_conflict") return "제출되었거나 수정할 수 없는 번역이라 이미지를 올릴 수 없습니다. 새로고침한 뒤 확인하세요.";
-  if (failure.kind === "not_found") return "이 번역이나 페이지를 찾을 수 없거나 담당 번역가가 아닙니다.";
+  if (failure.kind === "state_conflict") return "승인된 번역에만 이미지를 올릴 수 있습니다. 이미 발행되었거나 무효화된 번역일 수 있으니 새로고침한 뒤 확인하세요.";
+  if (failure.kind === "not_found") return "이 번역이나 페이지를 찾을 수 없거나 담당 식자가 아닙니다.";
   return pageImageUploadMessage(failure);
 }
 
@@ -132,7 +132,7 @@ function Uploader({ episodeId, versionNo, pageNo, replacing, onSaved }: {
 }
 
 /** What the translated-image column of one page shows: the image, an upload control for the editing translator, or a short note. */
-function TranslatedSlot({ scope, episodeId, versionNo, pageNo, images, editable }: {
+export function TranslatedSlot({ scope, episodeId, versionNo, pageNo, images, editable }: {
   scope: PageImageScope; episodeId: string; versionNo: number; pageNo: number; images: TranslatedImages; editable: boolean;
 }) {
   const meta = images.pages?.get(pageNo);

@@ -159,8 +159,8 @@ describe("page image column and the translated image control (27.4, revised: the
   });
 
   test.each([
-    [409, /제출되었거나 수정할 수 없는 번역/],
-    [404, /담당 번역가가 아닙니다/],
+    [409, /승인된 번역에만 이미지를 올릴 수 있습니다/],
+    [404, /담당 식자가 아닙니다/],
     [400, /형식\(PNG·JPEG·WEBP\)과 크기\(5 MiB 이하\)를 확인하세요/],
     [503, /서비스를 사용할 수 없습니다/],
   ])("an upload answered with %s shows a fixed message and keeps the login", async (status, message) => {
