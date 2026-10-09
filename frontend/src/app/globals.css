@@ -122,7 +122,7 @@ body .btn-outline-secondary {
 .viewer-stage { position: relative; display: flex; justify-content: center; min-height: 12rem; touch-action: pan-y; }
 .viewer-spread { display: flex; justify-content: center; align-items: flex-start; width: 100%; }
 .viewer-spread.rtl { flex-direction: row-reverse; }
-.viewer-img { display: block; max-width: 100%; max-height: calc(100vh - 12rem); object-fit: contain; }
+.viewer-img { display: block; max-width: 100%; max-height: max(calc(100vh - 12rem), 20rem); object-fit: contain; }
 .viewer-spread.two .viewer-img { max-width: 50%; }
 .viewer-scroll { max-width: 900px; margin: 0 auto; }
 .viewer-img-scroll { display: block; width: 100%; height: auto; background: #20222c; }
