@@ -1184,3 +1184,53 @@ NOT NULL 규칙은 **모든 도메인·인증 테이블**에 적용한다. NULL 
 - **프런트 단계**: ⓐ(백엔드 없이 가능) 메인의 "간이판" — 기존 `/api/public/episodes`로 최신 공개 회차 카드만 보이는 `/`와 footer, 헬스 체크의 `/status` 이동 ⓑ 백엔드 ①~③ 이후 홈 API·작품 상세·뷰어 보강·운영자 작품 관리로 교체·확장. ⓐ는 ⓑ에서 홈 API 응답으로 대체되며 홈 API 실패 시의 대체 화면으로 남긴다.
 - 테스트: 28.5 표(Codex), frontend는 28.6 전부(메인 섹션별 표시·비어 있음·오류·장르 탭 지연 호출, 배너 이동·자동 넘김 없음, 작품 상세 정렬·이어 읽기, 뷰어의 방향 기본값 우선순위·작품 안 이웃·조회수 1회, 운영자 관리의 검증·충돌·장르 한도·표지 로컬 검사·연결 패널)와 기존 회귀·타입·빌드. 연속 2회 통과.
 - **실제 브라우저 검증은 최종 1회, 짧게**: 운영자가 작품 생성·표지·장르·배너/추천 설정·회차 연결 → 번역·발행(27절 흐름) → 비로그인 독자가 `/`에서 배너·최신·인기·추천·장르 탭 확인 → 작품 상세에서 회차 선택 → 뷰어(작품 방향 기본값, 이전/다음화, 조회수 증가) → 보류 시 작품·회차가 메인에서 사라짐 → 모바일 폭 확인.
+
+## 29. 식자(TYPESETTER) 역할 — 승인된 번역의 완성 이미지 업로드 (27절 정정) — PROPOSED (2026-10-09, 사용자 승인 대기)
+
+작성: Claude Code. 구현: backend=Codex(마이그레이션 V36 포함), frontend=Claude Code. 근거: 사용자 결정(2026-10-09: 번역가는 번역만 하고, 번역을 받아 원본 이미지에 글자를 넣는 **식자**가 따로 있다. B안 = 식자를 새 역할로 추가), DECISIONS.md D-057. 인증·역할·오류 형식은 12·19절, 배정은 15절, 번역·감수는 17·18절, 번역본 이미지와 공개 API는 27절을 따른다. **이 절은 27절의 업로드 주체와 시점만 바꾼다**: 번역본 이미지는 번역 버전에 묶이고, 독자에게는 발행된 버전의 것만 공개하며, 원본 이미지는 노출하지 않는다는 27절의 나머지 규칙은 그대로다. 번역 상태 머신(DRAFT → REVIEW_PENDING → APPROVED/REJECTED → PUBLISHED 등)은 바꾸지 않는다.
+
+### 범위
+- 포함: 식자 역할과 데모 계정, 회차별 식자 배정, 승인된 번역의 읽기 전용 열람, 승인된 번역에 대한 번역본 이미지 업로드·교체, 번역가의 번역본 이미지 업로드 폐지, 화면.
+- 제외: 식자 결과물에 대한 별도 감수·승인 단계(발행 전에 운영자가 원본과 나란히 확인한다), 식자 완료 상태·알림, 이미지 삭제, 식자가 번역 텍스트를 고치는 기능, 이미지 편집 도구, 발행을 식자 완료에 묶는 규칙(이미지가 없어도 발행할 수 있고 발행 확인 문구가 부족한 페이지 수를 알린다).
+
+### 29.1 흐름
+번역가가 번역·제출 → 감수자 승인(`APPROVED`) → **식자가 승인된 번역의 텍스트를 보며 원본 이미지를 바탕으로 만든 완성 이미지를 페이지별로 업로드(교체 가능)** → 운영자가 원본과 번역본 이미지를 나란히 확인하고 발행. 식자는 승인된 번역을 읽기만 하고 고칠 수 없으며, 번역가는 번역본 이미지를 보지도 올리지도 않는다.
+
+### 29.2 스키마 — V36 (이 마이그레이션만 "파일당 DDL 하나"의 예외: 한 파일에 ALTER TABLE 2개)
+- `demo_account`의 역할 CHECK(`chk_demo_role`)와 `episode_assignment`의 역할 CHECK(`ck_assignment_role`)에 `'TYPESETTER'`를 추가한다. 각 테이블을 `ALTER TABLE … DROP CHECK …, ADD CONSTRAINT … CHECK (… IN (기존 값, 'TYPESETTER'))` 한 문장으로 바꾼다(MySQL이 제약 이름을 거부하면 보고하고 멈춘다). 새 테이블·컬럼은 없고, 기존 행·NOT NULL 규칙·V1~V35는 바뀌지 않는다. 이름이 계약과 다르면 실제 이름을 확인해 쓰고 보고한다.
+
+### 29.3 인증·계정
+- 역할 값 `TYPESETTER`를 추가한다(로그인·`/api/auth/me` 응답의 `role`). 운영자가 다른 역할의 권한을 자동으로 갖지 않는 기존 규칙과 서버가 매번 DB에서 권한·배정·상태를 확인하는 규칙은 같다.
+- 데모 계정 `demo.typesetter`(표시 이름 "데모 식자")를 DemoAuth 시드에 추가한다. 비밀번호는 환경변수 `DEMO_TYPESETTER_PASSWORD`로만 주입하고 저장소·문서·로그·채팅에 쓰지 않는다. **`DEMO_TYPESETTER_PASSWORD`가 없으면 기존 4개 계정만 시드하고 식자 계정은 만들지 않는다**(기존 시드 호출과 호환). 기존 계정은 덮어쓰지 않는다.
+
+### 29.4 배정 (15절의 가산적 변경)
+- `GET /api/episodes/{id}/assignments` 응답에 `"typesetter"` 슬롯을 더한다(`translator`·`reviewer`와 같은 형식, 없으면 `null`). `PUT /api/episodes/{id}/assignments/typesetter` {"accountId"}는 translator·reviewer와 같은 규칙(후보는 role=TYPESETTER 계정, 같은 계정이면 `changed:false`, 교체하면 이전 식자는 즉시 접근 불가 404, `ASSIGNED` 감사 이벤트 재사용). `GET /api/assignable-accounts?role=TYPESETTER`를 허용한다(그 밖의 값은 기존대로 400).
+- `GET /api/my/episodes`·`GET /api/my/episodes/{id}`는 TYPESETTER에게도 배정된 회차를 같은 형식으로 돌려준다(`assignedRole":"TYPESETTER"`). 미배정·교체된 이전 식자는 404(D-038).
+- 기존 필드·동작은 바꾸지 않는다. 응답에 `typesetter`가 늘어나는 것은 가산적이다.
+
+### 29.5 식자 API (TYPESETTER 전용·그 회차에 현재 배정된 경우만, 그 밖의 역할 403, 비로그인 401, 미배정·없는 회차 404, `Cache-Control: no-store`)
+| API | 응답 |
+|---|---|
+| GET /api/my/episodes/{id}/typesetting | 200 {"items":[{"versionNo","sourceVersion","decidedAt"}]} — 상태가 `APPROVED`인 번역 버전만, versionNo 내림차순. 없으면 빈 배열 |
+| GET /api/my/episodes/{id}/typesetting/{versionNo} | 200 {"versionNo","sourceVersion","blocks":[{"seq","pageNo","source","text"}]} — 읽기 전용. 그 버전이 `APPROVED`가 아니거나 없으면 404 |
+| GET /api/my/episodes/{id}/pages, …/pages/{pageNo}/image | 원본 이미지 열람(26절)에 TYPESETTER를 더한다(GET만) |
+| PUT /api/my/episodes/{id}/translations/{versionNo}/page-images/{pageNo} | **27.2 정정**: 업로드는 **TYPESETTER만**(번역가 PUT은 403). 버전이 **`APPROVED`일 때만** 저장·교체하고 그 밖(DRAFT·REVIEW_PENDING·REJECTED·PUBLISHED·INVALIDATED·ON_HOLD)은 409 STATE_CONFLICT(`currentStatus` 포함). 검증(허용 3종·1 B~5 MiB·시작 바이트·원문 버전에 있는 페이지)과 응답(201/200, 메타)은 27.2와 같다. 감사 `TRANSLATION_PAGE_IMAGE_SAVED`(actor=식자)는 같은 트랜잭션 |
+| GET /api/my/episodes/{id}/translations/{versionNo}/page-images, …/{pageNo} | **27.2 정정**: **REVIEWER와 TYPESETTER만**(번역가 403). REVIEWER는 18절에서 보이는 상태(`REVIEW_PENDING`·`APPROVED`·`REJECTED`)의 버전만, TYPESETTER는 `APPROVED`만, 그 밖은 404 |
+- 운영자 `GET /api/episodes/{id}/translations/{versionNo}/page-images[/{pageNo}]`와 공개 API(27.2)는 바뀌지 않는다. 발행된 버전은 어떤 역할도 수정할 수 없다(발행 이후·무효화 이후 PUT은 409).
+- 보안 규칙 순서: `/api/my/episodes/*/typesetting/**`는 TYPESETTER 전용, `/api/my/episodes/*/translations/*/page-images/**`의 PUT은 TYPESETTER 전용·GET은 REVIEWER·TYPESETTER이며 둘 다 기존 번역가 전용 규칙(`/api/my/episodes/*/translations/**`)과 감수자 규칙보다 **먼저** 평가되어야 한다.
+- 이력(24절): 새 이벤트는 없다. `TRANSLATION_PAGE_IMAGE_SAVED`의 주체가 식자일 뿐이다.
+
+### 29.6 프런트 계약 (Claude Code)
+- **식자 메뉴** `/typeset`(배정된 회차 목록: 제목, 승인된 번역이 있는지, 번역본 이미지가 몇 페이지 올라가 있는지)와 `/typeset/{id}`. 상세는 승인된 번역 버전 선택(여럿이면 최신 기본), **페이지 단위**(26.4의 페이지 이동 바)로 왼쪽에 **원본 이미지**, 오른쪽에 그 페이지의 **원문과 승인된 번역(읽기 전용)**, 그 아래에 **번역본 이미지 미리보기와 업로드·교체**(허용 3종·5 MiB·시작 바이트를 로컬에서 먼저 검사, 중복 방지, 고정 오류 문구). 승인된 번역이 없으면 "승인된 번역이 아직 없습니다" 안내와 업로드 없음. 번역본 이미지 진행 "N/M 페이지".
+- **번역가 화면**: 번역본 이미지 칸·업로드 없음(원본 이미지 왼쪽, 번역 블록 오른쪽 — 이미 반영). **감수자 화면**: 번역본 이미지가 있으면 읽기 전용으로 보인다(승인 뒤에 올라오므로 대개 없다).
+- **운영자**: 회차 상세의 담당자 배정 패널에 **식자** 슬롯을 더하고(후보는 식자 계정), 번역 현황의 읽기 전용 원본/번역본 확인과 발행 확인 문구는 그대로다. 역할 안내·메뉴·헤더·데모 계정 목록·역할별 "내 할 일" 카드(식자: 승인된 번역이 있고 번역본 이미지가 부족한 회차 수)에 식자를 더한다.
+- 번역본 이미지 업로드 컨트롤(27.4)은 식자 화면으로 옮겨 재사용한다. 데모 스크립트(`scripts/seed-demo-data.mjs`, `scripts/replace-demo-images.mjs`)와 `DEMO_SCRIPT.md`는 식자 계정으로 올리도록 고친다(`DEMO_TYPESETTER_PASSWORD` 추가).
+
+### 29.7 파일 소유권·테스트·완료 조건
+- Codex 변경: `backend/src/main/resources/db/migration/V36__…`, backend/src/main(auth 역할·시드, assignment, translatedpage 규칙, 보안 규칙 순서, 새 식자 읽기 API), backend/src/test, README 검증 기록.
+  - **기존 통합 테스트는 수정 없이 통과해야 한다. 단, 이 절이 직접 바꾸는 것만 허용**: ① 27절에서 만든 `TranslationPageIntegrationTest`(와 `TranslationPageBodyLimitTest`)는 번역가 업로드·DRAFT 기준에서 식자 업로드·`APPROVED` 기준으로 **다시 쓴다**(공개 API·운영자 열람·감사·검증 테스트는 의미를 유지), ② `MySqlIntegrationTest`의 최신 마이그레이션 버전 35→36(새 테이블 없음), `DomainSchemaMigrationIntegrationTest`의 전체 적용·이력 수 35→36과 V9 업그레이드 적용 수 +1, ③ 배정·계정·역할 매트릭스를 단언하는 기존 테스트에서 TYPESETTER 행·`typesetter` 응답 필드를 더하는 **가산적** 갱신. 단언의 의미를 바꾸는 수정은 금지이고, 변경한 파일·테스트명·사유 목록을 보고한다. 이 범위 밖의 기존 테스트가 깨지면 멈춰 보고한다.
+  - 개발 DB(3306)에는 승인·백업 후에만 V36을 적용하고, 데모 식자 계정 시드는 사용자가 비밀번호를 환경변수로 주입해 따로 실행한다.
+- Claude Code 변경: frontend/src, frontend/tests/ui, scripts, DEMO_SCRIPT.md, STATUS.md. 변경 금지: V1~V35, 기존 API의 기존 필드·동작(29.4·29.5가 명시한 것 제외), PROJECT_CONTEXT.md, 서로의 영역.
+- 필수 테스트(Codex): 식자 배정·교체(이전 식자 404)·후보 목록·`my/episodes` 노출, 식자 읽기 API(승인 버전만, 읽기 전용, 미배정 404, 역할 매트릭스), 업로드 규칙(식자만·`APPROVED`만, 번역가·감수자·운영자·독자 403, 다른 상태 409, 검증·5 MiB 경계·불일치 400, 미배정·이전 식자 404, 감사 1건), 열람 규칙(감수자·식자·번역가 403), 발행 후·무효화 후 업로드 409, 공개 API·보류·원본 비노출 불변(27.3), 스키마(역할 CHECK에 식자 허용·그 밖의 값 거부, 기존 행 불변), 시드(`DEMO_TYPESETTER_PASSWORD` 있을 때만 식자 계정, 기존 계정 보존).
+- 필수 테스트(프런트): 식자 목록·상세(왼쪽 원본·오른쪽 번역, 승인 없음 안내, 업로드·교체·로컬 검사·오류 문구·중복 방지), 번역가·감수자 화면의 변경, 운영자 배정 패널의 식자 슬롯, 역할 안내·메뉴·카드, 기존 회귀·타입·빌드. 연속 2회 통과.
+- **실제 브라우저 검증은 한 번, 짧게**: 운영자가 식자 배정 → 번역가 번역·제출 → 감수자 승인 → 식자가 승인된 번역을 보며 번역본 이미지 업로드 → 운영자가 원본과 나란히 확인·발행 → 독자가 뷰어에서 읽기 → 번역가는 번역본 이미지를 볼 수 없음·승인 전 식자는 업로드 불가.
