@@ -13,6 +13,8 @@ export default function PublicLayout({ children }: Readonly<{ children: React.Re
         <nav aria-label="주요 메뉴" className="d-flex align-items-center gap-3 flex-grow-1">
           <Link href="/" className="text-white text-decoration-none small">홈</Link>
           <Link href="/read" className="text-white text-decoration-none small">회차 목록</Link>
+          {/* the same for everyone: it does not depend on who is signed in; /demo sends a visitor without a login to the login page */}
+          <Link href="/demo" className="text-white text-decoration-none small">작업 공간</Link>
         </nav>
         <Link href="/login" className="btn btn-outline-light btn-sm">로그인</Link>
       </div>
