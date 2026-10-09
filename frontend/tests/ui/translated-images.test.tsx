@@ -99,6 +99,9 @@ describe("translated images in the screens (27.4)", () => {
     expect(await screen.findByRole("img", { name: "페이지 1 원본 이미지" })).toBeTruthy();
     expect(await screen.findByRole("img", { name: "페이지 1 번역본 이미지" })).toBeTruthy();
     expect(screen.getByLabelText("페이지 1 번역본 이미지 교체")).toBeTruthy();
+    // a scrollable image box must be reachable with the keyboard (axe: scrollable-region-focusable)
+    expect(screen.getByRole("group", { name: "페이지 1 번역본 이미지 (스크롤 가능)" }).getAttribute("tabindex")).toBe("0");
+    expect(screen.getByRole("group", { name: "페이지 1 원본 이미지 (스크롤 가능)" }).getAttribute("tabindex")).toBe("0");
     fireEvent.click(screen.getByRole("button", { name: "다음 페이지" }));
     expect(await screen.findByText("이 페이지에는 번역본 이미지가 없습니다.")).toBeTruthy();
     expect(screen.getByLabelText("페이지 2 번역본 이미지 올리기")).toBeTruthy();

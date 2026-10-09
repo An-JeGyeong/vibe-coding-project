@@ -88,7 +88,7 @@ function TranslatedImage({ scope, episodeId, versionNo, pageNo, refreshKey }: {
     </div>;
   }
   return <figure className="mb-2">
-    <div style={{ overflow: "auto", maxHeight: "70vh" }} className="border rounded bg-body">
+    <div tabIndex={0} role="group" aria-label={`페이지 ${pageNo} 번역본 이미지 (스크롤 가능)`} style={{ overflow: "auto", maxHeight: "70vh" }} className="border rounded bg-body">
       {/* eslint-disable-next-line @next/next/no-img-element -- a Blob URL cannot go through next/image */}
       <img src={view.url} alt={`페이지 ${pageNo} 번역본 이미지`} style={{ maxWidth: "100%", height: "auto", display: "block" }} />
     </div>
