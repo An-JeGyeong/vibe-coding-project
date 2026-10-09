@@ -243,7 +243,7 @@ describe("typesetter dashboard card (29.6)", () => {
       "GET /api/my/episodes/4/typesetting": () => json(503, errorBody("SERVICE_UNAVAILABLE")),
     });
     renderWithAuth(<DashboardCards role="TYPESETTER" />);
-    expect(await screen.findByText("이미지 필요 1건 · 완료 1건 · 승인 전 1건")).toBeTruthy();
+    expect(await screen.findByText("이미지 필요 1건 · 완료 1건 · 승인된 번역 없음 1건")).toBeTruthy();
     expect(screen.getByText("이미지 1페이지 필요")).toBeTruthy();
     expect(screen.getByText("이미지 완료")).toBeTruthy();
     expect(screen.getByText("승인된 번역 없음")).toBeTruthy();

@@ -145,7 +145,7 @@ function TypesetterCard() {
   });
   return <Card title="식자 대기" label="식자 대기" {...card} message={episodeFailureMessage}>
     {card.data && <>
-      <p className="small">이미지 필요 {card.data.missing}건 · 완료 {card.data.complete}건 · 승인 전 {card.data.waiting}건</p>
+      <p className="small">이미지 필요 {card.data.missing}건 · 완료 {card.data.complete}건 · 승인된 번역 없음 {card.data.waiting}건</p>
       {card.data.rows.length === 0 ? <p className="text-secondary empty-note mb-0">배정된 회차가 없습니다.</p> : <RowList rows={card.data.rows} />}
     </>}
   </Card>;

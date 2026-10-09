@@ -176,6 +176,7 @@ export function TypesetWorkspace({ episodeId }: { episodeId: string }) {
     <p className="text-secondary">승인된 번역을 보며 번역본(식자 완료) 이미지를 올립니다. 번역은 이 화면에서 고칠 수 없습니다.</p>
     {versions.length === 0 && <p className="alert alert-secondary" role="status">승인된 번역이 아직 없습니다. 감수자가 번역을 승인하면 이미지를 올릴 수 있습니다.</p>}
     {versions.length > 0 && <section aria-label="승인된 번역" className="card card-body shadow-sm">
+      <h2 className="h5">승인된 번역</h2>
       <div className="d-flex flex-wrap gap-3 align-items-end mb-2">
         <div>
           <label className="form-label small mb-1" htmlFor="typeset-version">번역 버전</label>
