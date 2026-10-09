@@ -196,16 +196,16 @@ class PageIntegrationTest {
         var created=call(HttpMethod.POST,"/api/episodes",Map.of("title","no source"),users.get(Role.OPERATOR).token());String empty=created.getBody().path("id").asText();episodes.add(empty);error(save(empty,png(),"image/png"),404,"NOT_FOUND");assertThat(audit(id)).isZero();
     }
     @Test void roleMatrixAndCurrentAssignmentProtectAllFiveApisIncludingReplacement() {
-        String id=create();save(id,png(),"image/png");assign(id,Role.TRANSLATOR,users.get(Role.TRANSLATOR).id());assign(id,Role.REVIEWER,users.get(Role.REVIEWER).id());
+        String id=create();save(id,png(),"image/png");assign(id,Role.TRANSLATOR,users.get(Role.TRANSLATOR).id());assign(id,Role.REVIEWER,users.get(Role.REVIEWER).id());assign(id,Role.TYPESETTER,users.get(Role.TYPESETTER).id());
         for(Role role:Role.values()) {
-            String token=users.get(role).token();boolean operator=role==Role.OPERATOR,assigned=role==Role.TRANSLATOR||role==Role.REVIEWER;
+            String token=users.get(role).token();boolean operator=role==Role.OPERATOR,assigned=role==Role.TRANSLATOR||role==Role.REVIEWER||role==Role.TYPESETTER;
             var put=raw(HttpMethod.PUT,image(id,"2"),png(),"image/png",token);if(operator) assertThat(put.getStatusCode().value()).isEqualTo(200);else error(put,403,"FORBIDDEN");
             for(String path:List.of("/api/episodes/"+id+"/pages",image(id,"2"))) {var response=raw(HttpMethod.GET,path,null,null,token);if(operator) assertThat(response.getStatusCode().value()).isEqualTo(200);else error(response,403,"FORBIDDEN");}
             for(String path:List.of("/api/my/episodes/"+id+"/pages","/api/my/episodes/"+id+"/pages/2/image")) {var response=raw(HttpMethod.GET,path,null,null,token);if(assigned) assertThat(response.getStatusCode().value()).isEqualTo(200);else error(response,403,"FORBIDDEN");}
         }
         for(String path:List.of("/api/episodes/"+id+"/pages",image(id,"2"),"/api/my/episodes/"+id+"/pages","/api/my/episodes/"+id+"/pages/2/image")) error(raw(HttpMethod.GET,path,null,null,null),401,"AUTH_REQUIRED");error(raw(HttpMethod.PUT,image(id,"2"),png(),"image/png",null),401,"AUTH_REQUIRED");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM auth_audit WHERE event='ACCESS_DENIED' AND account_id IN (?,?,?,?)",Long.class,users.get(Role.OPERATOR).id(),users.get(Role.TRANSLATOR).id(),users.get(Role.REVIEWER).id(),users.get(Role.READER).id())).isEqualTo(13);
-        String unassigned=create();for(Role role:List.of(Role.TRANSLATOR,Role.REVIEWER)) error(raw(HttpMethod.GET,"/api/my/episodes/"+unassigned+"/pages",null,null,users.get(role).token()),404,"NOT_FOUND");
+        String unassigned=create();for(Role role:List.of(Role.TRANSLATOR,Role.REVIEWER,Role.TYPESETTER)) error(raw(HttpMethod.GET,"/api/my/episodes/"+unassigned+"/pages",null,null,users.get(role).token()),404,"NOT_FOUND");
         for(Role role:List.of(Role.TRANSLATOR,Role.REVIEWER)) {
             long replacement=jdbc.queryForObject("SELECT id FROM demo_account WHERE login_id=?",Long.class,"demo."+role.name().toLowerCase(Locale.ROOT));assign(id,role,replacement);
             for(String path:List.of("/api/my/episodes/"+id+"/pages","/api/my/episodes/"+id+"/pages/2/image")) error(raw(HttpMethod.GET,path,null,null,users.get(role).token()),404,"NOT_FOUND");

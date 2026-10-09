@@ -35,12 +35,12 @@ public class TranslationPageService {
     }
     public Saved saveTranslationPageImage(CurrentUser actor,String id,String versionNo,String pageNo,String type,byte[] bytes) {
         long episode=path(id,18);int version=(int)path(versionNo,9),page=(int)path(pageNo,4);
-        if(actor.user().role()!=Role.TRANSLATOR) throw TranslationPageFailure.forbidden();
+        if(actor.user().role()!=Role.TYPESETTER) throw TranslationPageFailure.forbidden();
         validateImage(type,bytes);
         return execute(write,()->{
             if(episodes.episode(episode,true)==null) throw TranslationPageFailure.notFound();
-            var stored=require(actor,episode,version,false);
-            if(!stored.status().equals("DRAFT")) throw TranslationPageFailure.state(stored.status());
+            var stored=require(actor,episode,version,false,true);
+            if(!stored.status().equals("APPROVED")) throw TranslationPageFailure.state(stored.status());
             if(!dao.sourceHasPage(episode,stored.sourceVersion(),page)) throw TranslationPageFailure.notFound();
             boolean existed=dao.exists(stored.id(),page);var now=clock.instant().truncatedTo(ChronoUnit.MICROS);
             long account=Long.parseLong(actor.user().id());
@@ -50,18 +50,18 @@ public class TranslationPageService {
     }
     public Pages list(CurrentUser actor,String id,String versionNo,boolean operator) {
         long episode=path(id,18);int version=(int)path(versionNo,9);
-        return execute(read,()->new Pages(dao.list(require(actor,episode,version,operator).id())));
+        return execute(read,()->new Pages(dao.list(require(actor,episode,version,operator,false).id())));
     }
     public Image image(CurrentUser actor,String id,String versionNo,String pageNo,boolean operator) {
         long episode=path(id,18);int version=(int)path(versionNo,9),page=(int)path(pageNo,4);
-        return execute(read,()->requireImage(require(actor,episode,version,operator).id(),page));
+        return execute(read,()->requireImage(require(actor,episode,version,operator,false).id(),page));
     }
-    private Stored require(CurrentUser actor,long episode,int version,boolean operator) {
+    private Stored require(CurrentUser actor,long episode,int version,boolean operator,boolean upload) {
         var role=actor.user().role();
-        if(operator?role!=Role.OPERATOR:role!=Role.TRANSLATOR&&role!=Role.REVIEWER) throw TranslationPageFailure.forbidden();
+        if(operator?role!=Role.OPERATOR:role!=Role.TYPESETTER&&role!=Role.REVIEWER) throw TranslationPageFailure.forbidden();
         if(!operator&&!assignments.assigned(episode,Long.parseLong(actor.user().id()),role.name())) throw TranslationPageFailure.notFound();
         var stored=translations.version(episode,version);
-        if(stored==null||(!operator&&role==Role.REVIEWER&&!Set.of("REVIEW_PENDING","APPROVED","REJECTED").contains(stored.status()))) throw TranslationPageFailure.notFound();
+        if(stored==null||(!operator&&!upload&&((role==Role.REVIEWER&&!Set.of("REVIEW_PENDING","APPROVED","REJECTED").contains(stored.status()))||(role==Role.TYPESETTER&&!stored.status().equals("APPROVED"))))) throw TranslationPageFailure.notFound();
         return stored;
     }
     public PublicPages publicList(String id) {
