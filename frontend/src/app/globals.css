@@ -120,17 +120,17 @@ body .btn-outline-secondary {
 .table-responsive { position: relative; }
 
 /* Manga viewer (CONTRACTS 27.4) */
-.viewer { background: #15161c; color: #f1f1f4; border-radius: 0.5rem; overflow: hidden; position: relative; }
-.viewer a:not(.btn) { color: #aab4ff; }
-.viewer-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; background: #20222c; }
+.viewer { background: #1a1a1a; color: #f1f1f4; border-radius: 0.5rem; overflow: hidden; position: relative; }
+.viewer a:not(.btn) { color: var(--lime); }
+.viewer-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; background: #272727; }
 .viewer-stage { position: relative; display: flex; justify-content: center; min-height: 12rem; touch-action: pan-y; }
 .viewer-spread { display: flex; justify-content: center; align-items: flex-start; width: 100%; }
 .viewer-spread.rtl { flex-direction: row-reverse; }
 .viewer-img { display: block; max-width: 100%; max-height: max(calc(100vh - 12rem), 20rem); object-fit: contain; }
 .viewer-spread.two .viewer-img { max-width: 50%; }
 .viewer-scroll { max-width: 900px; margin: 0 auto; }
-.viewer-img-scroll { display: block; width: 100%; height: auto; background: #20222c; }
-.viewer-failed { padding: 3rem 1rem; text-align: center; background: #20222c; width: 100%; }
+.viewer-img-scroll { display: block; width: 100%; height: auto; background: #272727; }
+.viewer-failed { padding: 3rem 1rem; text-align: center; background: #272727; width: 100%; }
 .viewer-zone { position: absolute; top: 0; bottom: 0; width: 35%; cursor: pointer; }
 .viewer-zone-left { left: 0; }
 .viewer-zone-right { right: 0; }
@@ -138,7 +138,7 @@ body .btn-outline-secondary {
 .viewer-arrow:disabled { opacity: 0.25; }
 .viewer-arrow-left { left: 0.25rem; }
 .viewer-arrow-right { right: 0.25rem; }
-.viewer-end { color: #f1f1f4; margin: 0; padding: 0.75rem 1rem; text-align: center; background: #20222c; }
+.viewer-end { color: #f1f1f4; margin: 0; padding: 0.75rem 1rem; text-align: center; background: #272727; }
 .viewer .viewer-settings { --bs-card-color: #212529; background: #fff; color: #212529; }
 .viewer-settings { position: absolute; top: 3rem; right: 0.75rem; z-index: 5; width: min(20rem, calc(100% - 1.5rem)); color: var(--bs-body-color); }
 
@@ -155,7 +155,7 @@ body .btn-outline-secondary {
 .work-card:hover { box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.15) !important; }
 .work-card-cover, .home-card-cover.cover-img { border-radius: var(--bs-card-inner-border-radius) var(--bs-card-inner-border-radius) 0 0; }
 .work-detail-cover { border-radius: 0.5rem; max-width: 320px; }
-.home-banner { background: #20222c; color: #fff; border-radius: 0.5rem; padding: 1rem; }
+.home-banner { background: #272727; color: #fff; border-radius: 0.5rem; padding: 1rem; }
 .home-banner-slide { display: flex; gap: 1.25rem; align-items: center; }
 .home-banner-cover { width: 9rem; flex: none; border-radius: 0.4rem; }
 .home-banner-text { min-width: 0; }
