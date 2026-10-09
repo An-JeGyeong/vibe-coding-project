@@ -17,6 +17,7 @@ const T = "2026-10-06T01:00:00.123456Z";
 const who = (id: string, displayName: string) => ({ id, displayName });
 const accounts = (role: string) => (role === "TRANSLATOR"
   ? [{ id: "2", displayName: "데모 번역가", role }, { id: "5", displayName: "다른 번역가", role }]
+  : role === "TYPESETTER" ? [{ id: "6", displayName: "데모 식자", role }]
   : [{ id: "3", displayName: "데모 감수자", role }]);
 const myItem = (id: string, role: "TRANSLATOR" | "REVIEWER", version = 1) => ({ id, title: `회차 ${id}`, assignedRole: role, latestSourceVersion: version, assignedAt: T, updatedAt: T });
 const myDetail = (role: "TRANSLATOR" | "REVIEWER" = "TRANSLATOR") => ({
@@ -45,7 +46,7 @@ const apiCalls = (calls: FetchCall[]) => calls.filter((call) => call.path !== "/
 const puts = (calls: FetchCall[]) => calls.filter((call) => call.method === "PUT");
 
 const panelRoutes = (overrides: Record<string, H> = {}): Record<string, H> => ({
-  "GET /api/episodes/7/assignments": () => json(200, { translator: null, reviewer: null }),
+  "GET /api/episodes/7/assignments": () => json(200, { translator: null, reviewer: null, typesetter: null }),
   "GET /api/assignable-accounts": (call) => json(200, { items: accounts(new URL(call.url).searchParams.get("role")!) }),
   ...overrides,
 });
@@ -61,11 +62,13 @@ async function openPanel(overrides: Record<string, H> = {}) {
 describe("assignment panel (operator)", () => {
   test("shows unassigned slots and only the candidates of each role", async () => {
     await openPanel();
-    expect(screen.getAllByText("미배정")).toHaveLength(2);
+    expect(screen.getAllByText("미배정")).toHaveLength(3);
     const translators = within(screen.getByLabelText("번역가 후보")).getAllByRole("option").map((option) => option.textContent);
     expect(translators).toEqual(["선택하세요", "데모 번역가", "다른 번역가"]);
     const reviewers = within(screen.getByLabelText("감수자 후보")).getAllByRole("option").map((option) => option.textContent);
     expect(reviewers).toEqual(["선택하세요", "데모 감수자"]);
+    const typesetters = within(screen.getByLabelText("식자 후보")).getAllByRole("option").map((option) => option.textContent);
+    expect(typesetters).toEqual(["선택하세요", "데모 식자"]);
     expect((screen.getByRole("button", { name: "번역가 배정" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
@@ -139,7 +142,7 @@ describe("assignment panel (operator)", () => {
 
   test("a load failure offers a retry and shows no assignment controls", async () => {
     let healthy = false;
-    server("OPERATOR", panelRoutes({ "GET /api/episodes/7/assignments": () => (healthy ? json(200, { translator: null, reviewer: null }) : json(503, errorBody("SERVICE_UNAVAILABLE"))) }));
+    server("OPERATOR", panelRoutes({ "GET /api/episodes/7/assignments": () => (healthy ? json(200, { translator: null, reviewer: null, typesetter: null }) : json(503, errorBody("SERVICE_UNAVAILABLE"))) }));
     renderWithAuth(<OperatorGate><AssignmentPanel episodeId="7" /></OperatorGate>);
     expect(await screen.findByText(/서비스를 사용할 수 없습니다/)).toBeTruthy();
     expect(screen.queryByLabelText("번역가 후보")).toBeNull();
@@ -275,5 +278,34 @@ describe("assigned episode detail (read-only source)", () => {
     renderWithAuth(<AssignedDetailPage />);
     expect(await screen.findByText(/번역가·감수자만 사용할 수 있습니다/)).toBeTruthy();
     expect(apiCalls(calls)).toHaveLength(0);
+  });
+});
+
+describe("assignment panel: the typesetter slot (29.4)", () => {
+  test("assigning a typesetter uses the typesetter path and shows the new assignee", async () => {
+    const { calls } = await openPanel({
+      "PUT /api/episodes/7/assignments/typesetter": () => json(201, { role: "TYPESETTER", account: who("6", "데모 식자"), assignedAt: T, changed: true }),
+    });
+    select("식자 후보", "6");
+    click("식자 배정");
+    expect(await screen.findByText("식자를 데모 식자(으)로 배정했습니다.")).toBeTruthy();
+    expect(JSON.parse(puts(calls)[0].body!)).toEqual({ accountId: "6" });
+    expect(puts(calls)[0].path).toBe("/api/episodes/7/assignments/typesetter");
+    expect(screen.getByRole("button", { name: "식자 교체" })).toBeTruthy();
+  });
+
+  test("an answer without the typesetter field (an older server) counts as unassigned", async () => {
+    await openPanel({ "GET /api/episodes/7/assignments": () => json(200, { translator: null, reviewer: null }) });
+    expect(screen.getAllByText("미배정")).toHaveLength(3);
+  });
+
+  test("when only the typesetter candidates cannot be loaded the other slots keep working and a notice is shown", async () => {
+    await openPanel({ "GET /api/assignable-accounts": (call) => {
+      const role = new URL(call.url).searchParams.get("role")!;
+      return role === "TYPESETTER" ? json(400, { error: { code: "INVALID_REQUEST", message: "x" } }) : json(200, { items: accounts(role) });
+    } });
+    expect(await screen.findByText(/식자 후보를 불러오지 못했습니다/)).toBeTruthy();
+    expect(within(screen.getByLabelText("번역가 후보")).getAllByRole("option")).toHaveLength(3);
+    expect(screen.queryByText("배정할 수 있는 식자 계정이 없습니다.")).toBeNull();
   });
 });

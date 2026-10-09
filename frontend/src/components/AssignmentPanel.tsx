@@ -8,14 +8,15 @@ import { episodeFailureMessage } from "@/lib/episodes/messages";
 import type { EpisodeFailure } from "@/lib/episodes/types";
 
 type Notice = { tone: "success" | "info" | "danger"; text: string };
-const SLOTS: SlotKey[] = ["translator", "reviewer"];
+const SLOTS: SlotKey[] = ["translator", "reviewer", "typesetter"];
 
 // Operator-only area of the episode detail page (the gate above it decides whether it is mounted at all).
 export function AssignmentPanel({ episodeId }: { episodeId: string }) {
   const { handleUnauthorized } = useAuth();
   const [assignments, setAssignments] = useState<Assignments | null>(null);
-  const [candidates, setCandidates] = useState<Record<SlotKey, AssignableAccount[]>>({ translator: [], reviewer: [] });
-  const [selected, setSelected] = useState<Record<SlotKey, string>>({ translator: "", reviewer: "" });
+  const [candidates, setCandidates] = useState<Record<SlotKey, AssignableAccount[]>>({ translator: [], reviewer: [], typesetter: [] });
+  const [selected, setSelected] = useState<Record<SlotKey, string>>({ translator: "", reviewer: "", typesetter: "" });
+  const [typesetterUnavailable, setTypesetterUnavailable] = useState(false); // the typesetter candidates failed to load: the other slots keep working
   const [loading, setLoading] = useState(true);
   const [loadFailure, setLoadFailure] = useState<EpisodeFailure | null>(null);
   const [saving, setSaving] = useState<SlotKey | null>(null);
@@ -28,10 +29,11 @@ export function AssignmentPanel({ episodeId }: { episodeId: string }) {
     const request = new AbortController();
     activeLoad.current = request;
     setLoading(true);
-    const [current, translators, reviewers] = await Promise.all([
+    const [current, translators, reviewers, typesetters] = await Promise.all([
       getAssignments(episodeId, request.signal),
       listAssignableAccounts("TRANSLATOR", request.signal),
       listAssignableAccounts("REVIEWER", request.signal),
+      listAssignableAccounts("TYPESETTER", request.signal),
     ]);
     if (activeLoad.current !== request) return; // superseded or unmounted
     activeLoad.current = null;
@@ -46,8 +48,10 @@ export function AssignmentPanel({ episodeId }: { episodeId: string }) {
     if (!current.ok || !translators.ok || !reviewers.ok) return;
     setLoadFailure(null);
     setAssignments(current.value);
-    setCandidates({ translator: translators.value, reviewer: reviewers.value });
-    setSelected({ translator: current.value.translator?.account.id ?? "", reviewer: current.value.reviewer?.account.id ?? "" });
+    if (!typesetters.ok && typesetters.failure.kind === "unauthorized") { handleUnauthorized(); return; }
+    setTypesetterUnavailable(!typesetters.ok);
+    setCandidates({ translator: translators.value, reviewer: reviewers.value, typesetter: typesetters.ok ? typesetters.value : [] });
+    setSelected({ translator: current.value.translator?.account.id ?? "", reviewer: current.value.reviewer?.account.id ?? "", typesetter: current.value.typesetter?.account.id ?? "" });
   }, [episodeId, handleUnauthorized]);
 
   useEffect(() => {
@@ -81,7 +85,7 @@ export function AssignmentPanel({ episodeId }: { episodeId: string }) {
 
   return <section id="section-assignment" aria-label="담당자 배정" className="card card-body shadow-sm mb-3">
     <h2 className="h5">담당자 배정</h2>
-    <p className="text-secondary small">회차마다 번역가·감수자를 한 명씩 지정합니다. 교체하면 이전 담당자는 즉시 이 회차를 볼 수 없습니다.</p>
+    <p className="text-secondary small">회차마다 번역가·감수자·식자를 한 명씩 지정합니다. 교체하면 이전 담당자는 즉시 이 회차를 볼 수 없습니다.</p>
     {loading && !assignments && <p role="status">불러오는 중…</p>}
     {loadFailure && <div className="alert alert-warning" role="alert">
       <p>{episodeFailureMessage(loadFailure)}</p>
@@ -108,7 +112,8 @@ export function AssignmentPanel({ episodeId }: { episodeId: string }) {
           <button type="button" className="btn btn-primary" disabled={saving !== null || selected[slot] === "" || unchanged}
             onClick={() => void onAssign(slot)}>{saving === slot ? "저장 중…" : `${label} ${current ? "교체" : "배정"}`}</button>
         </div>
-        {candidates[slot].length === 0 && <p className="text-secondary small mt-1 mb-0">배정할 수 있는 {label} 계정이 없습니다.</p>}
+        {slot === "typesetter" && typesetterUnavailable && <p className="text-danger small mt-1 mb-0" role="alert">식자 후보를 불러오지 못했습니다. 새로고침한 뒤 다시 시도하세요.</p>}
+        {candidates[slot].length === 0 && !(slot === "typesetter" && typesetterUnavailable) && <p className="text-secondary small mt-1 mb-0">배정할 수 있는 {label} 계정이 없습니다.</p>}
         {notice && <p className={`alert alert-${notice.tone} mt-2 mb-0`} role={notice.tone === "danger" ? "alert" : "status"}>{notice.text}</p>}
       </div>;
     })}

@@ -11,13 +11,13 @@ describe("assignment API requests follow CONTRACTS 15.2", () => {
     const { calls } = mockFetch((call) => {
       if (call.path === "/api/assignable-accounts") return json(200, { items: [{ id: "2", displayName: "데모 번역가", role: "TRANSLATOR" }] });
       if (call.method === "PUT") return json(201, { role: "TRANSLATOR", account: person.account, assignedAt: T, changed: true });
-      if (call.path.endsWith("/assignments")) return json(200, { translator: person, reviewer: null });
+      if (call.path.endsWith("/assignments")) return json(200, { translator: person, reviewer: null, typesetter: null });
       if (call.path === "/api/my/episodes") return json(200, { items: [{ id: "7", title: "1화", assignedRole: "REVIEWER", latestSourceVersion: 2, assignedAt: T, updatedAt: T }], total: 1 });
       return json(200, { id: "7", title: "1화", assignedRole: "TRANSLATOR", latestSourceVersion: 1,
         source: { version: 1, savedAt: T, blocks: [{ seq: 1, pageNo: null, text: "원문" }] } });
     });
     expect(await listAssignableAccounts("TRANSLATOR")).toEqual({ ok: true, value: [{ id: "2", displayName: "데모 번역가", role: "TRANSLATOR" }] });
-    expect(await getAssignments("7")).toEqual({ ok: true, value: { translator: person, reviewer: null } });
+    expect(await getAssignments("7")).toEqual({ ok: true, value: { translator: person, reviewer: null, typesetter: null } });
     expect(await setAssignment("7", "translator", "2")).toEqual({ ok: true, value: { role: "TRANSLATOR", person, changed: true, created: true } });
     expect((await listMyEpisodes(20, 40)).ok).toBe(true);
     expect((await getMyEpisode("7")).ok).toBe(true);

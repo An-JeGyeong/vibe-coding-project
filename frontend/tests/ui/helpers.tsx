@@ -13,6 +13,7 @@ export const USERS: Record<Role, AuthUser> = {
   OPERATOR: { id: "1", displayName: "데모 운영자", role: "OPERATOR" },
   TRANSLATOR: { id: "2", displayName: "데모 번역가", role: "TRANSLATOR" },
   REVIEWER: { id: "3", displayName: "데모 감수자", role: "REVIEWER" },
+  TYPESETTER: { id: "5", displayName: "데모 식자", role: "TYPESETTER" },
   READER: { id: "4", displayName: "데모 독자", role: "READER" },
 };
 

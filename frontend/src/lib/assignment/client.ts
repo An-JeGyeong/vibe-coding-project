@@ -5,7 +5,7 @@ import type {
   AssignableAccount, AssignedPerson, AssignOutcome, AssigneeRole, Assignments, MyEpisode, MyEpisodeDetail, MyEpisodeList, SlotKey,
 } from "./types";
 
-const isAssigneeRole = (value: unknown): value is AssigneeRole => value === "TRANSLATOR" || value === "REVIEWER";
+const isAssigneeRole = (value: unknown): value is AssigneeRole => value === "TRANSLATOR" || value === "REVIEWER" || value === "TYPESETTER";
 
 function account(value: unknown): { id: string; displayName: string } | null {
   return isRecord(value) && isStr(value.id) && isStr(value.displayName) ? { id: value.id, displayName: value.displayName } : null;
@@ -57,8 +57,9 @@ export async function getAssignments(episodeId: string, signal?: AbortSignal): P
   const read = (slot: unknown) => (slot === null ? null : person(slot));
   const translator = read(body.translator);
   const reviewer = read(body.reviewer);
-  if ((body.translator !== null && !translator) || (body.reviewer !== null && !reviewer)) return fail(INVALID_RESPONSE);
-  return { ok: true, value: { translator, reviewer } };
+  const typesetter = body.typesetter === undefined ? null : read(body.typesetter); // absent before the typesetter slot existed
+  if ((body.translator !== null && !translator) || (body.reviewer !== null && !reviewer) || (body.typesetter !== undefined && body.typesetter !== null && !typesetter)) return fail(INVALID_RESPONSE);
+  return { ok: true, value: { translator, reviewer, typesetter } };
 }
 
 export async function setAssignment(episodeId: string, slot: SlotKey, accountId: string, signal?: AbortSignal): Promise<EpisodeResult<AssignOutcome>> {
