@@ -18,7 +18,7 @@ import java.util.Map;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import static com.mangabridge.bootstrap.auth.AuthModels.*;
 
-@RestControllerAdvice(assignableTypes={AuthController.class,EpisodeController.class,AssignmentController.class,TranslationController.class,com.mangabridge.bootstrap.review.ReviewController.class,com.mangabridge.bootstrap.publication.PublicationController.class,com.mangabridge.bootstrap.history.HistoryController.class,com.mangabridge.bootstrap.ai.AiController.class,com.mangabridge.bootstrap.page.PageController.class,com.mangabridge.bootstrap.translatedpage.TranslationPageController.class,com.mangabridge.bootstrap.work.WorkController.class,com.mangabridge.bootstrap.work.CatalogController.class,com.mangabridge.bootstrap.work.ViewController.class})
+@RestControllerAdvice(assignableTypes={AuthController.class,EpisodeController.class,AssignmentController.class,TranslationController.class,com.mangabridge.bootstrap.review.ReviewController.class,com.mangabridge.bootstrap.publication.PublicationController.class,com.mangabridge.bootstrap.history.HistoryController.class,com.mangabridge.bootstrap.ai.AiController.class,com.mangabridge.bootstrap.page.PageController.class,com.mangabridge.bootstrap.translatedpage.TranslationPageController.class,com.mangabridge.bootstrap.work.WorkController.class,com.mangabridge.bootstrap.work.CatalogController.class,com.mangabridge.bootstrap.work.ViewController.class,com.mangabridge.bootstrap.typesetting.TypesettingController.class})
 public class AuthErrors {
     static ErrorResponse body(String code) {
         String message=switch(code) {
@@ -39,6 +39,7 @@ public class AuthErrors {
         error.put("message",failure.status==409?"작품 상태가 변경되었습니다. 최신 내용을 확인하세요.":body(failure.code).error().message());
         error.putAll(failure.details);return ResponseEntity.status(failure.status).header("Cache-Control","no-store").body(Map.of("error",error));
     }
+    @ExceptionHandler(com.mangabridge.bootstrap.typesetting.TypesettingFailure.class) ResponseEntity<ErrorResponse> typesettingFailure(com.mangabridge.bootstrap.typesetting.TypesettingFailure failure) { return ResponseEntity.status(failure.status).header("Cache-Control","no-store").body(body(failure.code)); }
     @ExceptionHandler(AuthFailure.class) ResponseEntity<ErrorResponse> failure(AuthFailure e) {
         var response=ResponseEntity.status(e.status).header("Cache-Control","no-store");
         return response.body(body(e.code));
