@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-export const metadata: Metadata = { title: "망가브릿지" };
+export const metadata: Metadata = { title: "만화 읽기" };
 
 // The public reader shell: no sign-in state, no token, nothing role dependent (CONTRACTS 23.3).
 export default function PublicLayout({ children }: Readonly<{ children: React.ReactNode }>) {
