@@ -134,7 +134,8 @@ body .btn-outline-secondary {
 .viewer-arrow:disabled { opacity: 0.25; }
 .viewer-arrow-left { left: 0.25rem; }
 .viewer-arrow-right { right: 0.25rem; }
-.viewer-end { margin: 0; padding: 0.75rem 1rem; text-align: center; background: #20222c; }
+.viewer-end { color: #f1f1f4; margin: 0; padding: 0.75rem 1rem; text-align: center; background: #20222c; }
+.viewer .viewer-settings { --bs-card-color: #212529; background: #fff; color: #212529; }
 .viewer-settings { position: absolute; top: 3rem; right: 0.75rem; z-index: 5; width: min(20rem, calc(100% - 1.5rem)); color: var(--bs-body-color); }
 
 /* Reader main page */

@@ -142,9 +142,10 @@ export function MangaViewer({ episodeId, title, publishedAt, pages, previous, ne
     {previous ? <Link className="btn btn-outline-light btn-sm" href={`/read/${encodeURIComponent(previous.episodeId)}`}>← 이전화</Link> : <span className="btn btn-outline-secondary btn-sm disabled" aria-disabled="true">← 이전화</span>}
     {next ? <Link className="btn btn-outline-light btn-sm" href={`/read/${encodeURIComponent(next.episodeId)}`}>다음화 →</Link> : <span className="btn btn-outline-secondary btn-sm disabled" aria-disabled="true">다음화 →</span>}
   </div>;
-  const endNotice = <p role="status" className="viewer-end">
+  // a div, not a p: the global "main p[role=status]" rule would turn the text dark-grey on the dark viewer
+  const endNotice = <div role="status" className="viewer-end">
     마지막 쪽입니다. {next ? <Link href={`/read/${encodeURIComponent(next.episodeId)}`}>다음화로: {next.title} →</Link> : "마지막 회차입니다."}
-  </p>;
+  </div>;
   const arrow = (side: "left" | "right") => {
     const step = stepForSide(side, direction);
     const blocked = step === 1 ? last : index === 0;
