@@ -31,9 +31,10 @@ export function WorkCard({ work }: { work: WorkSummary }) {
   </Link>;
 }
 
-export function WorkGrid({ works, label }: { works: WorkSummary[]; label: string }) {
+export function WorkGrid({ works, label, ranked = false }: { works: WorkSummary[]; label: string; ranked?: boolean }) {
   return <ul className="list-unstyled row g-3" aria-label={label}>
-    {works.map((work) => <li key={work.workId} className="col-6 col-md-4 col-lg-3 col-xl-2">
+    {works.map((work, index) => <li key={work.workId} className="col-6 col-md-4 col-lg-3 col-xl-2 position-relative">
+      {ranked && <span className={`rank-badge${index < 3 ? " top" : ""}`} aria-hidden="true">{index + 1}</span>}
       <WorkCard work={work} />
     </li>)}
   </ul>;

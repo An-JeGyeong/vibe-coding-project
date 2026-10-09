@@ -1,32 +1,36 @@
 /* Theme: one brand colour on top of Bootstrap, applied through its variables so no markup has to change. */
 html:root {
-  --brand: #3d4fb8;
-  --brand-dark: #2c3a8c;
-  --brand-soft: #e9ecfb;
+  /* white base, charcoal chrome (--brand-dark) and a lime accent; --brand is the dark lime-green used for text and borders on white */
+  --brand: #3f6a12;
+  --brand-dark: #272727;
+  --brand-soft: #eaf8d6;
+  --lime: #c8f59a;
+  --lime-3: #a8e66a;
+  --lime-ink: #20300e;
   --bs-primary: var(--brand);
-  --bs-primary-rgb: 61, 79, 184;
+  --bs-primary-rgb: 63, 106, 18;
   --bs-link-color: var(--brand);
-  --bs-link-color-rgb: 61, 79, 184;
-  --bs-link-hover-color: var(--brand-dark);
-  --bs-link-hover-color-rgb: 44, 58, 140;
-  --bs-body-font-family: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --bs-link-color-rgb: 63, 106, 18;
+  --bs-link-hover-color: #2e4f0c;
+  --bs-link-hover-color-rgb: 46, 79, 12;
+  --bs-body-font-family: "Pretendard Variable", Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 body .btn-primary {
-  --bs-btn-bg: var(--brand); --bs-btn-border-color: var(--brand);
-  --bs-btn-hover-bg: var(--brand-dark); --bs-btn-hover-border-color: var(--brand-dark);
-  --bs-btn-active-bg: var(--brand-dark); --bs-btn-active-border-color: var(--brand-dark);
-  --bs-btn-disabled-bg: var(--brand); --bs-btn-disabled-border-color: var(--brand);
-  --bs-btn-focus-shadow-rgb: 61, 79, 184;
+  --bs-btn-color: var(--lime-ink); --bs-btn-bg: var(--lime); --bs-btn-border-color: var(--lime);
+  --bs-btn-hover-color: var(--lime-ink); --bs-btn-hover-bg: var(--lime-3); --bs-btn-hover-border-color: var(--lime-3);
+  --bs-btn-active-color: var(--lime-ink); --bs-btn-active-bg: var(--lime-3); --bs-btn-active-border-color: var(--lime-3);
+  --bs-btn-disabled-color: var(--lime-ink); --bs-btn-disabled-bg: var(--lime); --bs-btn-disabled-border-color: var(--lime);
+  --bs-btn-focus-shadow-rgb: 168, 230, 106;
 }
 body .btn-outline-primary {
   --bs-btn-color: var(--brand); --bs-btn-border-color: var(--brand);
-  --bs-btn-hover-bg: var(--brand); --bs-btn-hover-border-color: var(--brand);
-  --bs-btn-active-bg: var(--brand-dark); --bs-btn-active-border-color: var(--brand-dark);
+  --bs-btn-hover-color: #fff; --bs-btn-hover-bg: var(--brand); --bs-btn-hover-border-color: var(--brand);
+  --bs-btn-active-color: #fff; --bs-btn-active-bg: #2e4f0c; --bs-btn-active-border-color: #2e4f0c;
   --bs-btn-disabled-color: var(--brand); --bs-btn-disabled-border-color: var(--brand);
 }
-body .progress { --bs-progress-bar-bg: var(--brand); }
-body .form-control:focus, body .form-select:focus { border-color: var(--brand); box-shadow: 0 0 0 0.2rem rgba(61, 79, 184, 0.2); }
+body .progress { --bs-progress-bar-bg: var(--lime-3); }
+body .form-control:focus, body .form-select:focus { border-color: var(--brand); box-shadow: 0 0 0 0.2rem rgba(168, 230, 106, 0.4); }
 
 /* Surfaces and type. */
 .card { border-radius: 0.75rem; border: 1px solid var(--bs-border-color-translucent); }
@@ -142,11 +146,11 @@ body .btn-outline-secondary {
 .home-hero { padding: 1.5rem 0 0.5rem; }
 .home-card { color: inherit; }
 .home-card:hover { box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.15) !important; }
-.home-card-cover { aspect-ratio: 3 / 4; display: flex; align-items: center; justify-content: center; font-size: 3rem; font-weight: 700; color: #fff; background: linear-gradient(135deg, #3d4fb8, #20222c); border-radius: var(--bs-card-inner-border-radius) var(--bs-card-inner-border-radius) 0 0; }
+.home-card-cover { aspect-ratio: 3 / 4; display: flex; align-items: center; justify-content: center; font-size: 3rem; font-weight: 800; color: var(--lime); background: linear-gradient(135deg, #3a3a3a, #1d1d1d); border-radius: var(--bs-card-inner-border-radius) var(--bs-card-inner-border-radius) 0 0; }
 
 /* Catalog: covers, work cards, banner, work page */
 .cover-img, .cover-placeholder { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; }
-.cover-placeholder { display: flex; align-items: center; justify-content: center; font-size: 3rem; font-weight: 700; color: #fff; background: linear-gradient(135deg, #3d4fb8, #20222c); }
+.cover-placeholder { display: flex; align-items: center; justify-content: center; font-size: 3rem; font-weight: 800; color: var(--lime); background: linear-gradient(135deg, #3a3a3a, #1d1d1d); }
 .work-card { color: inherit; }
 .work-card:hover { box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.15) !important; }
 .work-card-cover, .home-card-cover.cover-img { border-radius: var(--bs-card-inner-border-radius) var(--bs-card-inner-border-radius) 0 0; }
@@ -160,3 +164,84 @@ body .btn-outline-secondary {
 
 /* Page work screens: the page image stays in view on the left while the blocks scroll on the right */
 @media (min-width: 992px) { .page-image-pane { position: sticky; top: 0.75rem; max-height: calc(100vh - 1.5rem); overflow-y: auto; } }
+
+/* ===== Design pass: white base, charcoal chrome and lime accents (after the JOB:IN prototype) ===== */
+html:root {
+  --page-bg: #f7f7f5;
+  --line: #e8e8e4;
+  --ink: #222222;
+  --radius: 1rem;
+  --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.05), 0 8px 20px rgba(0, 0, 0, 0.05);
+  --shadow-2: 0 4px 10px rgba(0, 0, 0, 0.08), 0 16px 34px rgba(0, 0, 0, 0.16);
+  --bs-body-color: var(--ink);
+  --bs-border-radius: 0.75rem;
+  --bs-border-color: var(--line);
+}
+/* more specific than Bootstrap's !important .bg-body-tertiary on <body> */
+body.bg-body-tertiary { background-color: var(--page-bg) !important; }
+body { line-height: 1.65; word-break: keep-all; overflow-wrap: break-word; -webkit-font-smoothing: antialiased; }
+h1, h2, h3, h4, h5, h6 { letter-spacing: -0.02em; }
+:focus-visible { outline: 3px solid rgba(63, 106, 18, 0.55); outline-offset: 2px; }
+
+/* header: charcoal with a lime brand mark and lime-tinted navigation (the public and the signed-in header are the same element) */
+header.app-header.bg-dark { background-color: #272727 !important; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.22); }
+body header .app-brand { color: var(--lime) !important; font-size: 1.2rem; letter-spacing: -0.03em; font-weight: 800; }
+.app-nav-link { transition: background-color 0.15s, color 0.15s; }
+.app-nav-link:hover { background: rgba(200, 245, 154, 0.14); }
+.app-nav-link.active { color: var(--lime); background: rgba(200, 245, 154, 0.2); }
+
+/* surfaces: white cards on a very light page, large radii, soft shadows */
+.card, .card.shadow-sm { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); }
+.card.shadow-sm { box-shadow: var(--shadow-1) !important; }
+.btn { border-radius: 0.75rem; font-weight: 700; }
+.badge { font-weight: 700; letter-spacing: 0; border-radius: 999px; padding: 0.4em 0.75em; }
+/* the highlight colour of the badges that mean "look here" (continue reading, AI draft, featured) */
+body .text-bg-info { background-color: var(--lime) !important; color: var(--lime-ink) !important; }
+/* genre tags */
+.badge.text-bg-light { background-color: var(--brand-soft) !important; color: var(--brand) !important; border-color: transparent !important; }
+.form-control, .form-select { border-radius: 0.75rem; border-color: #d9d9d4; }
+.list-group-item:first-child { border-top-left-radius: 0.9rem; border-top-right-radius: 0.9rem; }
+.list-group-item:last-child { border-bottom-left-radius: 0.9rem; border-bottom-right-radius: 0.9rem; }
+.reader-list .list-group-item { transition: background-color 0.12s; }
+.reader-list .list-group-item:hover { background: var(--brand-soft); }
+
+/* section titles of the reader screens get a short lime bar */
+main h2.h4 { font-weight: 800; display: flex; align-items: center; gap: 0.55rem; }
+main h2.h4::before { content: ""; width: 0.32rem; height: 1.15em; border-radius: 3px; background: var(--lime-3); flex: none; }
+
+/* home: a charcoal hero with a lime emphasis, a charcoal banner, hoverable cards */
+.home-hero { background: #272727; color: #fff; border-radius: 1.5rem; padding: 3rem 2rem; text-align: center; box-shadow: var(--shadow-2); position: relative; overflow: hidden; }
+.home-hero::after { content: ""; position: absolute; right: -4rem; top: -5rem; width: 18rem; height: 18rem; border-radius: 50%; background: radial-gradient(circle, rgba(200, 245, 154, 0.28), transparent 65%); pointer-events: none; }
+.home-hero h1 { font-size: clamp(1.7rem, 4.2vw, 2.7rem); font-weight: 800; letter-spacing: -0.03em; color: #fff; position: relative; }
+.home-hero h1 em { font-style: normal; color: var(--lime); }
+body .home-hero .text-secondary { color: #d4d4d0 !important; position: relative; }
+.home-banner { background: #272727; border-radius: 1.5rem; padding: 1.5rem; box-shadow: var(--shadow-2); }
+.home-banner-cover { box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5); }
+.home-card, .work-card { overflow: hidden; transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease; }
+.home-card:hover, .work-card:hover { transform: translateY(-4px); border-color: var(--lime-3); box-shadow: var(--shadow-2) !important; }
+@media (prefers-reduced-motion: reduce) { .home-card, .work-card { transition: none; } .home-card:hover, .work-card:hover { transform: none; } }
+.cover-img { background: #ececea; }
+.new-badge { position: absolute; top: 0.5rem; right: 0.5rem; z-index: 2; background: var(--lime); color: var(--lime-ink); font-size: 0.7rem; font-weight: 800; letter-spacing: 0.05em; padding: 0.2rem 0.55rem; border-radius: 999px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25); }
+.rank-badge { position: absolute; top: 0.5rem; left: calc(0.5rem + var(--bs-gutter-x) * 0.5); z-index: 2; min-width: 1.9rem; height: 1.9rem; padding: 0 0.4rem; display: flex; align-items: center; justify-content: center; border-radius: 0.65rem; background: #272727; color: #fff; font-weight: 800; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35); }
+.rank-badge.top { background: var(--lime); color: var(--lime-ink); }
+
+/* work page */
+.work-hero { background: #fff; border: 1px solid var(--line); border-radius: 1.5rem; padding: 1.25rem 0.5rem 1.25rem 0.25rem; margin-left: 0; margin-right: 0; box-shadow: var(--shadow-1); }
+.work-detail-cover { box-shadow: var(--shadow-2); }
+
+/* viewer: stays dark (the usual reading setting), with lime accents */
+.viewer { border-radius: 1.25rem; box-shadow: var(--shadow-2); }
+.viewer a:not(.btn) { color: var(--lime); }
+.viewer-bar { background: #1d1d1d; }
+.viewer-arrow { width: 2.8rem; height: 2.8rem; border-radius: 999px; backdrop-filter: blur(4px); background: rgba(0, 0, 0, 0.5); font-size: 1.7rem; }
+.viewer-progress { height: 3px; background: rgba(255, 255, 255, 0.14); }
+.viewer-progress > span { display: block; height: 100%; background: var(--lime-3); transition: width 0.2s ease; }
+.viewer-progress.rtl > span { margin-left: auto; }
+@media (prefers-reduced-motion: reduce) { .viewer-progress > span { transition: none; } }
+
+/* footer */
+.public-footer { background: #fff; border-top: 1px solid var(--line) !important; }
+
+/* narrow screens: the menu moves under the brand and never wraps inside a link */
+.app-nav-link { white-space: nowrap; }
+@media (max-width: 575.98px) { header.app-header nav { order: 3; width: 100%; } header.app-header .app-brand { margin-right: auto; } }

@@ -178,6 +178,7 @@ export function MangaViewer({ episodeId, title, publishedAt, pages, previous, ne
           {arrow("left")}
           {arrow("right")}
         </div>
+        <div className={`viewer-progress ${direction}`} aria-hidden="true"><span style={{ width: `${((index + 1) / units.length) * 100}%` }} /></div>
         <div className="viewer-bar">
           <span aria-live="polite" className="small">{position}</span>
           <select aria-label="페이지 선택" className="form-select form-select-sm w-auto" value={unit[0]} onChange={(event) => setPageNo(Number(event.target.value))}>

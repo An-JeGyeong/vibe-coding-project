@@ -8,13 +8,13 @@ export default function PublicLayout({ children }: Readonly<{ children: React.Re
   return <>
     <a href="#main-content" className="skip-link">본문으로 건너뛰기</a>
     <header className="app-header bg-dark text-white">
-      <div className="container d-flex align-items-center justify-content-between py-2 gap-3">
+      <div className="container d-flex flex-wrap align-items-center justify-content-between py-2 gap-2 gap-md-3">
         <Link href="/" className="app-brand text-white text-decoration-none fw-bold">망가브릿지</Link>
-        <nav aria-label="주요 메뉴" className="d-flex align-items-center gap-3 flex-grow-1">
-          <Link href="/" className="text-white text-decoration-none small">홈</Link>
-          <Link href="/read" className="text-white text-decoration-none small">회차 목록</Link>
+        <nav aria-label="주요 메뉴" className="d-flex align-items-center gap-1 flex-grow-1">
+          <Link href="/" className="app-nav-link">홈</Link>
+          <Link href="/read" className="app-nav-link">회차 목록</Link>
           {/* the same for everyone: it does not depend on who is signed in; /demo sends a visitor without a login to the login page */}
-          <Link href="/demo" className="text-white text-decoration-none small">작업 공간</Link>
+          <Link href="/demo" className="app-nav-link">작업 공간</Link>
         </nav>
         <Link href="/login" className="btn btn-outline-light btn-sm">로그인</Link>
       </div>

@@ -55,7 +55,7 @@ export function WorkDetailView({ workId }: { workId: string }) {
   const first = ascending[0] ?? null;
   return <article className="work-detail">
     <p><Link href="/">← 메인</Link></p>
-    <div className="row g-4 mb-4">
+    <div className="work-hero row g-4 mb-4">
       <div className="col-12 col-md-4 col-lg-3"><Cover workId={work.workId} title={work.title} hasCover={work.hasCover} className="work-detail-cover" /></div>
       <div className="col-12 col-md-8 col-lg-9">
         <h1 className="h2 mb-1">{work.title}</h1>

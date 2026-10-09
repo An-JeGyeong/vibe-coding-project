@@ -12,6 +12,8 @@ import { hasPosition } from "@/lib/reader/position";
 import { Cover, GenreBadges, WorkGrid } from "./CatalogParts";
 
 const LATEST_COUNT = 12;
+const NEW_WITHIN_MS = 3 * 24 * 60 * 60 * 1000; // an episode counts as new for three days
+const isRecent = (publishedAt: string) => Date.now() - Date.parse(publishedAt) < NEW_WITHIN_MS;
 
 type Card = { episodeId: string; title: string; publishedAt: string; workId: string | null; subtitle: string | null };
 const fromEpisode = (item: PublicEpisode): Card => ({ ...item, workId: null, subtitle: null });
@@ -24,6 +26,7 @@ function EpisodeCards({ cards }: { cards: Card[] }) {
   return <ul className="home-cards list-unstyled row g-3">
     {cards.map((item) => <li key={item.episodeId} className="col-6 col-md-4 col-lg-3">
       <Link href={`/read/${encodeURIComponent(item.episodeId)}`} className="home-card card h-100 text-decoration-none shadow-sm">
+        {isRecent(item.publishedAt) && <span className="new-badge" aria-hidden="true">NEW</span>}
         {item.workId !== null
           ? <Cover workId={item.workId} title={item.subtitle ?? item.title} hasCover className="home-card-cover" />
           : <div className="home-card-cover cover-placeholder" aria-hidden="true">{item.title.slice(0, 1)}</div>}
@@ -90,7 +93,7 @@ function Banners({ banners }: { banners: WorkSummary[] }) {
         <h2 className="h3 mb-1">{current.title}</h2>
         <p className="mb-2">{current.author}</p>
         <p className="mb-3"><GenreBadges genres={current.genres} /></p>
-        <Link href={`/works/${encodeURIComponent(current.workId)}`} className="btn btn-light">작품 보기</Link>
+        <Link href={`/works/${encodeURIComponent(current.workId)}`} className="btn btn-primary">작품 보기</Link>
       </div>
     </div>
     {banners.length > 1 && <div className="home-banner-controls">
@@ -178,7 +181,7 @@ export function HomeView() {
   return <main id="main-content" className="container py-5">
     {home !== null && home.banners.length > 0 && <Banners banners={home.banners} />}
     <section aria-label="소개" className="home-hero mb-4">
-      <h1 className="h2 mb-2">번역된 만화를 읽어 보세요</h1>
+      <h1 className="h2 mb-2">번역된 만화를 <em>읽어 보세요</em></h1>
       <p className="text-secondary mb-0">망가브릿지에서 번역·감수를 마치고 공개된 회차를 바로 읽을 수 있습니다.</p>
     </section>
     {loading && home === null && failure === null && <p role="status">불러오는 중…</p>}
@@ -199,7 +202,7 @@ export function HomeView() {
     </section>}
     {home !== null && home.popular.length > 0 && <section aria-label="인기 작품" className="mb-4">
       <h2 className="h4">인기 작품</h2>
-      <WorkGrid works={home.popular} label="인기 작품 목록" />
+      <WorkGrid works={home.popular} label="인기 작품 목록" ranked />
     </section>}
     {home !== null && home.featured.length > 0 && <section aria-label="운영자 추천" className="mb-4">
       <h2 className="h4">운영자 추천</h2>
