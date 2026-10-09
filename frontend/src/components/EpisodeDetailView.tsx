@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AssignmentPanel } from "@/components/AssignmentPanel";
 import { PageImagesPanel } from "@/components/PageImagesPanel";
 import { TranslationOverviewPanel } from "@/components/TranslationOverviewPanel";
+import { EpisodeWorkPanel } from "@/components/EpisodeWorkPanel";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { getEpisode, getVersion, listVersions, saveSource } from "@/lib/episodes/client";
 import { episodeFailureMessage } from "@/lib/episodes/messages";
@@ -147,6 +148,7 @@ export function EpisodeDetailView({ episodeId }: { episodeId: string }) {
 
     <nav aria-label="구역 이동" className="section-nav">
       <a href="#section-assignment">담당자</a>
+      <a href="#section-work">작품</a>
       <a href="#section-translations">번역·발행</a>
       {detail.source && <a href="#section-images">이미지</a>}
       <a href="#section-source">원문</a>
@@ -154,6 +156,7 @@ export function EpisodeDetailView({ episodeId }: { episodeId: string }) {
     </nav>
 
     <AssignmentPanel episodeId={episodeId} />
+    <EpisodeWorkPanel episodeId={episodeId} />
     {detail.source && <PageImagesPanel key={detail.latestSourceVersion} episodeId={episodeId}
       pageNumbers={[...new Set(detail.source.blocks.flatMap((block) => (block.pageNo === null ? [] : [block.pageNo])))].sort((a, b) => a - b)} />}
     <TranslationOverviewPanel episodeId={episodeId} refreshKey={sourceSaves} />

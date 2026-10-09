@@ -5,7 +5,7 @@ export const ROLE_INFO: Record<Role, { label: string; summary: string; menus: st
   OPERATOR: {
     label: "운영자",
     summary: "회차·원문 등록과 수정, 번역 배정, 승인본 발행을 담당합니다.",
-    menus: ["회차·원문 관리", "번역·검수 배정", "승인본 발행", "작업 이력 조회"],
+    menus: ["회차·원문 관리", "작품 관리", "번역·검수 배정", "승인본 발행", "작업 이력 조회"],
   },
   TRANSLATOR: {
     label: "번역가",
@@ -33,7 +33,7 @@ export const DEMO_ACCOUNTS: ReadonlyArray<{ role: Role; loginId: string }> = [
 
 // Implemented menus per role. Display-only: a link is shown for a server-confirmed role, the server still enforces access.
 export const ROLE_MENU_LINKS: Readonly<Record<Role, Readonly<Record<string, string>>>> = {
-  OPERATOR: { "회차·원문 관리": "/episodes", "작업 이력 조회": "/history" },
+  OPERATOR: { "회차·원문 관리": "/episodes", "작품 관리": "/works-admin", "작업 이력 조회": "/history" },
   TRANSLATOR: { "배정된 회차": "/assigned" },
   REVIEWER: { "배정된 회차": "/assigned", "검수 대기 목록": "/reviews" },
   READER: { "공개 회차 읽기": "/read" },

@@ -171,7 +171,7 @@ describe("episode detail and editor", () => {
     await openDetail();
     const nav = screen.getByRole("navigation", { name: "구역 이동" });
     const targets = Array.from(nav.querySelectorAll("a")).map((a) => a.getAttribute("href"));
-    expect(targets).toEqual(["#section-assignment", "#section-translations", "#section-images", "#section-source", "#section-history"]);
+    expect(targets).toEqual(["#section-assignment", "#section-work", "#section-translations", "#section-images", "#section-source", "#section-history"]);
     for (const target of targets) expect(document.querySelector(target!), String(target)).not.toBeNull();
     expect(document.querySelectorAll("section details.fold[open]")).toHaveLength(2); // source editor and history start open
   });
