@@ -1243,3 +1243,17 @@ HistoryIntegrationTest와 기존 공개 API 405 테스트를 포함한 나머지
 새 테스트 파일은 TypesetterSeedIntegrationTest, TypesettingIntegrationTest, TypesetterSchemaIntegrationTest입니다. V1~V35와 그 밖의 기존 테스트 파일은 변경하지 않았습니다. 재실행 전·1회차 후·2회차 후 스냅샷은 동일: demo_account 4행/내용 SHA-256 불변, auth_login_limit 0행, 나머지 데이터 테이블 모두 0행, Flyway 성공 이력 36행. 테스트 생성 행만 정리했습니다. 비밀번호·토큰·AI 키를 변경 파일·보고에 추가하지 않았습니다.
 
 정리: 소유 컨테이너 ID 86f3e0963cabde8edfc57d29887b8626da503b8312cd5ee4d8ed9509edcf48b3를 대조해 docker stop --timeout 10(종료 코드 0), --rm 자동 정리·3336 리스너 0을 확인했습니다. 테스트 프로세스 종료, 기존 개발 컨테이너 ID 49c9b14620e0939b29af2b10cd881ae7273ff17e8317d629f44400997a2e7daf·vibe-coding-project_mysql_data 볼륨은 running/healthy로 유지됐습니다. 기존 8080/8081/3000·frontend/.next·next-env.d.ts·PROJECT_CONTEXT.md의 줄바꿈 M은 건드리지 않았습니다. 증빙은 주 작업 트리의 ignored `backend/build/verification/typesetter29-evidence`에 복사 보존했고, 통합 완료 worktree는 아카이브 완료 상태를 확인했습니다. 계약과 다른 구현은 없으며 개발 DB V36 적용·실제 브라우저 검증은 미실행입니다.
+
+### 개발 DB V36 적용 기록 (2026-10-09)
+
+검증자: Codex 직접 실행, 사용자 적용·재개 승인 범위(V35→V36). 코드 기준 master 861d309(5492e4e 포함). 기존 컨테이너 49c9b14620e0 / vibe-coding-project_mysql_data 볼륨은 전후 running/healthy로 유지했습니다. 기존 8080 PID 31880은 이 저장소 backend 클래스와 MangabridgeApplication 실행을 확인한 뒤 승인에 따라 종료했습니다. 3000 PID 29368은 건드리지 않았습니다.
+
+첫 시도는 backend 안에서 backend 경로를 중복 지정한 스크립트 준비 오류로 Spring 실행 전에 중단했습니다. 사용자 재개 승인 후 기존 스냅샷과 백업을 덮어쓰지 않고 정확한 backend 경로에서 PowerShell 5.1.26100.9444로 README 2절의 프로세스 환경 주입과 `gradlew.bat bootRun --no-daemon`을 실행했습니다. Flyway validate/migrate INFO 로그만 추가하고 시드·정리 플래그는 주입하지 않았습니다. 18:49:51 KST에 36개 마이그레이션 validate 성공, V36만 1건 적용 성공, `/api/public/episodes` 200 확인. 이번 backend PID 35060을 소유 확인 후 종료했습니다. 종료로 bootRun은 비0 종료했으나 적용/HTTP 확인은 그 전에 성공했습니다.
+
+백업(ignored): `backend/build/verification/db36/mangabridge-before-v36-20261009.sql`, 190,657바이트, SHA-256 `93d8cdc443f459aa09715bb72c62419062834ee442a06131d86c11adc9d7cb22`. 전체 스키마·데이터의 --single-transaction 논리 백업이며 비어 있지 않고 CREATE TABLE 포함을 확인했습니다. 재개 때 동일 해시를 재확인했으며 백업 내용은 출력·커밋하지 않았습니다.
+
+Flyway 이력은 V35/35행→V36/36행, V36 success=1이며 V1~V35 전체 이력 내용 해시와 체크섬은 동일합니다. 모든 기존 데이터 테이블의 행 수·내용 해시가 동일하고 새 테이블/컬럼은 없습니다. 전후 행 수: demo_account 4, auth_token 13, auth_login_limit 88, auth_audit 136, domain_audit 38, episode 3, episode_assignment 6, episode_source_version 3, source_block 15, translation_version 5, translation_block 25, review_decision 4, publication 3, review_block_comment 1, source_page_image 4, translation_page_image 6, work 1, work_genre 2, work_cover 1, work_episode 3, episode_view_count 2. 계정 식별자 44/demo.operator·45/demo.translator·46/demo.reviewer·47/demo.reader 및 전체 내용 SHA-256 `0e0d01c7eeaceac88eb14702034b797be7ae3ae29a365ce7187d7ec87b6d7591` 불변. 식자 계정·시연 데이터는 추가하지 않았습니다.
+
+적용 후 CHECK: chk_demo_role은 OPERATOR/TRANSLATOR/REVIEWER/READER/TYPESETTER, ck_assignment_role은 TRANSLATOR/REVIEWER/TYPESETTER를 허용합니다. 다만 엄격한 SHOW CREATE TABLE 문자열 대조가 실패해 요청대로 중단했습니다. 재생성된 두 CHECK의 문자열 리터럴 introducer가 기존 `_ascii`에서 `_utf8mb4`로 표현됐습니다. 저장된 스냅샷을 읽기 전용으로 분석한 결과, 두 리터럴 introducer 차이와 TYPESETTER 추가를 제외한 DDL은 동일합니다(컬럼 타입·collation 변경이 아님). 이를 자동으로 동등 처리해 검증 통과로 바꾸지 않았으며 DB 재시도·수정·복구도 하지 않았습니다. 이 차이의 승인/검토는 남은 항목입니다.
+
+최종 정리: 개발 DB healthy 유지, 3306 리스너 1(PID 23224), 8080 리스너 0, 3000 리스너 1(기존 PID 29368) 유지. 증빙 before.json·after.json·spring.log는 ignored backend/build/verification/db36에 있습니다. 소스·계약·마이그레이션·PROJECT_CONTEXT.md는 변경하지 않았습니다.
