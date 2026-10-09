@@ -1,7 +1,8 @@
-// Creates the pre-published demo data of DEMO_SCRIPT.md through the public HTTP API: one work (cover, public, featured, banner)
+// Creates the pre-published demo data of DEMO_SCRIPT.md through the HTTP API: one work (cover, public, featured, banner)
 // with two image episodes (the first one is rejected once and re-submitted), and one text-only episode.
+// The translated images are uploaded by the typesetter after the translation is approved (CONTRACTS 29), so the backend must have V36.
 // Usage (PowerShell, backend running; the passwords are read from the environment and never printed):
-//   $env:DEMO_OPERATOR_PASSWORD = "..."; $env:DEMO_TRANSLATOR_PASSWORD = "..."; $env:DEMO_REVIEWER_PASSWORD = "..."
+//   $env:DEMO_OPERATOR_PASSWORD = "..."; $env:DEMO_TRANSLATOR_PASSWORD = "..."; $env:DEMO_REVIEWER_PASSWORD = "..."; $env:DEMO_TYPESETTER_PASSWORD = "..."
 //   node scripts/seed-demo-data.mjs            # API base: $env:API_BASE (default http://localhost:8080)
 // The images are generated placeholders (plain gradients). Replace them with permitted artwork for a real demo.
 // Run it once: it stops when the demo work already exists.
@@ -9,7 +10,7 @@ import zlib from "node:zlib";
 
 const BASE = process.env.API_BASE ?? "http://localhost:8080";
 const TITLE = "낯선 항구";
-const PASSWORDS = { operator: process.env.DEMO_OPERATOR_PASSWORD, translator: process.env.DEMO_TRANSLATOR_PASSWORD, reviewer: process.env.DEMO_REVIEWER_PASSWORD };
+const PASSWORDS = { operator: process.env.DEMO_OPERATOR_PASSWORD, translator: process.env.DEMO_TRANSLATOR_PASSWORD, reviewer: process.env.DEMO_REVIEWER_PASSWORD, typesetter: process.env.DEMO_TYPESETTER_PASSWORD };
 for (const [role, value] of Object.entries(PASSWORDS)) {
   if (!value) { console.error(`DEMO_${role.toUpperCase()}_PASSWORD is not set.`); process.exit(2); }
 }
@@ -83,13 +84,13 @@ async function episode(title, no, { images, reject = false, withImagesOnSource =
   await must("source", call("operator", "PUT", `/api/episodes/${id}/source`, { expectedVersion: 0, blocks: SOURCE.map((text, i) => ({ pageNo: PAGE_OF[i], text })) }));
   await must("assign translator", call("operator", "PUT", `/api/episodes/${id}/assignments/translator`, { accountId: ids.translator }));
   await must("assign reviewer", call("operator", "PUT", `/api/episodes/${id}/assignments/reviewer`, { accountId: ids.reviewer }));
+  await must("assign typesetter", call("operator", "PUT", `/api/episodes/${id}/assignments/typesetter`, { accountId: ids.typesetter }));
   if (withImagesOnSource) for (const [i, page] of [1, 2].entries()) await must(`original image page ${page}`, call("operator", "PUT", `/api/episodes/${id}/pages/${page}/image`, ORIGINAL[i], { "Content-Type": "image/png" }));
 
   async function version(texts) {
     const started = await must("translation", call("translator", "POST", `/api/my/episodes/${id}/translations`));
     const v = started.json.versionNo;
     const saved = await must("save translation", call("translator", "PUT", `/api/my/episodes/${id}/translations/${v}`, { expectedRevision: started.json.revision, blocks: texts.map((text, i) => ({ seq: i + 1, text })) }));
-    if (images) for (const [i, page] of [1, 2].entries()) await must(`translated image page ${page}`, call("translator", "PUT", `/api/my/episodes/${id}/translations/${v}/page-images/${page}`, TRANSLATED[i], { "Content-Type": "image/png" }));
     await must("submit", call("translator", "POST", `/api/my/episodes/${id}/translations/${v}/submit`, { expectedRevision: saved.json.revision }));
     return v;
   }
@@ -99,6 +100,7 @@ async function episode(title, no, { images, reject = false, withImagesOnSource =
     v = await version(TRANSLATION.map((text, i) => (i === 0 ? "어느 날 아침, 소년은 낯선 항구에 홀로 서 있었다." : text)));
   }
   await must("approve", call("reviewer", "POST", `/api/my/episodes/${id}/reviews/${v}/approve`));
+  if (images) for (const [i, page] of [1, 2].entries()) await must(`translated image page ${page} (typesetter)`, call("typesetter", "PUT", `/api/my/episodes/${id}/translations/${v}/page-images/${page}`, TRANSLATED[i], { "Content-Type": "image/png" }));
   await must("publish", call("operator", "POST", `/api/episodes/${id}/translations/${v}/publish`));
   await must(`link to the work as episode ${no}`, call("operator", "PUT", `/api/episodes/${id}/work`, { workId, episodeNo: no }));
   return id;

@@ -10,15 +10,16 @@
 // "ep1" is the episode NUMBER inside the work (the number shown on the work page), not the database id.
 //
 // Translated images belong to a translation version, and a published version cannot change. For every episode that has
-// translated files the script therefore creates a NEW translation version (the text of the published one is kept), uploads the
-// images, submits it, approves it as the reviewer and publishes it, which replaces the current public version.
+// translated files the script therefore creates a NEW translation version (the text of the published one is kept), submits it,
+// approves it as the reviewer, uploads the images as the TYPESETTER (only an approved translation takes images, CONTRACTS 29)
+// and publishes it, which replaces the current public version. The demo typesetter is assigned to the episode when it is not yet.
 // An episode is skipped (nothing changed for it) when the files do not cover every numbered source page,
 // or when a translation is already in progress for it. Use --dry-run to see the plan without changing anything.
 //
 // PowerShell:
-//   $env:DEMO_OPERATOR_PASSWORD = Read-Host "operator"; $env:DEMO_TRANSLATOR_PASSWORD = Read-Host "translator"; $env:DEMO_REVIEWER_PASSWORD = Read-Host "reviewer"
+//   $env:DEMO_OPERATOR_PASSWORD = Read-Host "operator"; $env:DEMO_TRANSLATOR_PASSWORD = Read-Host "translator"; $env:DEMO_REVIEWER_PASSWORD = Read-Host "reviewer"; $env:DEMO_TYPESETTER_PASSWORD = Read-Host "typesetter"
 //   node scripts/replace-demo-images.mjs C:\path\to\images
-//   Remove-Item Env:DEMO_OPERATOR_PASSWORD, Env:DEMO_TRANSLATOR_PASSWORD, Env:DEMO_REVIEWER_PASSWORD
+//   Remove-Item Env:DEMO_OPERATOR_PASSWORD, Env:DEMO_TRANSLATOR_PASSWORD, Env:DEMO_REVIEWER_PASSWORD, Env:DEMO_TYPESETTER_PASSWORD
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
@@ -31,10 +32,6 @@ const WORK_TITLE = workIndex >= 0 ? args[workIndex + 1] : "낯선 항구";
 const folder = args.find((arg, index) => !arg.startsWith("--") && args[index - 1] !== "--work");
 if (!folder || !WORK_TITLE) { console.error('Usage: node scripts/replace-demo-images.mjs <folder> [--work "title"] [--dry-run]'); process.exit(2); }
 
-const PASSWORDS = { operator: process.env.DEMO_OPERATOR_PASSWORD, translator: process.env.DEMO_TRANSLATOR_PASSWORD, reviewer: process.env.DEMO_REVIEWER_PASSWORD };
-for (const [role, value] of Object.entries(PASSWORDS)) {
-  if (!value) { console.error(`DEMO_${role.toUpperCase()}_PASSWORD is not set.`); process.exit(2); }
-}
 
 // ---- the files ----
 const TYPES = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp" };
@@ -74,7 +71,13 @@ if (!cover && originals.size === 0 && translated.size === 0) fatal(`no image fil
 if (ignored.length) console.log(`ignored (name does not match): ${ignored.join(", ")}`);
 
 // ---- the API ----
-const tokens = {};
+const PASSWORDS = { operator: process.env.DEMO_OPERATOR_PASSWORD, translator: process.env.DEMO_TRANSLATOR_PASSWORD, reviewer: process.env.DEMO_REVIEWER_PASSWORD, typesetter: process.env.DEMO_TYPESETTER_PASSWORD };
+// translated images need the whole chain (translator, reviewer, typesetter); cover and original images only the operator
+const NEEDED = translated.size > 0 ? Object.keys(PASSWORDS) : ["operator"];
+for (const role of NEEDED) {
+  if (!PASSWORDS[role]) { console.error(`DEMO_${role.toUpperCase()}_PASSWORD is not set.`); process.exit(2); }
+}
+const tokens = {}, ids = {};
 async function call(role, method, path, body, headers = {}) {
   const h = { ...headers };
   if (role) h.Authorization = `Bearer ${tokens[role]}`;
@@ -93,10 +96,11 @@ async function must(label, promise, ok = [200, 201, 204]) {
   return result;
 }
 
-for (const role of Object.keys(PASSWORDS)) {
+for (const role of NEEDED) {
   const login = await call(null, "POST", "/api/auth/login", { loginId: `demo.${role}`, password: PASSWORDS[role] });
   if (login.status !== 200) fatal(`login failed for demo.${role} (HTTP ${login.status}); check the password and that the backend runs at ${BASE}`);
   tokens[role] = login.json.accessToken;
+  ids[role] = login.json.user.id;
 }
 
 const list = await must("list works", call("operator", "GET", "/api/works?limit=100&offset=0"));
@@ -140,6 +144,8 @@ for (const [no, files] of translated) {
   const extra = [...files.keys()].filter((page) => !needed.includes(page));
   if (extra.length > 0) { skipped.push(`${tag}: page(s) ${extra.join(", ")} do not exist in the source (it has ${needed.join(", ")})`); continue; }
 
+  const assignments = await must(`${tag}: read the assignments`, call("operator", "GET", `/api/episodes/${episodeId}/assignments`));
+  if (assignments.json.typesetter?.account?.id !== ids.typesetter) await must(`${tag}: assign the demo typesetter`, call("operator", "PUT", `/api/episodes/${episodeId}/assignments/typesetter`, { accountId: ids.typesetter }));
   const created = await must(`${tag}: new translation version`, call("translator", "POST", `/api/my/episodes/${episodeId}/translations`));
   const v = created.json.versionNo;
   const fresh = (await must(`${tag}: read the new version`, call("translator", "GET", `/api/my/episodes/${episodeId}/translations/${v}`))).json;
@@ -149,11 +155,11 @@ for (const [no, files] of translated) {
     const saved = await must(`${tag}: copy the published text`, call("translator", "PUT", `/api/my/episodes/${episodeId}/translations/${v}`, { expectedRevision: revision, blocks: fresh.blocks.map((block, index) => ({ seq: block.seq, text: texts[index] })) }));
     revision = saved.json.revision;
   }
-  for (const [page, file] of [...files].sort((a, b) => a[0] - b[0])) {
-    await must(`${tag}: translated page ${page} <- ${file.name}`, call("translator", "PUT", `/api/my/episodes/${episodeId}/translations/${v}/page-images/${page}`, file.bytes, { "Content-Type": file.type }));
-  }
   await must(`${tag}: submit`, call("translator", "POST", `/api/my/episodes/${episodeId}/translations/${v}/submit`, { expectedRevision: revision }));
   await must(`${tag}: approve`, call("reviewer", "POST", `/api/my/episodes/${episodeId}/reviews/${v}/approve`));
+  for (const [page, file] of [...files].sort((a, b) => a[0] - b[0])) {
+    await must(`${tag}: translated page ${page} <- ${file.name} (typesetter)`, call("typesetter", "PUT", `/api/my/episodes/${episodeId}/translations/${v}/page-images/${page}`, file.bytes, { "Content-Type": file.type }));
+  }
   await must(`${tag}: publish version ${v}`, call("operator", "POST", `/api/episodes/${episodeId}/translations/${v}/publish`));
 }
 
