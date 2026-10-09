@@ -1203,3 +1203,43 @@ README 2절과 같이 PowerShell 5.1 프로세스 환경에 격리 DB_URL·DB_US
 HistoryIntegrationTest와 기존 공개 API 405 테스트를 포함한 나머지 기존 단언은 변경하지 않았습니다. 테스트 전·최종 1회차 후·2회차 후 스냅샷은 동일합니다. demo_account 4행과 전체 내용 집계 SHA-256 불변, auth_login_limit 0행, 나머지 데이터 테이블(신규 5개 포함) 모두 0행, Flyway 성공 이력 35행. 테스트 생성 행만 정리했습니다. 비밀번호·토큰·AI 키를 변경 파일에 추가하지 않았습니다.
 
 정리: 소유 ID cd347a36d713f8052bc1882d4e23d33b330d10d8d5195a322324a3c3a7e2210e를 대조해 docker stop --timeout 10(종료 코드 0), --rm 자동 정리와 3335 리스너 0을 확인했습니다. 테스트 프로세스는 종료됐습니다. 기존 개발 컨테이너 ID 49c9b14620e0939b29af2b10cd881ae7273ff17e8317d629f44400997a2e7daf·vibe-coding-project_mysql_data 볼륨은 보존했습니다(개발 컨테이너는 검증 전후 exited; 기동/종료 조작 없음). 기존 8080/8081/3000·frontend/.next·next-env.d.ts는 조작하지 않았습니다. 증빙은 worktree의 ignored backend/build/verification/work28에 있습니다. 계약과 다른 구현이나 미해결 계약 모호성은 없습니다. 개발 DB 적용과 브라우저 검증은 별도 승인 작업입니다.
+
+### 식자 역할 백엔드 — CONTRACTS 29절 (2026-10-09)
+
+검증자: Codex 직접 실행. 정정 승인 계약 1326521 기준의 별도 worktree에서 단계별 구현했습니다. 검증 대상 1073cd0(① V36·역할·선택 시드·배정), fdd5555(② 승인 번역 읽기), 9c8ee63(③ 식자 이미지 규칙·스키마·역할 검증)를 master에 cherry-pick한 커밋은 각각 d3ade0c, 14c18fa, 266bc00입니다. master의 병행 프런트·스크립트·문서 커밋을 보존했으며, 최종 266bc00과 테스트 대상 9c8ee63의 backend 내용이 동일함을 `git diff --quiet 9c8ee63 HEAD -- backend`로 확인했습니다. 단계별 테스트 70·39·40·50·61개가 각각 통과했습니다. 실제 브라우저·프런트 테스트는 이번 작업에서 실행하지 않았습니다.
+
+환경: PowerShell 5.1.26100.9444, 실제 MySQL 8.4.11, 일회용 mangabridge-typesetter29(--rm, /var/lib/mysql tmpfs), typesetter29_verify/3336, 데모 계정 4개 및 Flyway V1~V36. 별도 상시 API·프런트 서버 없이 Spring random port 통합 테스트를 실행했습니다. 개발 DB(3306)는 연결·변경하지 않았고 V36을 적용하지 않았습니다. 선택 환경변수 `DEMO_TYPESETTER_PASSWORD`가 있을 때만 demo.typesetter를 시드합니다. 테스트에서는 소유한 별도 계정으로 4→5개 시드와 기존 계정 보존을 검증하고 정리했습니다.
+
+최초 전체 회귀는 207개 중 30개 실패(Translation·Work 컨텍스트 기동 실패)였으며 MySQL `Too many connections`가 원인이었습니다. 이 결과를 통과로 대체하지 않았습니다. 사용자 승인(2026-10-09)에 따라 **격리 일회용 컨테이너의 기동 옵션 `--max-connections=300` 하나만 추가**하여 전체 회귀를 다시 실행했습니다. 기존 테스트 코드·application 설정·개발/운영 DB 설정은 이 재실행을 위해 변경하지 않았습니다. 실제 `@@max_connections=300`을 조회했습니다.
+
+실행 명령: 격리 DB 환경을 프로세스에 주입한 PS 5.1에서 `gradlew.bat build integrationTest --no-daemon --rerun-tasks`를 연속 2회 실행했습니다. 검증 스크립트는 해당 프로세스에만 `-ExecutionPolicy Bypass`로 실행했습니다(중간에 정책 때문에 스크립트가 실행되지 않은 호출은 테스트 실행으로 세지 않음).
+
+| 실행 | 실행 일시(KST) | 결과 | Test Files / Tests | 실패 / 오류 / 건너뛰기 |
+|---|---|---|---|---|
+| 1회차(증빙 run 10) | 2026-10-09 18:25:07~18:29:43 | BUILD SUCCESSFUL, 종료 코드 0 | 30 / 207 | 0 / 0 / 0 |
+| 2회차(증빙 run 11) | 2026-10-09 18:30:28~18:35:03 | BUILD SUCCESSFUL, 종료 코드 0 | 30 / 207 | 0 / 0 / 0 |
+
+각 회차 단위 테스트 9개 클래스/38개, 실제 MySQL 통합 테스트 21개 클래스/169개입니다. 테스트 XML을 회차별로 보존해 집계했습니다. `SHOW GLOBAL STATUS`의 Max_used_connections는 1회차 후 181, 2회차 후에도 181이며, 각 회차 종료 후 Threads_connected는 조회 연결을 포함해 1입니다. 300에 근접하지 않고 종료 시 연결이 반환됨을 확인했습니다. 회귀 실행 중 컨텍스트/풀들이 누적되는 현상은 있었지만 이 관측만으로 모든 연결 누수 가능성이 배제된다고 단정하지 않습니다.
+
+| CONTRACTS 29.7 필수 테스트(Codex) | 결과 |
+|---|---|
+| 인증·후보·식자 배정·교체·my/episodes | 통과: TYPESETTER 로그인/me, 활성 후보만, typesetter 슬롯, 신규/동일/교체와 ASSIGNED 감사, 이전 식자 404·새 식자 인계 |
+| 식자 읽기 API | 통과: APPROVED만, 버전 내림차순·병기 필드 정확 일치·읽기 전용, 미배정/없는 버전/다른 상태 404, 역할 매트릭스·비로그인·위조 거부 |
+| 업로드 규칙 | 통과: TYPESETTER/APPROVED만, 다른 역할 403·다른 상태 409/currentStatus, PNG/JPEG/WEBP 정확 왕복·201/200, 5 MiB 허용/+1 거부·시작 바이트/형식/빈 본문 검증, 미배정/이전 식자 404, 감사와 저장 실패 롤백·동시 교체 |
+| 열람 규칙 | 통과: 감수자 가시 상태 REVIEW_PENDING/APPROVED/REJECTED, 식자 APPROVED만, 번역가 403·감수자 PUT 403, 운영자 열람 불변 |
+| 발행·무효화·공개 회귀 | 통과: 발행/무효화 이후 PUT 409, 공개 포인터·보류/재개·교체·원본 비노출·인증 무관·기존 응답/헤더 불변 |
+| V36 스키마 | 통과: 실제 제약 이름 chk_demo_role·ck_assignment_role 일치, 승인 예외의 ALTER 2개, TYPESETTER 허용/다른 값 CHECK 거부, 데이터가 있는 V35→V36 후 기존 내용·FK·체크섬 보존, validate·재실행 추가 적용 0, nullable lint 통과 |
+| 선택 시드 | 통과: 비밀번호 변수 없음은 기존 4개, 있을 때만 식자 추가, 표시 이름·BCrypt·멱등·기존 계정 보존 |
+
+기존 단언 변경 목록(29.7 승인 범위):
+
+- MySqlIntegrationTest.mysqlHealthAndBaseline: 최신 버전 35→36. 새 테이블은 없어 목록 변경 없음.
+- DomainSchemaMigrationIntegrationTest.emptyDatabaseMigratesAllThirtyTwoAndValidatesTwice: 전체 적용/이력 수 35→36. populatedV9UpgradePreservesEveryOldColumnAndChecksum: V9 이후 적용 수 26→27. 기존 테스트 이름은 유지했습니다.
+- AuthUnitTest.seedCreatesAllRolesAndMatchingAccountsAreIdempotent: TYPESETTER를 포함한 5개 시드·표시 이름을 가산적으로 갱신했습니다.
+- AssignmentIntegrationTest.replacementImmediatelyMovesAccessForBothAssignmentRoles, fourRolesAcrossFiveApisAndForgedIdentityAreEnforced: TYPESETTER 배정/역할 행 추가. 기존 테스트 이름 유지. typesetterLoginAssignmentCandidatesAndHandoffAreEnforced는 신규 테스트입니다.
+- PageIntegrationTest.roleMatrixAndCurrentAssignmentProtectAllFiveApisIncludingReplacement: TYPESETTER의 현재 배정·GET 원본 이미지 허용·미배정 404 행 추가. 원래 4개 역할의 ACCESS_DENIED 13건 단언은 그대로 유지했습니다.
+- TranslationPageIntegrationTest는 승인된 재작성 범위에서 공통 픽스처/업로드 주체를 식자·APPROVED로 바꿨습니다. 대상 테스트: threeFormatsRoundTripAndAuditHistoryMetadataRevisionRemainCorrect, listSortingMetadataAndMissingImages, invalidFormatsSignaturesEmptyOversizeAndFiveMiBBoundary, allNonApprovedStatesAreImmutableAndReadersHaveDistinctVisibility(기존 allNonDraft 상태 테스트를 정정 규칙에 맞춰 이름/기대 상태 갱신), roleMatrixRejectsForgedRoleAndUnauthenticatedRequests, pageAndVersionPathMissingSourceAndAssignmentReplacement, sourceChangeUsesVersionBoundPagesAndNewDraftDoesNotCopyImages, auditAndImageFailuresRollBackAndReadDatabaseErrorsAreSafe503, concurrentUploadsSerializeWithOneRowAndTwoAudits, publicPointerOnlyHoldResumeSourceChangesAndReplacementNeverExposeOriginal, publicAuthenticationIgnoredAllMethodsAndCorsRules, schemaNotNullChecksPrimaryForeignKeysRestrictAndCollation. 공개·운영자 열람·감사·바이트 검증의 의미는 유지했습니다. TranslationPageBodyLimitTest는 변경하지 않았습니다.
+
+새 테스트 파일은 TypesetterSeedIntegrationTest, TypesettingIntegrationTest, TypesetterSchemaIntegrationTest입니다. V1~V35와 그 밖의 기존 테스트 파일은 변경하지 않았습니다. 재실행 전·1회차 후·2회차 후 스냅샷은 동일: demo_account 4행/내용 SHA-256 불변, auth_login_limit 0행, 나머지 데이터 테이블 모두 0행, Flyway 성공 이력 36행. 테스트 생성 행만 정리했습니다. 비밀번호·토큰·AI 키를 변경 파일·보고에 추가하지 않았습니다.
+
+정리: 소유 컨테이너 ID 86f3e0963cabde8edfc57d29887b8626da503b8312cd5ee4d8ed9509edcf48b3를 대조해 docker stop --timeout 10(종료 코드 0), --rm 자동 정리·3336 리스너 0을 확인했습니다. 테스트 프로세스 종료, 기존 개발 컨테이너 ID 49c9b14620e0939b29af2b10cd881ae7273ff17e8317d629f44400997a2e7daf·vibe-coding-project_mysql_data 볼륨은 running/healthy로 유지됐습니다. 기존 8080/8081/3000·frontend/.next·next-env.d.ts·PROJECT_CONTEXT.md의 줄바꿈 M은 건드리지 않았습니다. 증빙은 주 작업 트리의 ignored `backend/build/verification/typesetter29-evidence`에 복사 보존했고, 통합 완료 worktree는 아카이브 완료 상태를 확인했습니다. 계약과 다른 구현은 없으며 개발 DB V36 적용·실제 브라우저 검증은 미실행입니다.
