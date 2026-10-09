@@ -48,9 +48,12 @@ export function PagedBlocks<T extends PageBlock>({ blocks, resetKey, renderPage,
         <h3 className="h6 text-secondary">{entry.label}</h3>
         {renderPage(entry.blocks)}
       </div>)
-      : <div>
-        {imageSlot?.(page.pageNo)}
-        {renderPage(page.blocks)}
-      </div>}
+      // the page image stays on the left while the blocks to work on scroll on the right; a page without a number has no image
+      : imageSlot && page.pageNo !== null
+        ? <div className="row g-3">
+          <div className="col-lg-5"><div className="page-image-pane">{imageSlot(page.pageNo)}</div></div>
+          <div className="col-lg-7">{renderPage(page.blocks)}</div>
+        </div>
+        : <div>{renderPage(page.blocks)}</div>}
   </>;
 }

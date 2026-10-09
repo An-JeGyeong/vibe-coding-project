@@ -2,6 +2,8 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import AssignedDetailPage from "@/app/(auth)/assigned/[id]/page";
 import { OperatorGate } from "@/components/OperatorGate";
+import { PageImagePair, useTranslatedImages } from "@/components/TranslatedPageImages";
+import { usePageImages } from "@/components/PageImage";
 import { TranslationOverviewPanel } from "@/components/TranslationOverviewPanel";
 import ReviewDetailPage from "@/app/(auth)/reviews/[episodeId]/[versionNo]/page";
 import type { Role } from "@/lib/auth/types";
@@ -75,41 +77,64 @@ describe("translated page image client (27.2)", () => {
   });
 });
 
-describe("translated images in the screens (27.4)", () => {
+describe("page image column and the translated image control (27.4, revised: the translator works with the original image only)", () => {
   const blocks = [{ seq: 1, pageNo: 1, source: "원문 1", text: "가" }, { seq: 2, pageNo: 2, source: "원문 2", text: null }];
   const episode = { id: "7", title: "1화", assignedRole: "TRANSLATOR", latestSourceVersion: 3, source: { version: 3, savedAt: T, blocks: [{ seq: 1, pageNo: 1, text: "원문" }] } };
   const summary = { versionNo: 2, status: "DRAFT", sourceVersion: 3, revision: 1, createdAt: T, submittedAt: null, decision: null };
-  function translator(editable: boolean, routes: Record<string, H> = {}, status = "DRAFT") {
-    const api = server("TRANSLATOR", {
-      "GET /api/my/episodes/7": () => json(200, episode),
-      "GET /api/my/episodes/7/translations": () => json(200, { latestSourceVersion: 3, items: [{ ...summary, status }] }),
-      "GET /api/my/episodes/7/translations/2": () => json(200, { ...summary, status, editable, blocks, blockComments: [] }),
-      "GET /api/my/episodes/7/pages": () => json(200, { items: [meta(1), meta(2)] }),
-      "GET /api/my/episodes/7/pages/1/image": () => imageResponse(),
-      "GET /api/my/episodes/7/pages/2/image": () => imageResponse(),
-      ...routes,
-    });
-    renderWithAuth(<AssignedDetailPage />);
-    return api;
-  }
   const pick = (label: string, f: File) => fireEvent.change(screen.getByLabelText(label), { target: { files: [f] } });
 
-  test("the original and the translated image sit side by side; a page without a translated image says so and offers the upload", async () => {
-    translator(true, { [`GET ${BASE}`]: () => json(200, { items: [meta(1)] }), [`GET ${BASE}/1`]: () => imageResponse() });
-    expect(await screen.findByRole("img", { name: "페이지 1 원본 이미지" })).toBeTruthy();
+  test("the translator sees the original image on the left and the blocks on the right; there is no translated image column and no request for one", async () => {
+    const { calls } = server("TRANSLATOR", {
+      "GET /api/my/episodes/7": () => json(200, episode),
+      "GET /api/my/episodes/7/translations": () => json(200, { latestSourceVersion: 3, items: [summary] }),
+      "GET /api/my/episodes/7/translations/2": () => json(200, { ...summary, editable: true, blocks, blockComments: [] }),
+      "GET /api/my/episodes/7/pages": () => json(200, { items: [meta(1)] }),
+      "GET /api/my/episodes/7/pages/1/image": () => imageResponse(),
+    });
+    renderWithAuth(<AssignedDetailPage />);
+    const image = await screen.findByRole("img", { name: "페이지 1 원본 이미지" });
+    const left = image.closest(".col-lg-5")!;
+    const right = screen.getByLabelText("블록 1 번역").closest(".col-lg-7")!;
+    expect(left).toBeTruthy();
+    expect(right).toBeTruthy();
+    expect(left.parentElement).toBe(right.parentElement); // the same row: image beside the blocks
+    expect(screen.queryByText("번역본 이미지")).toBeNull();
+    expect(screen.queryByLabelText(/번역본 이미지/)).toBeNull();
+    expect(calls.some((call) => call.path.includes("page-images"))).toBe(false);
+  });
+
+  // The upload control stays in the code for the typesetter screen; it is exercised through the component here.
+  function Harness({ editable = true }: { editable?: boolean }) {
+    const original = usePageImages("mine", "7", true);
+    const translated = useTranslatedImages("mine", "7", 2, true);
+    return <PageImagePair scope="mine" episodeId="7" versionNo={2} pageNo={1} original={original} translated={translated} editable={editable} />;
+  }
+  function openHarness(routes: Record<string, H> = {}, editable = true) {
+    const api = server("TRANSLATOR", {
+      "GET /api/my/episodes/7/pages": () => json(200, { items: [] }),
+      [`GET ${BASE}`]: () => json(200, { items: [] }),
+      ...routes,
+    });
+    renderWithAuth(<Harness editable={editable} />);
+    return api;
+  }
+
+  test("a read-only view shows the translated image only when there is one", async () => {
+    openHarness({ [`GET ${BASE}`]: () => json(200, { items: [meta(1)] }), [`GET ${BASE}/1`]: () => imageResponse() }, false);
     expect(await screen.findByRole("img", { name: "페이지 1 번역본 이미지" })).toBeTruthy();
-    expect(screen.getByLabelText("페이지 1 번역본 이미지 교체")).toBeTruthy();
-    // a scrollable image box must be reachable with the keyboard (axe: scrollable-region-focusable)
+    expect(screen.queryByLabelText(/번역본 이미지 (올리기|교체)/)).toBeNull();
     expect(screen.getByRole("group", { name: "페이지 1 번역본 이미지 (스크롤 가능)" }).getAttribute("tabindex")).toBe("0");
-    expect(screen.getByRole("group", { name: "페이지 1 원본 이미지 (스크롤 가능)" }).getAttribute("tabindex")).toBe("0");
-    fireEvent.click(screen.getByRole("button", { name: "다음 페이지" }));
-    expect(await screen.findByText("이 페이지에는 번역본 이미지가 없습니다.")).toBeTruthy();
-    expect(screen.getByLabelText("페이지 2 번역본 이미지 올리기")).toBeTruthy();
-    expect(revoked.length).toBeGreaterThan(0); // the page-1 Blob URLs were released when the page changed
+  });
+
+  test("a read-only view without a translated image shows nothing for it", async () => {
+    const { calls } = openHarness({}, false);
+    await waitFor(() => expect(calls.some((call) => call.path === BASE)).toBe(true));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(screen.queryByText("번역본 이미지")).toBeNull();
   });
 
   test("an upload is checked locally first: a wrong type or mismatching bytes never reach the server", async () => {
-    const { calls } = translator(true, { [`GET ${BASE}`]: () => json(200, { items: [] }) });
+    const { calls } = openHarness();
     await screen.findByLabelText("페이지 1 번역본 이미지 올리기");
     pick("페이지 1 번역본 이미지 올리기", file(PNG, "image/gif", "a.gif"));
     expect(await screen.findByText("PNG, JPEG, WEBP 이미지만 올릴 수 있습니다.")).toBeTruthy();
@@ -120,7 +145,7 @@ describe("translated images in the screens (27.4)", () => {
 
   test("a successful upload reloads the list and shows the new translated image; no duplicate upload while it runs", async () => {
     let stored = false;
-    const { calls } = translator(true, {
+    const { calls } = openHarness({
       [`GET ${BASE}`]: () => json(200, { items: stored ? [meta(1)] : [] }),
       [`GET ${BASE}/1`]: () => imageResponse(),
       [`PUT ${BASE}/1`]: () => { stored = true; return json(201, meta(1)); },
@@ -139,31 +164,20 @@ describe("translated images in the screens (27.4)", () => {
     [400, /형식\(PNG·JPEG·WEBP\)과 크기\(5 MiB 이하\)를 확인하세요/],
     [503, /서비스를 사용할 수 없습니다/],
   ])("an upload answered with %s shows a fixed message and keeps the login", async (status, message) => {
-    translator(true, {
-      [`GET ${BASE}`]: () => json(200, { items: [] }),
-      [`PUT ${BASE}/1`]: () => json(status, status === 409 ? { error: { code: "STATE_CONFLICT", currentStatus: "REVIEW_PENDING" } } : errorBody("X")),
-    });
+    openHarness({ [`PUT ${BASE}/1`]: () => json(status, status === 409 ? { error: { code: "STATE_CONFLICT", currentStatus: "REVIEW_PENDING" } } : errorBody("X")) });
     await screen.findByLabelText("페이지 1 번역본 이미지 올리기");
     pick("페이지 1 번역본 이미지 올리기", file(PNG, "image/png"));
     expect(await screen.findByText(message)).toBeTruthy();
     expect(storedToken()).not.toBeNull();
   });
 
-  test("a version that cannot be edited (submitted) shows the image read-only, without an upload control", async () => {
-    translator(false, { [`GET ${BASE}`]: () => json(200, { items: [meta(1)] }), [`GET ${BASE}/1`]: () => imageResponse() }, "REVIEW_PENDING");
-    expect(await screen.findByRole("img", { name: "페이지 1 번역본 이미지" })).toBeTruthy();
-    expect(screen.queryByLabelText(/번역본 이미지 (올리기|교체)/)).toBeNull();
-  });
-
-  test("when the translated list cannot be loaded the text work continues, a retry is offered, and there is no upload control yet", async () => {
+  test("when the translated list cannot be loaded a retry is offered and there is no upload control yet", async () => {
     let healthy = false;
-    translator(true, { [`GET ${BASE}`]: () => (healthy ? json(200, { items: [meta(1)] }) : json(503, errorBody("SERVICE_UNAVAILABLE"))), [`GET ${BASE}/1`]: () => imageResponse() });
-    expect(await screen.findByText(/번역본 이미지를 불러오지 못했습니다. 텍스트 작업은 계속할 수 있습니다/)).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("블록 1 번역"), { target: { value: "계속" } });
+    openHarness({ [`GET ${BASE}`]: () => (healthy ? json(200, { items: [meta(1)] }) : json(503, errorBody("SERVICE_UNAVAILABLE"))), [`GET ${BASE}/1`]: () => imageResponse() });
+    expect(await screen.findByText(/번역본 이미지를 불러오지 못했습니다/)).toBeTruthy();
     healthy = true;
     fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
     expect(await screen.findByRole("img", { name: "페이지 1 번역본 이미지" })).toBeTruthy();
-    expect((screen.getByLabelText("블록 1 번역") as HTMLTextAreaElement).value).toBe("계속");
   });
 
   test("the reviewer sees translated images read-only through the reviewer's own paths", async () => {

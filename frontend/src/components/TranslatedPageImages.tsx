@@ -137,6 +137,8 @@ function TranslatedSlot({ scope, episodeId, versionNo, pageNo, images, editable 
 }) {
   const meta = images.pages?.get(pageNo);
   const failedList = images.failed && images.pages === null;
+  // read-only views show the translated image only when there is one (the translator no longer works with it)
+  if (!editable && images.pages !== null && !meta) return null;
   return <div>
     <h3 className="h6 text-secondary">번역본 이미지</h3>
     {images.loading && images.pages === null && <p role="status" className="small text-secondary">번역본 이미지를 확인하는 중…</p>}
@@ -152,21 +154,17 @@ function TranslatedSlot({ scope, episodeId, versionNo, pageNo, images, editable 
 }
 
 /**
- * The image position of a page: the original and the translated image side by side (stacked on a narrow screen).
- * Only a translator who is editing a DRAFT gets the upload control; reviewers and operators see it read-only.
+ * The image column of a page: the original image, then the translated image when there is one.
+ * The upload control exists only when `editable` is set (no screen sets it for now); reviewers and operators see it read-only.
  */
 export function PageImagePair({ scope, episodeId, versionNo, pageNo, original, translated, editable = false }: {
   scope: PageImageScope; episodeId: string; versionNo: number; pageNo: number | null;
   original: ReturnType<typeof usePageImages>; translated: TranslatedImages; editable?: boolean;
 }) {
   if (pageNo === null) return null;
-  return <div className="row g-3 mb-2">
-    <div className="col-lg-6">
-      <h3 className="h6 text-secondary">원본 이미지</h3>
-      <PageImageSlot scope={scope} episodeId={episodeId} pageNo={pageNo} images={original} />
-    </div>
-    <div className="col-lg-6">
-      <TranslatedSlot scope={scope} episodeId={episodeId} versionNo={versionNo} pageNo={pageNo} images={translated} editable={editable} />
-    </div>
+  return <div>
+    <h3 className="h6 text-secondary">원본 이미지</h3>
+    <PageImageSlot scope={scope} episodeId={episodeId} pageNo={pageNo} images={original} />
+    <TranslatedSlot scope={scope} episodeId={episodeId} versionNo={versionNo} pageNo={pageNo} images={translated} editable={editable} />
   </div>;
 }
