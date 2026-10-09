@@ -38,12 +38,13 @@ public class DemoAuthCommands implements ApplicationRunner {
         if(!env.getProperty("DEMO_AUTH_SEED_ENABLED",Boolean.class,false) ||
                 Arrays.stream(env.getActiveProfiles()).noneMatch(p->p.equals("local")||p.equals("demo")) ||
                 Arrays.asList(env.getActiveProfiles()).contains("prod")) throw new IllegalStateException("Demo seed not permitted");
-        String[] names={"데모 운영자","데모 번역가","데모 감수자","데모 독자"};
+        String[] names={"데모 운영자","데모 번역가","데모 감수자","데모 독자","데모 식자"};
         tx.executeWithoutResult(s->{
             for(Role role:Role.values()) {
                 String id="demo."+role.name().toLowerCase(java.util.Locale.ROOT);
                 String variable="DEMO_"+role.name()+"_PASSWORD";
                 String password=env.getProperty(variable);
+                if(role==Role.TYPESETTER && password==null) continue;
                 try { AuthService.validate(new LoginRequest(id,password)); }
                 catch(AuthFailure failure) { System.err.println("Missing or invalid environment variable: "+variable); throw failure; }
                 Account old=dao.account(id);

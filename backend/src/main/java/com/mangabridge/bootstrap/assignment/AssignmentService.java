@@ -26,16 +26,16 @@ public class AssignmentService {
         write=new TransactionTemplate(manager); read=new TransactionTemplate(manager); read.setReadOnly(true);
     }
     public Candidates listAssignableAccounts(String role) {
-        if(!"TRANSLATOR".equals(role) && !"REVIEWER".equals(role)) throw AssignmentFailure.invalid();
+        if(!"TRANSLATOR".equals(role) && !"REVIEWER".equals(role) && !"TYPESETTER".equals(role)) throw AssignmentFailure.invalid();
         return execute(read,()->new Candidates(dao.candidates(role)));
     }
     public Assignments getAssignments(String pathId) {
         long id=path(pathId);
-        return execute(read,()->{ required(id,false); return new Assignments(dao.slot(id,"TRANSLATOR"),dao.slot(id,"REVIEWER")); });
+        return execute(read,()->{ required(id,false); return new Assignments(dao.slot(id,"TRANSLATOR"),dao.slot(id,"REVIEWER"),dao.slot(id,"TYPESETTER")); });
     }
     public SaveResult setAssignment(String pathId,String pathRole,SetRequest request,CurrentUser actor) {
         long id=path(pathId);
-        String role=switch(pathRole) { case "translator" -> "TRANSLATOR"; case "reviewer" -> "REVIEWER"; default -> throw AssignmentFailure.notFound(); };
+        String role=switch(pathRole) { case "translator" -> "TRANSLATOR"; case "reviewer" -> "REVIEWER"; case "typesetter" -> "TYPESETTER"; default -> throw AssignmentFailure.notFound(); };
         if(request==null || request.accountId()==null || !request.accountId().isTextual()
                 || !request.accountId().textValue().matches("^[1-9][0-9]{0,17}$")) throw AssignmentFailure.invalid();
         long account=Long.parseLong(request.accountId().textValue());

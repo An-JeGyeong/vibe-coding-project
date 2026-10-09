@@ -14,7 +14,7 @@ public final class AssignmentModels {
     public record Candidates(List<Candidate> items) { }
     public record Account(String id, String displayName) { }
     public record Slot(Account account, Instant assignedAt) { }
-    public record Assignments(Slot translator, Slot reviewer) { }
+    public record Assignments(Slot translator, Slot reviewer, Slot typesetter) { }
     public record Result(String role, Account account, Instant assignedAt, boolean changed) { }
     public record SaveResult(int status, Result body) { }
     public record Item(String id, String title, String assignedRole, int latestSourceVersion,

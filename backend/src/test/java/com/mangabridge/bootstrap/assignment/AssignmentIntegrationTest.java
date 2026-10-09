@@ -130,6 +130,43 @@ class AssignmentIntegrationTest {
         assertThat(body.get("error").get("message").textValue()).isNotBlank();
         assertThat(body.toString()).doesNotContain("jdbc:","Exception","stackTrace",password,"SECRET","password_hash","127.0.0.1",operator.token());
     }
+    @Test void typesetterLoginAssignmentCandidatesAndHandoffAreEnforced() {
+        Identity first=identity(Role.TYPESETTER), next=identity(Role.TYPESETTER), disabled=identity(Role.TYPESETTER);
+        jdbc.update("UPDATE demo_account SET enabled=0 WHERE id=?",disabled.id());
+        var current=get("/api/auth/me",first.token());
+        assertThat(current.getStatusCode().value()).isEqualTo(200);
+        assertThat(current.getBody().get("user").get("role").textValue()).isEqualTo("TYPESETTER");
+        var candidates=get("/api/assignable-accounts?role=TYPESETTER").getBody().get("items");
+        long previous=0; Set<Long> found=new HashSet<>();
+        for(JsonNode item:candidates) {
+            assertThat(item.fieldNames()).toIterable().containsExactlyInAnyOrder("id","displayName","role");
+            assertThat(item.get("role").textValue()).isEqualTo("TYPESETTER");
+            long account=Long.parseLong(item.get("id").textValue());assertThat(account).isGreaterThan(previous);previous=account;found.add(account);
+        }
+        assertThat(found).contains(first.id(),next.id()).doesNotContain(disabled.id());
+        String id=create("typesetter assignment");
+        var initial=get(assignments(id)).getBody();
+        assertThat(initial.fieldNames()).toIterable().containsExactlyInAnyOrder("translator","reviewer","typesetter");
+        assertThat(initial.get("typesetter").isNull()).isTrue();
+        var saved=assign(id,"typesetter",first.id());assertThat(saved.getStatusCode().value()).isEqualTo(201);
+        int count=audits(id);
+        var unchanged=assign(id,"typesetter",first.id());assertThat(unchanged.getStatusCode().value()).isEqualTo(200);
+        assertThat(unchanged.getBody().get("changed").booleanValue()).isFalse();
+        assertThat(unchanged.getBody().get("assignedAt")).isEqualTo(saved.getBody().get("assignedAt"));assertThat(audits(id)).isEqualTo(count);
+        var detail=get("/api/my/episodes/"+id,first.token());assertThat(detail.getStatusCode().value()).isEqualTo(200);
+        assertThat(detail.getBody().get("assignedRole").textValue()).isEqualTo("TYPESETTER");assertThat(detail.getBody().get("source").isNull()).isTrue();
+        assertThat(get("/api/my/episodes",first.token()).getBody().get("total").intValue()).isEqualTo(1);
+        error(get("/api/my/episodes/"+id,next.token()),404,"NOT_FOUND");
+        error(assign(id,"typesetter",disabled.id()),400,"INVALID_REQUEST");
+        error(assign(id,"typesetter",operator.id()),400,"INVALID_REQUEST");
+        assertThat(assign(id,"typesetter",next.id()).getStatusCode().value()).isEqualTo(200);
+        error(get("/api/my/episodes/"+id,first.token()),404,"NOT_FOUND");
+        assertThat(get("/api/my/episodes",first.token()).getBody().get("total").intValue()).isZero();
+        assertThat(get("/api/my/episodes/"+id,next.token()).getStatusCode().value()).isEqualTo(200);
+        assertThat(jdbc.queryForList("SELECT subject_account_id FROM domain_audit WHERE episode_id=? AND event='ASSIGNED' ORDER BY id",Long.class,id)).containsExactly(first.id(),next.id());
+        assertThatThrownBy(()->jdbc.update("UPDATE demo_account SET role='UNKNOWN' WHERE id=?",first.id())).isInstanceOf(org.springframework.dao.DataAccessException.class);
+        assertThatThrownBy(()->jdbc.update("UPDATE episode_assignment SET assignee_role='READER' WHERE episode_id=?",id)).isInstanceOf(org.springframework.dao.DataAccessException.class);
+    }
     @Test void candidatesAreActiveRoleFilteredOrderedAndMinimal() {
         Identity translator=identity(Role.TRANSLATOR),disabled=identity(Role.TRANSLATOR),reviewer=identity(Role.REVIEWER);
         jdbc.update("UPDATE demo_account SET enabled=0 WHERE id=?",disabled.id());
@@ -222,7 +259,7 @@ class AssignmentIntegrationTest {
     }
     @Test void replacementImmediatelyMovesAccessForBothAssignmentRoles() {
         String id=create("접근 이전");
-        for(Role role:List.of(Role.TRANSLATOR,Role.REVIEWER)) {
+        for(Role role:List.of(Role.TRANSLATOR,Role.REVIEWER,Role.TYPESETTER)) {
             Identity old=identity(role),next=identity(role); String segment=role.name().toLowerCase(Locale.ROOT);
             assign(id,segment,old.id()); assertThat(get("/api/my/episodes/"+id,old.token()).getStatusCode().value()).isEqualTo(200);
             error(get("/api/my/episodes/"+id,next.token()),404,"NOT_FOUND");
@@ -239,11 +276,11 @@ class AssignmentIntegrationTest {
         for(int i=0;i<5;i++) error(request(methods.get(i),paths.get(i),bodies.get(i),null),401,"AUTH_REQUIRED");
         for(Role role:Role.values()) {
             Identity user=identity(role);
-            if(role==Role.TRANSLATOR || role==Role.REVIEWER) assign(id,role.name().toLowerCase(Locale.ROOT),user.id());
+            if(role==Role.TRANSLATOR || role==Role.REVIEWER || role==Role.TYPESETTER) assign(id,role.name().toLowerCase(Locale.ROOT),user.id());
             int denied=0;
             for(int i=0;i<5;i++) {
                 var response=request(methods.get(i),paths.get(i),bodies.get(i),user.token());
-                boolean allowed=i<3?role==Role.OPERATOR:role==Role.TRANSLATOR||role==Role.REVIEWER;
+                boolean allowed=i<3?role==Role.OPERATOR:role==Role.TRANSLATOR||role==Role.REVIEWER||role==Role.TYPESETTER;
                 if(allowed) { assertThat(response.getStatusCode().value()).isEqualTo(i==2?201:200); assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store"); }
                 else { error(response,403,"FORBIDDEN"); denied++; }
             }

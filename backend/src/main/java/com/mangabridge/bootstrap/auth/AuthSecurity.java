@@ -42,7 +42,7 @@ public class AuthSecurity {
                 .requestMatchers("/api/my/episodes/*/translations/*/page-images","/api/my/episodes/*/translations/*/page-images/**").hasAnyRole("TRANSLATOR","REVIEWER")
                 .requestMatchers("/api/my/episodes/*/translations","/api/my/episodes/*/translations/**").hasRole("TRANSLATOR")
                 .requestMatchers("/api/my/reviews","/api/my/episodes/*/reviews","/api/my/episodes/*/reviews/**").hasRole("REVIEWER")
-                .requestMatchers("/api/my/**").hasAnyRole("TRANSLATOR","REVIEWER")
+                .requestMatchers("/api/my/**").hasAnyRole("TRANSLATOR","REVIEWER","TYPESETTER")
                 .anyRequest().authenticated())
             .exceptionHandling(errors->errors
                 .authenticationEntryPoint((request,response,error)->AuthErrors.write(response,mapper,AuthFailure.required()))

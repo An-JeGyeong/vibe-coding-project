@@ -4,7 +4,7 @@ import java.time.Instant;
 
 public final class AuthModels {
     private AuthModels() { }
-    public enum Role { OPERATOR, TRANSLATOR, REVIEWER, READER }
+    public enum Role { OPERATOR, TRANSLATOR, REVIEWER, READER, TYPESETTER }
     public record User(String id, String displayName, Role role) { }
     public record CurrentUser(User user, Instant expiresAt) { }
     public record LoginRequest(String loginId, String password) {

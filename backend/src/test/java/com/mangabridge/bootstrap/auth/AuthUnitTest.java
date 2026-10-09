@@ -52,9 +52,9 @@ class AuthUnitTest {
         for(Role role:Role.values()) env.setProperty("DEMO_"+role+"_PASSWORD",password);
         var encoder=new BCryptPasswordEncoder(4);
         var commands=new DemoAuthCommands(dao,encoder,Clock.systemUTC(),env,manager,mock(org.springframework.context.ConfigurableApplicationContext.class));
-        commands.seed(); verify(dao,times(4)).insertAccount(anyString(),anyString(),any(),anyString());
+        commands.seed(); verify(dao,times(5)).insertAccount(anyString(),anyString(),any(),anyString());
         clearInvocations(dao);
-        String[] names={"데모 운영자","데모 번역가","데모 감수자","데모 독자"};
+        String[] names={"데모 운영자","데모 번역가","데모 감수자","데모 독자","데모 식자"};
         for(Role role:Role.values()) when(dao.account("demo."+role.name().toLowerCase(java.util.Locale.ROOT)))
                 .thenReturn(new Account(1,names[role.ordinal()],role,encoder.encode(password),true));
         commands.seed(); verify(dao,never()).insertAccount(anyString(),anyString(),any(),anyString());
