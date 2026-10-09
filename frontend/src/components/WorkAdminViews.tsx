@@ -336,7 +336,7 @@ export function WorkAdminEditor({ workId }: { workId: string }) {
         <div className="form-check">
           <input id="work-banner" type="checkbox" className="form-check-input" checked={form.isBanner} disabled={!work.hasCover && !form.isBanner}
             onChange={(event) => setForm({ ...form, isBanner: event.target.checked })} />
-          <label className="form-check-label" htmlFor="work-banner">메인 배너 (표지가 있어야 하고 동시에 5개까지)</label>
+          <label className="form-check-label" htmlFor="work-banner">메인 배너 (지금은 메인 화면에 표시되지 않습니다. 표지가 있어야 하고 동시에 5개까지)</label>
         </div>
       </fieldset>
       <div className="d-flex gap-2 align-items-center flex-wrap">

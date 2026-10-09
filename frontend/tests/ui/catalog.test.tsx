@@ -104,11 +104,10 @@ describe("main page with the catalog (28.6)", () => {
     });
   }
 
-  test("shows banner, latest with work info, popular, featured and the genre tabs; nothing for genres is requested yet", async () => {
+  test("shows latest with work info, popular, featured and the genre tabs; nothing for genres is requested yet", async () => {
     const { calls } = open();
     render(<HomePage />);
-    expect(await screen.findByRole("region", { name: "추천 배너" })).toBeTruthy();
-    expect(screen.getAllByRole("heading", { name: "작품1" }).length).toBeGreaterThan(0);
+    expect(await screen.findByRole("region", { name: "최신 공개 회차" })).toBeTruthy();
     const latest = screen.getByRole("region", { name: "최신 공개 회차" });
     expect(within(latest).getByText("작품1 · 3화")).toBeTruthy();
     expect(within(latest).getAllByRole("link").map((link) => link.getAttribute("href"))).toContain("/read/3");
@@ -144,22 +143,13 @@ describe("main page with the catalog (28.6)", () => {
     expect(await screen.findByText("아직 공개된 회차가 없습니다.")).toBeTruthy();
   });
 
-  test("banners move only by the buttons, wrap around and never rotate by themselves", async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    try {
-      open();
-      render(<HomePage />);
-      const banner = await screen.findByRole("region", { name: "추천 배너" });
-      expect(within(banner).getByText("1 / 2")).toBeTruthy();
-      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
-      expect(within(banner).getByText("1 / 2")).toBeTruthy(); // no automatic change
-      fireEvent.click(within(banner).getByRole("button", { name: "다음 배너" }));
-      expect(within(banner).getByRole("heading", { name: "작품2" })).toBeTruthy();
-      fireEvent.click(within(banner).getByRole("button", { name: "다음 배너" }));
-      expect(within(banner).getByText("1 / 2")).toBeTruthy();
-      fireEvent.click(within(banner).getByRole("button", { name: "이전 배너" }));
-      expect(within(banner).getByText("2 / 2")).toBeTruthy();
-    } finally { vi.useRealTimers(); }
+  test("the banner data of the home answer is not shown: the hero is the top of the page (D-058)", async () => {
+    open();
+    render(<HomePage />);
+    await screen.findByRole("region", { name: "최신 공개 회차" });
+    expect(screen.queryByRole("region", { name: "추천 배너" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "다음 배너" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "번역된 만화를 읽어 보세요" })).toBeTruthy();
   });
 
   test("choosing a genre loads that genre's works (popular first); 'all' sends no genre; a failure only affects that area and can be retried", async () => {

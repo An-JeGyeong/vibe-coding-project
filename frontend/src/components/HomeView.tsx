@@ -9,7 +9,7 @@ import { publicFailureMessage } from "@/lib/publication/messages";
 import type { PublicEpisode } from "@/lib/publication/types";
 import { loadLatestPublicEpisodes } from "@/lib/reader/episodes";
 import { hasPosition } from "@/lib/reader/position";
-import { Cover, GenreBadges, WorkGrid } from "./CatalogParts";
+import { Cover, WorkGrid } from "./CatalogParts";
 
 const LATEST_COUNT = 12;
 const NEW_WITHIN_MS = 3 * 24 * 60 * 60 * 1000; // an episode counts as new for three days
@@ -82,28 +82,6 @@ function SimpleLatest() {
   </section>;
 }
 
-/** Banners: the cover shown large, moved by buttons only (no automatic rotation). */
-function Banners({ banners }: { banners: WorkSummary[] }) {
-  const [index, setIndex] = useState(0);
-  const current = banners[Math.min(index, banners.length - 1)];
-  return <section aria-label="추천 배너" aria-roledescription="carousel" className="home-banner mb-4">
-    <div className="home-banner-slide" role="group" aria-roledescription="slide" aria-label={`${Math.min(index, banners.length - 1) + 1} / ${banners.length}`}>
-      <Cover workId={current.workId} title={current.title} hasCover className="home-banner-cover" />
-      <div className="home-banner-text">
-        <h2 className="h3 mb-1">{current.title}</h2>
-        <p className="mb-2">{current.author}</p>
-        <p className="mb-3"><GenreBadges genres={current.genres} /></p>
-        <Link href={`/works/${encodeURIComponent(current.workId)}`} className="btn btn-primary">작품 보기</Link>
-      </div>
-    </div>
-    {banners.length > 1 && <div className="home-banner-controls">
-      <button type="button" className="btn btn-outline-light btn-sm" onClick={() => setIndex((index - 1 + banners.length) % banners.length)}>이전 배너</button>
-      <span className="small" aria-live="polite">{Math.min(index, banners.length - 1) + 1} / {banners.length}</span>
-      <button type="button" className="btn btn-outline-light btn-sm" onClick={() => setIndex((index + 1) % banners.length)}>다음 배너</button>
-    </div>}
-  </section>;
-}
-
 /** Works of one genre; nothing is requested until a tab is chosen (CONTRACTS 28.6). */
 function GenreSection() {
   const [selected, setSelected] = useState<string | null>(null); // "" means all genres
@@ -149,7 +127,7 @@ function GenreSection() {
 }
 
 /**
- * Reader main page (CONTRACTS 28.6): banners, latest episodes, popular works, featured works, genre tabs.
+ * Reader main page (CONTRACTS 28.6, revised D-058: the hero only, no banner): latest episodes, popular works, featured works, genre tabs.
  * One home request feeds the first four sections; when it fails the plain latest-episode list is shown with a retry.
  */
 export function HomeView() {
@@ -177,9 +155,8 @@ export function HomeView() {
     return () => active.current?.abort();
   }, [load]);
 
-  const empty = home !== null && home.latest.length === 0 && home.popular.length === 0 && home.featured.length === 0 && home.banners.length === 0;
+  const empty = home !== null && home.latest.length === 0 && home.popular.length === 0 && home.featured.length === 0;
   return <main id="main-content" className="container py-5">
-    {home !== null && home.banners.length > 0 && <Banners banners={home.banners} />}
     <section aria-label="소개" className="home-hero mb-4">
       <h1 className="h2 mb-2">번역된 만화를 <em>읽어 보세요</em></h1>
       <p className="text-secondary mb-0">망가브릿지에서 번역·감수를 마치고 공개된 회차를 바로 읽을 수 있습니다.</p>
