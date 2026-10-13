@@ -1263,3 +1263,63 @@ NOT NULL 규칙은 **모든 도메인·인증 테이블**에 적용한다. NULL 
 - 변경: frontend/src, frontend/tests/ui, DEMO_SCRIPT.md, STATUS.md. 변경 금지: backend, 기존 API, 계약 12~29절의 규칙(30.2의 헤더·메인 보강 제외), PROJECT_CONTEXT.md.
 - 테스트: 저장소 모듈(손상된 값·한도·막힌 저장소), 하트·서재·최근 기록, `/works` 검색·장르·정렬·주소 반영·실패 재시도, `/library`(비공개 작품·빈 상태·제거), 마이페이지 영역별 동작(계정은 토큰이 있을 때만 서버 호출), 테마 전환과 저장, 기존 회귀·타입·빌드. 연속 2회 통과.
 - 접근성(axe)은 **라이트와 다크 모두**에서 점검한다(공개 화면과 업무 화면 대표 페이지).
+
+## 31. 추천과 기간별 랭킹 (주간·월간·연간) — APPROVED (2026-10-13, 사용자 승인)
+
+작성: Claude Code. 구현: backend=Codex(마이그레이션 V37 포함), frontend=Claude Code. 근거: 사용자 요청(2026-10-13, "연간·월간·주간 랭킹", 점수는 추천 수와 조회수를 종합), DECISIONS.md D-060. 인증·역할·오류 형식은 12·19절, 공개 카탈로그와 조회수는 28절을 따른다. **기존 API의 기존 필드·동작은 바꾸지 않는다**(작품 요약에 `recommendCount` 필드만 더한다). 마이그레이션 V37 하나가 있고 새 테이블만 만든다(기존 테이블 변경 없음, 모든 컬럼 NOT NULL).
+
+### 범위
+- 포함: 작품 추천(익명 식별자 기준 1표, 취소 가능), 일별 조회수 집계, 기간별 랭킹 API(주간·월간·연간), 메인의 랭킹 섹션과 `/ranking` 화면, 작품 상세의 추천 버튼과 추천 수.
+- 제외: 로그인 기반 추천(계정당 1표), 어뷰징 방지(봇·반복 호출·식별자 재생성), 회차 단위 추천, 추천 사유·댓글, 랭킹 순위 변동 표시, 지난 기간(과거 주·달·해)의 고정 랭킹, V37 이전 조회수의 기간 배분(날짜 정보가 없어 랭킹에 들어가지 않는다).
+
+### 31.1 스키마 — V37 (InnoDB·utf8mb4·UTC, 모든 컬럼 NOT NULL; V35와 같은 예외로 **한 파일에 CREATE TABLE 2개**, 기존 테이블 변경 DDL 금지)
+- `episode_view_daily`: episode_id BIGINT(FK episode(id)), view_date DATE(UTC 날짜), view_count BIGINT CHECK >= 1, PRIMARY KEY (episode_id, view_date).
+- `work_recommend`: work_id BIGINT(FK work(id)), voter_key CHAR(32) CHARACTER SET ascii COLLATE ascii_bin CHECK 소문자 16진수 32자(`REGEXP '^[0-9a-f]{32}$'`), created_at DATETIME(6), PRIMARY KEY (work_id, voter_key). 같은 작품에 같은 식별자는 1행뿐이다.
+- 모든 FK는 RESTRICT. V1~V36은 변경하지 않는다.
+
+### 31.2 조회수 기록 변경
+- `POST /api/public/episodes/{id}/views`(28.4)는 기존 `episode_view_count`를 올리는 것에 더해 **같은 트랜잭션에서** 오늘(UTC) 날짜의 `episode_view_daily` 행을 만들거나 1 올린다(`INSERT … ON DUPLICATE KEY UPDATE`). 응답·조건(공개 회차만 204, 그 밖은 404)은 그대로다. 두 쓰기 중 하나가 실패하면 둘 다 반영하지 않는다.
+- V37 이전의 누적 조회수는 일별 행이 없으므로 기간별 랭킹에 들어가지 않는다(누적 `views`와 28절 `popular`는 그대로).
+
+### 31.3 추천 API (POST 전용·누구나, 인증을 판정하지 않는다)
+| API | 요청 | 응답 |
+|---|---|---|
+| POST /api/public/works/{id}/recommend | {"voterKey":"<소문자 16진수 32자>"} (정확히 이 필드 하나) | 공개 작품이면 200 {"recommended":true,"recommendCount":n}. 이미 추천한 식별자면 **같은 200**(멱등, 행을 늘리지 않는다) |
+| POST /api/public/works/{id}/unrecommend | 같음 | 공개 작품이면 200 {"recommended":false,"recommendCount":n}. 추천한 적 없어도 같은 200(멱등) |
+- 공개 작품이 아니거나 없거나 id 형식(`^[1-9][0-9]{0,17}$`)이 틀리면 404 NOT_FOUND. 본문이 JSON이 아니거나 필드가 없거나·많거나·`voterKey` 형식이 틀리면 400 INVALID_REQUEST(상세 필드 없음). GET·PUT·PATCH·DELETE는 405.
+- `recommendCount`는 그 작품의 전체 추천 행 수이다. 보안 규칙에서 위 두 경로의 POST만 새로 permitAll이고, 그 밖의 `/api/public/**` 쓰기는 기존대로 405이다.
+- **의미**: 같은 브라우저(식별자) 1표 이상의 방어는 하지 않는다. 식별자를 새로 만들면 다시 추천할 수 있다(D-060 한계).
+- **작품 요약에 `recommendCount` 추가**(28.2 작품 요약, 모든 공개 응답의 요약: home·works·work·rankings). 기존 필드는 그대로이며, 필드 목록을 정확히 비교하는 기존 단언은 이 필드만 추가하는 기계적 변경이 허용된다(변경 목록 보고).
+
+### 31.4 랭킹 API (GET 전용·누구나)
+`GET /api/public/rankings?period=week|month|year&limit=` — period 필수, limit 1~50(기본 10). 그 밖의 쿼리·잘못된 값은 400. 응답 200:
+`{"period":"week","items":[{…작품 요약, "rank":1,"score":n,"periodViews":n,"periodRecommends":n}]}` — 비어 있어도 200이며 빈 배열.
+- **기간(이동 구간, UTC 날짜 기준, 오늘 포함)**: week=오늘 포함 지난 7일, month=30일, year=365일. 조회수는 `episode_view_daily.view_date`가, 추천은 `DATE(work_recommend.created_at)`이 구간 안에 있는 것만 센다.
+- **점수** = `periodViews + periodRecommends × 10` (추천 1표 = 조회 10회). periodViews는 그 작품에 **연결된 공개 회차**의 구간 내 조회 합이고, 보류된 회차·공개가 아닌 작품의 값은 넣지 않는다(28.4와 같은 규칙).
+- 대상은 공개 작품만이고 **점수가 0인 작품은 제외**한다. 정렬은 score 내림차순, 같으면 latestPublishedAt 내림차순, 같으면 workId 내림차순. `rank`는 정렬 순서대로 1부터 매기며 동점도 순서대로 다른 번호이다.
+- 추천을 취소하면 그 추천은 점수에서 빠진다(행이 삭제되므로). 취소했다가 다시 추천하면 새 시각으로 기록된다.
+
+### 31.5 처리 함수와 필수 테스트 (Codex)
+| 이름 | 필수 테스트 |
+|---|---|
+| recordView 확장 | 오늘 행 생성 후 +1 누적, 날짜가 바뀌면 새 행(시각 주입), 미공개·보류·없는 회차 404이고 일별 행도 없음, 두 테이블이 함께 롤백, 기존 누적 동작·응답 불변 |
+| recommend / unrecommend | 신규 추천 +1, 같은 식별자 반복은 멱등(수 불변), 다른 식별자는 별도 표, 취소 -1과 반복 취소 멱등, 비공개·보류 시 공개 아님이면 404, id·본문·voterKey 검증 400(미정의 필드·대문자·길이 31/33·비JSON), GET/PUT/DELETE 405, 인증 무관(토큰이 있어도 같은 결과) |
+| 랭킹 | 기간 경계(6일 전 포함/7일 전 제외 등 7·30·365 각각, 시각 주입), 점수 공식(조회 + 추천×10), 보류된 회차 조회 제외와 재개 시 복귀, 비공개 작품 제외, 점수 0 제외, 정렬 3단계와 rank 번호, limit 경계 1·50·0·51 → 400, period 누락·잘못된 값·알 수 없는 쿼리 400, 비어 있을 때 200 빈 배열, 인증 무관, V37 이전 누적 조회는 점수에 없음 |
+| 작품 요약 | 모든 공개 응답에 `recommendCount`, 값은 추천 행 수와 일치 |
+| 스키마 | NOT NULL·CHECK(조회수 ≥1, voterKey 형식)·PK·FK 위반 거부와 정상 허용(실제 MySQL), 기존 NOT NULL lint 통과, V1~V36 불변 |
+
+### 31.6 프런트 계약 (Claude Code)
+- **브라우저 저장**(30.1에 추가): `mangabridge.voter.v1` = 소문자 16진수 32자 무작위 식별자(없으면 `crypto.getRandomValues`로 만든다), `mangabridge.recommended.v1` = 추천한 workId 배열(최대 200). 저장소가 막히면 추천 버튼은 그 방문 동안만 동작한다(식별자는 메모리에 둔다).
+- **작품 상세**: 제목 옆에 "추천" 버튼(`aria-pressed`, 추천 수 표시, 누르면 `recommend`/`unrecommend` 호출, 응답의 `recommendCount`로 갱신). 중복 클릭 방지, 실패 시 고정 문구와 상태 되돌림. 작품 카드에는 추천 수를 보이기만 한다(버튼 없음).
+- **랭킹 `/ranking`** (공개): 탭 3개(주간·월간·연간, 기본 주간, `?period=`를 주소에 반영), 순위 번호와 점수·조회·추천 요약이 붙은 카드 목록, 비어 있음·오류·재시도, 기간 설명("지난 7일 / 30일 / 365일, 조회 1점 · 추천 10점"). 헤더 링크 "랭킹"을 추가한다.
+- **메인**: 28.6의 "인기 작품" 섹션을 **랭킹 섹션**(주간·월간·연간 탭, 상위 10)으로 바꾼다. 랭킹이 비어 있거나 실패하면 기존 `popular`(누적 조회)를 그대로 보인다. `/works`는 바뀌지 않는다.
+- 테스트: 식별자 생성·저장, 추천 토글·중복 방지·실패 복구, 탭 전환 시 해당 period만 호출, 주소 반영, 비어 있음·재시도, 메인 폴백, 기존 회귀·타입·빌드, 연속 2회 통과. 접근성(axe)은 라이트·다크 모두.
+
+### 31.7 파일 소유권·구현 순서·완료 조건
+- Codex 변경: `backend/src/main/resources/db/migration/V37__…`, backend/src/main, backend/src/test, README 기록.
+  - **기존 통합 테스트는 수정 없이 통과해야 한다. 단, V37 적용에 따른 기계적 변경만 허용(28.7과 같은 처리)**: 최신 마이그레이션 버전 36→37, 허용 테이블 목록에 `episode_view_daily`·`work_recommend` 추가, 전체 적용·이력 수 +1, V9 업그레이드 적용 수 +1, 작품 요약 필드 목록 단언에 `recommendCount` 추가. 변경한 단언 목록을 보고하고, 이 범위 밖의 기존 테스트가 깨지면 멈춰 보고한다.
+  - **구현 순서(사용량이 부족하면 앞 단계까지 커밋하고 멈춰도 된다)**: ① V37 + recordView 일별 기록 ② 추천·취소 API와 `recommendCount` ③ 랭킹 API. 단계마다 테스트를 통과시키고 커밋한다.
+  - 개발 DB(3306)에는 백업과 사용자 확인 후에만 V37을 적용한다.
+- Claude Code 변경: frontend/src, frontend/tests/ui, DEMO_SCRIPT.md, STATUS.md. 변경 금지: V1~V36, 기존 API의 기존 필드·동작, PROJECT_CONTEXT.md, 서로의 영역.
+- 프런트는 백엔드 ③ 이후 연결한다(그 전에는 모의 응답으로 개발·테스트).
+- 실제 브라우저 검증은 격리 스택에서 1회: 조회 기록 후 주간 랭킹에 반영 → 추천 +1·취소 -1과 순위 변화 → 보류한 회차의 조회가 랭킹에서 빠짐 → 탭 전환·메인 폴백 → 라이트·다크 axe.
