@@ -33,6 +33,7 @@ public class AuthSecurity {
                 .requestMatchers(org.springframework.http.HttpMethod.POST,"/api/public/episodes/*/views").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.POST,"/api/public/works/*/recommend","/api/public/works/*/unrecommend").permitAll()
                 .requestMatchers("/api/public","/api/public/**").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.POST,"/api/auth/register").permitAll()
                 .requestMatchers("/api/health","/api/auth/login","/api/auth/logout","/error").permitAll()
                 .requestMatchers("/api/episodes","/api/episodes/**").hasRole("OPERATOR")
                 .requestMatchers("/api/assignable-accounts").hasRole("OPERATOR")
@@ -46,6 +47,7 @@ public class AuthSecurity {
                 .requestMatchers("/api/my/episodes/*/translations","/api/my/episodes/*/translations/**").hasRole("TRANSLATOR")
                 .requestMatchers("/api/my/reviews","/api/my/episodes/*/reviews","/api/my/episodes/*/reviews/**").hasRole("REVIEWER")
                 .requestMatchers("/api/my/**").hasAnyRole("TRANSLATOR","REVIEWER","TYPESETTER")
+                .requestMatchers("/api/me","/api/me/**").authenticated()
                 .anyRequest().authenticated())
             .exceptionHandling(errors->errors
                 .authenticationEntryPoint((request,response,error)->AuthErrors.write(response,mapper,AuthFailure.required()))
@@ -64,7 +66,7 @@ public class AuthSecurity {
         BearerFilter(AuthService service,ObjectMapper mapper) {this.service=service;this.mapper=mapper;}
         @Override protected boolean shouldNotFilter(HttpServletRequest r) {
             return r.getMethod().equals("OPTIONS") || r.getServletPath().equals("/api/public") || r.getServletPath().startsWith("/api/public/")
-                    || List.of("/api/health","/api/auth/login","/api/auth/logout","/error").contains(r.getServletPath());
+                    || List.of("/api/health","/api/auth/login","/api/auth/logout","/api/auth/register","/error").contains(r.getServletPath());
         }
         @Override protected void doFilterInternal(HttpServletRequest request,HttpServletResponse response,FilterChain chain) throws IOException,ServletException {
             try {

@@ -68,6 +68,22 @@ public class AuthService {
             });
         } catch(DataAccessException | org.springframework.transaction.TransactionException e) { throw AuthFailure.unavailable(); }
     }
+    /** Opens a session for an account that was just created (CONTRACTS 32.2); runs in the caller's transaction. */
+    public LoginResponse issueSession(User user, String auditEvent) {
+        Instant now=clock.instant().truncatedTo(ChronoUnit.MICROS);
+        byte[] bytes=new byte[32]; random.nextBytes(bytes);
+        String token=Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        Instant expires=now.plusSeconds(ttl);
+        long id=Long.parseLong(user.id());
+        dao.issue(hash(token),id,expires);
+        dao.audit(id,auditEvent,"SUCCESS",now);
+        return new LoginResponse(user,token,"Bearer",expires);
+    }
+    /** Revokes the other live tokens of an account after its password changed; the token in use stays valid. */
+    public void revokeOtherTokens(long accountId, String currentToken) {
+        dao.revokeOthers(accountId,hash(currentToken),clock.instant());
+        dao.audit(accountId,"PASSWORD_CHANGED","SUCCESS",clock.instant());
+    }
     public void accessDenied(CurrentUser user) {
         try { tx.executeWithoutResult(status->dao.audit(Long.parseLong(user.user().id()),"ACCESS_DENIED","ROLE",clock.instant())); }
         catch(DataAccessException | org.springframework.transaction.TransactionException e) { throw AuthFailure.unavailable(); }

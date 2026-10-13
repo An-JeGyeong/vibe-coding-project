@@ -34,6 +34,10 @@ public class AuthDao {
         jdbc.update("UPDATE auth_token SET revoked_at=? WHERE token_hash=?",ts(now),hash);
         return rows.get(0);
     }
+    /** Revokes every live token of the account except the one given (a password change, CONTRACTS 32.3). */
+    void revokeOthers(long accountId, byte[] keep, Instant now) {
+        jdbc.update("UPDATE auth_token SET revoked_at=? WHERE account_id=? AND revoked_at IS NULL AND expires_at>? AND token_hash<>?",ts(now),accountId,ts(now),keep);
+    }
     void audit(Long id, String event, String reason, Instant now) {
         jdbc.update("INSERT INTO auth_audit(occurred_at,account_id,event,reason) VALUES (?,?,?,?)",ts(now),id,event,reason);
     }
