@@ -31,6 +31,7 @@ public class AuthSecurity {
             .authorizeHttpRequests(auth->auth
                 .requestMatchers(org.springframework.http.HttpMethod.OPTIONS,"/**").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.POST,"/api/public/episodes/*/views").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.POST,"/api/public/works/*/recommend","/api/public/works/*/unrecommend").permitAll()
                 .requestMatchers("/api/public","/api/public/**").permitAll()
                 .requestMatchers("/api/health","/api/auth/login","/api/auth/logout","/error").permitAll()
                 .requestMatchers("/api/episodes","/api/episodes/**").hasRole("OPERATOR")
