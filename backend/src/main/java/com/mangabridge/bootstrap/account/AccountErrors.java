@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /** Fixed bodies for the account endpoints: the code and a fixed sentence, never the input or the reason. */
-@RestControllerAdvice(assignableTypes = {AccountController.class})
+@RestControllerAdvice(assignableTypes = {AccountController.class, MeController.class})
 class AccountErrors {
     static Map<String, Object> body(String code) {
         String message = switch (code) {
@@ -28,6 +28,11 @@ class AccountErrors {
         var response = ResponseEntity.status(failure.status).header("Cache-Control", "no-store");
         if (failure.retryAfterSeconds != null) response = response.header("Retry-After", Long.toString(failure.retryAfterSeconds));
         return response.body(body(failure.code));
+    }
+
+    @ExceptionHandler(com.mangabridge.bootstrap.work.WorkFailure.class)
+    ResponseEntity<Map<String, Object>> work(com.mangabridge.bootstrap.work.WorkFailure failure) {
+        return ResponseEntity.status(failure.status).header("Cache-Control", "no-store").body(body(failure.code));
     }
 
     @ExceptionHandler({HttpMessageNotReadableException.class, HttpMediaTypeNotSupportedException.class})

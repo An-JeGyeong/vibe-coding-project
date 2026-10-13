@@ -1349,7 +1349,7 @@ NOT NULL 규칙은 **모든 도메인·인증 테이블**에 적용한다. NULL 
 - 모든 FK는 RESTRICT. V1~V37은 변경하지 않는다. 표시 이름은 기존 `demo_account.display_name`(최대 64자)을 쓰고 가입 시 1~20자로 제한한다.
 
 ### 32.2 가입 API (POST 전용·누구나, 로그인 상태를 판정하지 않는다)
-`POST /api/auth/register` 본문 `{"loginId","password","displayName"}`(정확히 이 3개, 다른 필드는 400).
+`POST /api/auth/register` 본문 `{"loginId","password","displayName"}`(정확히 이 3개이며 모두 문자열; 다른 필드나 숫자·불리언을 문자열 자리에 쓰면 400. **본문을 읽기 전에 시도를 센다**, 형식이 깨진 본문도 제한에 포함된다).
 | 항목 | 규칙 (어기면 400 INVALID_REQUEST, 상세 필드·사유 없음) |
 |---|---|
 | loginId | `^[a-z0-9][a-z0-9._-]{3,19}$`(4~20자), **`demo.`로 시작하면 예약어로 거절** |
@@ -1378,12 +1378,13 @@ NOT NULL 규칙은 **모든 도메인·인증 테이블**에 적용한다. NULL 
 | PUT /api/me/recent/{episodeId} | **공개 회차이면** 204(이미 있으면 읽은 시각만 갱신, 20개 초과 시 가장 오래된 것 삭제), 그 밖은 404 |
 | DELETE /api/me/recent | 204(모두 삭제) |
 | POST /api/me/recent/merge | {"items":[{"episodeId","readAt"}…최대 20]} → 공개 회차만 합치고 시각 기준 최신 20개만 남겨 200 {"items":[…]} |
-| GET /api/me/recommendations | 200 {"workIds":[내가 추천한 공개 작품 id, 최대 200]} |
+| GET /api/me/recommendations | 200 {"workIds":[내가 추천한 공개 작품 id, 최대 200]} (추천·취소는 32.5의 `/api/me/works/{id}/recommend`·`unrecommend`) |
 - 응답에는 제목 등 작품·회차 정보를 넣지 않는다(프런트가 공개 API로 조회한다). 서재·최근 기록은 **그 계정의 것만** 보이며 다른 계정 값은 어떤 경로로도 노출되지 않는다.
 
-### 32.5 추천 API 확장 (31.3과 호환)
-- `POST /api/public/works/{id}/recommend`·`/unrecommend`에 **유효한 Bearer 토큰이 있으면** 본문의 `voterKey`를 쓰지 않고(본문은 `{}`이거나 `voterKey`를 포함해도 무시) **계정 기준의 표 하나**로 처리한다. 서버가 `voter_key = SHA-256("acct:" + accountId)`의 앞 32자리 16진수로 `work_recommend`에 기록하므로 새 테이블이 필요 없고, 같은 계정은 여러 기기에서도 작품당 1표이다. 응답은 31.3과 같다. 토큰이 없으면 31.3의 익명 동작 그대로이고, **잘못된 토큰**이 있으면 401이다.
-- 로그인·가입 시 프런트가 브라우저의 추천 목록을 계정 표로 옮기는 서버 API는 두지 않는다(프런트가 `recommend`를 작품별로 호출한다, 최대 200).
+### 32.5 계정 추천 API (**정정 2026-10-13, 구현 중 발견: 공개 추천 API는 바꾸지 않는다**)
+- 초안은 공개 `POST /api/public/works/{id}/recommend`가 Bearer 토큰이 있으면 계정 표로 동작하게 했으나, 이는 31.3의 "공개 추천은 인증을 판정하지 않는다(어떤 토큰이 있어도 같은 결과)"와 기존 통합 테스트(`RecommendIntegrationTest`)와 충돌한다. 그래서 **공개 추천 API는 31.3 그대로 두고**, 로그인한 독자를 위한 **별도 경로**를 둔다.
+- `POST /api/me/works/{id}/recommend`, `POST /api/me/works/{id}/unrecommend` (로그인한 모든 역할, 본문 없음): 공개 작품이면 200 `{"recommended":true|false,"recommendCount":n}`(31.3과 같은 응답), 멱등. 비로그인·잘못된 토큰은 401, 공개가 아니거나 없는 작품·잘못된 id는 404. **표는 계정 id에서 파생한 키**(`SHA-256("acct:"+accountId)`의 앞 32자리 16진수)로 기존 `work_recommend`에 기록하므로 새 테이블이 필요 없고, 같은 계정은 어느 기기에서도 작품당 1표이며 익명 표(31.3)와 별개로 센다. `recommendCount`(공개 응답의 총합)는 두 종류를 모두 더한다.
+- 로그인·가입 시 브라우저의 추천 목록을 계정 표로 옮기는 서버 API는 두지 않는다(프런트가 작품별로 위 `recommend`를 호출한다, 최대 200).
 
 ### 32.6 처리 함수와 필수 테스트 (실제 MySQL)
 | 이름 | 필수 테스트 |

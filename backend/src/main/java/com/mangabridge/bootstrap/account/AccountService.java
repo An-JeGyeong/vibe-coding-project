@@ -37,7 +37,7 @@ public class AccountService {
     private final TransactionTemplate tx;
 
     AccountService(AccountDao dao, AuthService auth, PasswordEncoder encoder, RegisterLimiter limiter, Clock clock, ObjectMapper mapper, PlatformTransactionManager manager) {
-        this.dao = dao; this.auth = auth; this.encoder = encoder; this.limiter = limiter; this.clock = clock; this.mapper = mapper;
+        this.dao = dao; this.auth = auth; this.encoder = encoder; this.limiter = limiter; this.clock = clock; this.mapper = StrictJson.of(mapper);
         this.tx = new TransactionTemplate(manager);
     }
 
