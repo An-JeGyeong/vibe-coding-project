@@ -6,10 +6,16 @@
 //   node scripts/seed-demo-data.mjs            # API base: $env:API_BASE (default http://localhost:8080)
 // The images are generated placeholders (plain gradients). Replace them with permitted artwork for a real demo.
 // Run it once: it stops when the demo work already exists.
+// SEED_VARIANT=2 creates a SECOND work instead ("달빛 정원": romance/drama, banner, two image episodes) so the rankings have something to compare.
+//   $env:SEED_VARIANT = "2"; node scripts/seed-demo-data.mjs
 import zlib from "node:zlib";
 
 const BASE = process.env.API_BASE ?? "http://localhost:8080";
-const TITLE = "낯선 항구";
+const V2 = process.env.SEED_VARIANT === "2";
+const TITLE = V2 ? "달빛 정원" : "낯선 항구";
+const AUTHOR = V2 ? "한도윤" : "시연 작가";
+const DESCRIPTION = V2 ? "달빛이 드는 오래된 정원에서 두 사람이 다시 만난다.\n잊은 줄 알았던 약속이 꽃처럼 되살아난다." : "낯선 항구에 도착한 소년의 이야기.\n종소리와 낡은 지도가 그를 기다린다.";
+const GENRES = V2 ? ["로맨스", "드라마"] : ["판타지", "액션"];
 const PASSWORDS = { operator: process.env.DEMO_OPERATOR_PASSWORD, translator: process.env.DEMO_TRANSLATOR_PASSWORD, reviewer: process.env.DEMO_REVIEWER_PASSWORD, typesetter: process.env.DEMO_TYPESETTER_PASSWORD };
 for (const [role, value] of Object.entries(PASSWORDS)) {
   if (!value) { console.error(`DEMO_${role.toUpperCase()}_PASSWORD is not set.`); process.exit(2); }
@@ -34,7 +40,7 @@ function png(w, h, top, bottom) {
 }
 const ORIGINAL = [png(700, 990, [70, 70, 80], [20, 20, 30]), png(700, 990, [90, 80, 70], [30, 25, 20])]; // grey: the untranslated pages
 const TRANSLATED = [png(700, 990, [60, 90, 170], [20, 30, 80]), png(700, 990, [170, 110, 60], [80, 40, 20])]; // colour: the typeset pages
-const COVER = png(600, 800, [120, 90, 200], [30, 20, 70]);
+const COVER = V2 ? png(600, 800, [60, 160, 120], [15, 60, 50]) : png(600, 800, [120, 90, 200], [30, 20, 70]);
 
 const tokens = {}, ids = {};
 async function call(role, method, path, body, headers = {}) {
@@ -65,17 +71,21 @@ const existing = await must("list works", call("operator", "GET", "/api/works?li
 if (existing.json.items.some((work) => work.title === TITLE)) { console.log(`The work "${TITLE}" already exists; nothing was created.`); process.exit(0); }
 
 const work = await must("create work", call("operator", "POST", "/api/works", {
-  title: TITLE, author: "시연 작가", description: "낯선 항구에 도착한 소년의 이야기.\n종소리와 낡은 지도가 그를 기다린다.", readingDirection: "RTL", genres: ["판타지", "액션"],
+  title: TITLE, author: AUTHOR, description: DESCRIPTION, readingDirection: "RTL", genres: GENRES,
 }));
 const workId = work.json.id;
 await must("work cover", call("operator", "PUT", `/api/works/${workId}/cover`, COVER, { "Content-Type": "image/png" }));
 await must("publish work (public, featured, banner)", call("operator", "PUT", `/api/works/${workId}`, {
-  expectedRevision: work.json.revision, title: TITLE, author: "시연 작가", description: "낯선 항구에 도착한 소년의 이야기.\n종소리와 낡은 지도가 그를 기다린다.",
-  readingDirection: "RTL", genres: ["판타지", "액션"], isPublic: true, isFeatured: true, isBanner: true,
+  expectedRevision: work.json.revision, title: TITLE, author: AUTHOR, description: DESCRIPTION,
+  readingDirection: "RTL", genres: GENRES, isPublic: true, isFeatured: !V2, isBanner: true,
 }));
 
-const SOURCE = ["어느 날 아침, 소년은 낯선 항구에 서 있었다.", "「여기가... 어디지?」", "바다 너머에서 종소리가 울렸다.", "그는 주머니 속의 낡은 지도를 펼쳤다.", "지도에는 단 하나의 별 표시만 있었다."];
-const TRANSLATION = ["어느 날 아침, 소년은 낯선 항구에 서 있었다.", "\"여기가... 어디지?\"", "바다 너머에서 종소리가 울렸다.", "그는 주머니 속 낡은 지도를 펼쳤다.", "지도에는 별 표시 하나뿐이었다."];
+const SOURCE1 = ["어느 날 아침, 소년은 낯선 항구에 서 있었다.", "「여기가... 어디지?」", "바다 너머에서 종소리가 울렸다.", "그는 주머니 속의 낡은 지도를 펼쳤다.", "지도에는 단 하나의 별 표시만 있었다."];
+const SOURCE2 = ["달빛이 정원의 오래된 벤치를 비추고 있었다.", "「오랜만이에요.」", "그녀는 손에 든 꽃다발을 천천히 내려놓았다.", "바람이 불자 담장 위의 장미가 흔들렸다.", "그들 사이에는 아직 말하지 못한 약속이 있었다."];
+const SOURCE = V2 ? SOURCE2 : SOURCE1;
+const TRANSLATION1 = ["어느 날 아침, 소년은 낯선 항구에 서 있었다.", "\"여기가... 어디지?\"", "바다 너머에서 종소리가 울렸다.", "그는 주머니 속 낡은 지도를 펼쳤다.", "지도에는 별 표시 하나뿐이었다."];
+const TRANSLATION2 = ["달빛이 정원의 오래된 벤치를 비추고 있었다.", "\"오랜만이에요.\"", "그녀는 손에 든 꽃다발을 천천히 내려놓았다.", "바람이 불자 담장 위의 장미가 흔들렸다.", "그들 사이에는 아직 말하지 못한 약속이 있었다."];
+const TRANSLATION = V2 ? TRANSLATION2 : TRANSLATION1;
 const PAGE_OF = [1, 1, 2, 2, null];
 
 async function episode(title, no, { images, reject = false, withImagesOnSource = true }) {
@@ -106,7 +116,13 @@ async function episode(title, no, { images, reject = false, withImagesOnSource =
   return id;
 }
 
-await episode("1화 낯선 항구", 1, { images: true, reject: true });
-await episode("2화 종소리", 2, { images: true });
-await episode("3화 번외 (텍스트)", 3, { images: false, withImagesOnSource: false });
-console.log(`Done. Work "${TITLE}" (id ${workId}) with 3 public episodes. Open /, /works/${workId} and /read.`);
+if (V2) {
+  await episode("1화 첫 만남", 1, { images: true });
+  await episode("2화 달빛 아래", 2, { images: true });
+  console.log(`Done. Work "${TITLE}" (id ${workId}) with 2 public episodes. Open /, /ranking, /works/${workId} and /read.`);
+} else {
+  await episode("1화 낯선 항구", 1, { images: true, reject: true });
+  await episode("2화 종소리", 2, { images: true });
+  await episode("3화 번외 (텍스트)", 3, { images: false, withImagesOnSource: false });
+  console.log(`Done. Work "${TITLE}" (id ${workId}) with 3 public episodes. Open /, /works/${workId} and /read.`);
+}
