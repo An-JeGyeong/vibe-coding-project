@@ -6,7 +6,7 @@ import org.springframework.transaction.*;
 import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class ViewService {
- private final ViewDao dao;private final EpisodeDao episodes;private final TransactionTemplate write;
- public ViewService(ViewDao dao,EpisodeDao episodes,PlatformTransactionManager manager){this.dao=dao;this.episodes=episodes;write=new TransactionTemplate(manager);}
- public void recordView(String path){long episode=WorkService.path(path);try{write.execute(status->{if(episodes.episode(episode,true)==null||!dao.published(episode))throw WorkFailure.missing();dao.increment(episode);return null;});}catch(DataAccessException|TransactionException failure){throw WorkFailure.unavailable();}}
+ private final java.time.Clock clock;private final ViewDao dao;private final EpisodeDao episodes;private final TransactionTemplate write;
+ public ViewService(ViewDao dao,EpisodeDao episodes,PlatformTransactionManager manager,java.time.Clock clock){this.clock=clock;this.dao=dao;this.episodes=episodes;write=new TransactionTemplate(manager);}
+ public void recordView(String path){long episode=WorkService.path(path);try{write.execute(status->{if(episodes.episode(episode,true)==null||!dao.published(episode))throw WorkFailure.missing();dao.increment(episode);dao.incrementDaily(episode,java.time.LocalDate.ofInstant(clock.instant(),java.time.ZoneOffset.UTC));return null;});}catch(DataAccessException|TransactionException failure){throw WorkFailure.unavailable();}}
 }

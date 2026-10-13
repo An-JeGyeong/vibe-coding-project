@@ -35,13 +35,13 @@ class DomainSchemaMigrationIntegrationTest {
         try(var mysql=new DisposableMySql()) {
             var restored=new ChecksRestored();
             var flyway=Flyway.configure().dataSource(mysql.source).callbacks(restored).load();
-            assertThat(flyway.migrate().migrationsExecuted).isEqualTo(36);
+            assertThat(flyway.migrate().migrationsExecuted).isEqualTo(37);
             assertThat(restored.versions).containsExactlyInAnyOrder("24","25","27","28");
             flyway.validate();
             assertThat(flyway.migrate().migrationsExecuted).isZero();
             flyway.validate();
             for(String table:OLD_TABLES) assertThat(mysql.jdbc.queryForObject("SELECT COUNT(*) FROM "+table,Integer.class)).isZero();
-            assertThat(mysql.jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class)).isEqualTo(36);
+            assertThat(mysql.jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class)).isEqualTo(37);
         }
     }
     @Test void populatedV9UpgradePreservesEveryOldColumnAndChecksum() throws Exception {
@@ -59,7 +59,7 @@ class DomainSchemaMigrationIntegrationTest {
             }
             var checksums=mysql.jdbc.queryForList("SELECT version,checksum FROM flyway_schema_history ORDER BY installed_rank");
             var upgrade=Flyway.configure().dataSource(mysql.source).load();
-            assertThat(upgrade.migrate().migrationsExecuted).isEqualTo(27);
+            assertThat(upgrade.migrate().migrationsExecuted).isEqualTo(28);
             upgrade.validate();
             assertThat(upgrade.migrate().migrationsExecuted).isZero();
             upgrade.validate();
