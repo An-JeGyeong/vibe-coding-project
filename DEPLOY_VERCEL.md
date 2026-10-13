@@ -145,3 +145,17 @@ $env:SEED_VARIANT = "2"; node scripts/seed-demo-data.mjs   # 작품 "달빛 정�
 - Railway는 사용량 과금이며 무료 체험 한도가 있다. 시연이 끝나면 서비스를 중지하거나 삭제한다(DB 볼륨이 남으면 과금될 수 있다).
 - DB 백업: 클라우드 볼륨은 자동 백업이 없다. 중요한 데이터가 생기면 `mysqldump`로 직접 받아 둔다.
 - 개발 PC의 DB 데이터는 클라우드로 옮기지 않는다(시연 데이터는 8.3의 스크립트로 새로 만든다).
+
+## 9. 실제 배포에서 겪은 문제와 해결 (2026-10-13)
+
+| 증상 | 원인 | 해결 |
+|---|---|---|
+| Railway 빌드가 6초 만에 `Railpack failed to prepare the build` | 모노레포라 저장소 루트를 빌드하려 함 | 서비스 Settings → Source → **Root Directory = `/backend`**(그러면 `Dockerfile`을 자동 사용) |
+| MySQL 로그에 `Version: '26.7.0'`, 이후 `Cannot downgrade from 260700 to 80411` | 이미지 이름에 태그가 없어 최신판이 설치되었고, 그 데이터가 든 볼륨을 8.4.11이 열지 못함 | 이미지를 **`mysql:8.4.11`로 고정**, 비어 있는 **볼륨을 삭제하고 새로 연결** |
+| 변수 참조가 서비스 이름에 따라 달라짐 | 서비스 이름이 `mysql`(소문자)이면 `${{mysql.RAILWAY_PRIVATE_DOMAIN}}` | 8.1절의 `MySQL`은 서비스 이름과 같게 맞출 것 |
+| Vercel 빌드가 `NEXT_PUBLIC_API_BASE_URL is required` | 환경 변수 없이 빌드(의도한 검사) | Settings → Environment Variables(또는 Environments → Production)에 **Config 타입**으로 추가, 끝 `/` 없이, 저장 후 새로 배포 |
+| 화면은 열리는데 데이터가 비어 있음 | 백엔드 `CORS_ALLOWED_ORIGINS`에 Vercel **프로덕션 도메인**이 없었음(예상 주소와 실제 `…-pearl.vercel.app`이 달랐음) | 대시보드 Domains에서 실제 주소를 확인해 정확히 입력 |
+| Railway `Redeploy` 후에도 이전 동작 | **Redeploy는 직전 배포와 같은 커밋을 다시 빌드**함 | 새 커밋은 GitHub 연결이 복구되면 push로 자동 배포되고(`Auto deploys when pushed to GitHub`), 아니면 연결을 끊고 다시 연결 |
+| `/api/auth/register`가 401 | 이전 코드가 응답 중(새 컨테이너가 뜨기 전) | 새 컨테이너가 Online이 될 때까지 대기(약 3~4분), 400이면 새 코드 |
+| 검증 중 커버 이미지가 안 보임(브라우저 창이 숨겨져 있을 때) | `loading="lazy"` 이미지는 화면에 그려지는 창에서만 로드됨 | 실제 브라우저에서는 정상, 확인할 때는 창을 보이게 하거나 이미지를 eager로 바꿔 로드 확인 |
+| 스크립트 실행 시 `Remove-Item`이 구문 오류 | 한 줄에 합치면서 `;`가 빠짐 | PowerShell 명령은 한 줄씩 실행 |
