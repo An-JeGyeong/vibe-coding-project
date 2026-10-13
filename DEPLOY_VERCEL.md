@@ -18,7 +18,7 @@ Vercel에는 **프런트엔드(`frontend/`, Next.js)만** 올린다. Spring Boot
 | 방법 | 설명 | 장단점 |
 |---|---|---|
 | **A. 터널로 로컬 백엔드 공개 (시연용 권장)** | 내 PC의 백엔드(8080)를 Cloudflare Tunnel 또는 ngrok으로 `https://…` 주소로 공개한다. DB는 로컬 Docker 그대로 | 가장 빠르다. **시연 동안 PC와 터널이 켜져 있어야** 한다. 무료 임시 주소는 재시작하면 바뀌므로 그때마다 Vercel 환경 변수를 고치고 재배포해야 한다(고정 주소를 쓰는 이름 있는 터널 권장) |
-| **B. 클라우드에 백엔드 + MySQL** | Railway·Render·Fly.io 등에 백엔드, 관리형 MySQL 8을 둔다 | 상시 접속 가능. **추가 작업이 필요하다**: 백엔드 컨테이너 이미지(`Dockerfile`, 지금은 없음), DB 연결 정보 설정, 마이그레이션(Flyway가 시작 시 자동 적용), 시연 데이터 시드(`scripts/seed-demo-data.mjs`) |
+| **B. 클라우드에 백엔드 + MySQL (선택됨)** | Railway 등에 백엔드(`backend/Dockerfile`)와 MySQL 8.4를 둔다 | 상시 접속 가능. 이미지·프로필·시드 절차는 준비되어 있고 **8절에 Railway 기준 절차**가 있다 |
 
 어느 쪽이든 백엔드는 다음 환경 변수를 받는다(값은 저장소에 두지 않는다).
 `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `SPRING_PROFILES_ACTIVE`, `PORT`, **`CORS_ALLOWED_ORIGINS`**, 데모 계정 비밀번호(`DEMO_*_PASSWORD`)와 선택 사항인 AI 제공자 설정(`README.md` 참고).
@@ -81,3 +81,67 @@ CLI는 `.vercelignore`에 따라 파일을 올린다. 로그인은 사용자가 
 | 이미지가 안 보이고 CSP 위반 | 배포에 쓴 `NEXT_PUBLIC_API_BASE_URL`과 실제 API 주소가 다르다(재배포 필요) |
 | 터널 주소가 바뀜 | 환경 변수를 새 주소로 바꾸고 재배포, 백엔드 CORS는 Vercel 주소 기준이라 그대로 |
 | 롤백 | Vercel 대시보드 Deployments에서 이전 배포를 Promote |
+
+## 8. 방법 B 절차 (Railway 기준)
+
+준비된 것(저장소): `backend/Dockerfile`(JDK 17 빌드 → JRE 17 실행, 비루트 사용자, 포트는 `PORT`), `backend/.dockerignore`, `application-demo.yml`(클라우드 시연용 프로필). **이 이미지·프로필·시드 흐름은 로컬 Docker에서 실제로 검증했다**: 일회용 MySQL 8.4.11과 이미지를 같은 네트워크에 띄워 `demo` 프로필로 기동 → Flyway 37개 적용, `/api/health` UP(DB UP) → 일회용 컨테이너로 데모 계정 시드 → 로그인 200 → CORS(허용 출처 200, 다른 출처 403) → `scripts/seed-demo-data.mjs`로 작품 2개·회차·이미지 발행 → 공개 API와 이미지 200, 메모리 약 430 MiB. **Railway 화면에서의 실제 배포는 아직 해 보지 않았으므로** 아래 화면·변수 이름은 일반적인 사용법이며 달라졌다면 Railway 문서를 따른다.
+
+### 8.1 구성 (한 프로젝트 안의 서비스 2개)
+
+1. **MySQL 서비스** — 새 서비스를 Docker 이미지 `mysql:8.4.11`로 만든다. 로컬 `docker-compose.yml`과 같은 구성이라 **root가 아닌 앱 계정이 자동으로 만들어진다**(백엔드는 `root` 계정을 거부한다).
+   - 변수: `MYSQL_DATABASE=mangabridge`, `MYSQL_USER=mangabridge_app`, `MYSQL_PASSWORD=<길고 무작위인 값>`, `MYSQL_RANDOM_ROOT_PASSWORD=yes`
+   - 시작 명령(Custom Start Command): `docker-entrypoint.sh mysqld --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci --default-time-zone=+00:00 --default-storage-engine=InnoDB`
+   - **Volume을 `/var/lib/mysql`에 붙인다**(없으면 재배포 때 데이터가 사라진다). 공개 도메인·TCP 프록시는 만들지 않는다(내부 네트워크로만 접근).
+2. **백엔드 서비스** — `backend/` 폴더를 올린다(CLI `railway up`을 `backend`에서 실행하면 `Dockerfile`을 쓴다. Git 연동이면 Root Directory를 `backend`로).
+   - 변수:
+
+     | 이름 | 값 |
+     |---|---|
+     | `SPRING_PROFILES_ACTIVE` | `demo` |
+     | `DB_URL` | `jdbc:mysql://${{MySQL.RAILWAY_PRIVATE_DOMAIN}}:3306/mangabridge` (MySQL 서비스 이름이 `MySQL`일 때의 참조 문법) |
+     | `DB_USERNAME` / `DB_PASSWORD` | MySQL 서비스의 `MYSQL_USER` / `MYSQL_PASSWORD`와 같은 값 |
+     | `CORS_ALLOWED_ORIGINS` | Vercel 프로덕션 주소(예: `https://mangabridge.vercel.app`), 끝 `/`·와일드카드 금지 |
+     | `PORT` | Railway가 자동 설정(수동 입력 불필요) |
+
+   - **Generate Domain**으로 https 주소를 만든다. 헬스 체크 경로는 `/api/health`.
+   - 메모리는 **1 GB 이상**을 권한다(JVM이 컨테이너 메모리의 70%까지 힙으로 쓰고, 로컬 실측은 약 430 MiB).
+   - **`demo` 프로필**은 DB 연결을 `sslMode=REQUIRED`(암호화는 하되 호스트 이름 검증은 안 함)로 둔다. MySQL 8.4 컨테이너는 자체 서명 인증서로 TLS를 제공하고, 같은 프로젝트의 내부 네트워크로만 접속하므로 이 수준이면 충분하다. 인증서가 호스트 이름과 맞는 관리형 DB를 쓴다면 `DB_SSL_MODE=VERIFY_IDENTITY`를 추가한다.
+
+### 8.2 데모 계정 만들기 (최초 1회)
+
+계정은 백엔드를 "시드 모드"로 한 번 실행해서 만든다. 백엔드 서비스에 아래 변수를 **임시로** 추가하고 재배포한다.
+
+```
+DEMO_AUTH_SEED=true
+DEMO_AUTH_SEED_ENABLED=true
+SPRING_MAIN_WEB_APPLICATION_TYPE=none
+DEMO_OPERATOR_PASSWORD=...   DEMO_TRANSLATOR_PASSWORD=...   DEMO_REVIEWER_PASSWORD=...
+DEMO_TYPESETTER_PASSWORD=... DEMO_READER_PASSWORD=...
+```
+
+로그에 `DemoAuth command completed`가 나오고 프로세스가 끝나면 **위 변수를 모두 지우고 다시 배포**한다(웹 서버가 정상으로 뜨고, 비밀번호가 설정에 남지 않는다). 비밀번호는 **길고 무작위인 값**으로 정한다(로그인 시도 제한이 없다, 6절). 이 시드는 `demo`·`local` 프로필에서만 허용되고 `prod`에서는 거부된다.
+
+### 8.3 시연 데이터 넣기
+
+계정이 만들어지고 백엔드가 정상으로 뜬 뒤, **내 PC**에서 공개된 백엔드 주소로 시드 스크립트를 실행한다(이미지는 스크립트가 생성하고 HTTPS API로 올린다).
+
+```powershell
+$env:API_BASE = "https://<백엔드 도메인>"
+$env:DEMO_OPERATOR_PASSWORD = "..."; $env:DEMO_TRANSLATOR_PASSWORD = "..."; $env:DEMO_REVIEWER_PASSWORD = "..."; $env:DEMO_TYPESETTER_PASSWORD = "..."
+node scripts/seed-demo-data.mjs                            # 작품 "낯선 항구"
+$env:SEED_VARIANT = "2"; node scripts/seed-demo-data.mjs   # 작품 "달빛 정원"
+```
+
+랭킹에 값이 보이도록 회차를 몇 번 열어 조회를 만들어 둔다(`POST /api/public/episodes/{id}/views`).
+
+### 8.4 마지막으로 Vercel과 연결
+
+1. 8.1의 백엔드 https 주소를 Vercel의 `NEXT_PUBLIC_API_BASE_URL`(끝 `/` 없이)에 넣고 재배포한다(3절).
+2. 백엔드의 `CORS_ALLOWED_ORIGINS`가 Vercel 프로덕션 주소와 정확히 같은지 확인한다.
+3. 5절 점검을 수행한다.
+
+### 8.5 비용·운영 메모
+
+- Railway는 사용량 과금이며 무료 체험 한도가 있다. 시연이 끝나면 서비스를 중지하거나 삭제한다(DB 볼륨이 남으면 과금될 수 있다).
+- DB 백업: 클라우드 볼륨은 자동 백업이 없다. 중요한 데이터가 생기면 `mysqldump`로 직접 받아 둔다.
+- 개발 PC의 DB 데이터는 클라우드로 옮기지 않는다(시연 데이터는 8.3의 스크립트로 새로 만든다).

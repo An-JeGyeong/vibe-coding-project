@@ -1,0 +1,9 @@
+# Public demo deployment in the cloud (DEPLOY_VERCEL.md). The database is reached over the platform's private network or a managed
+# endpoint, so the certificate of a self-signed MySQL cannot be verified by host name: the connection is still encrypted (REQUIRED).
+# Set DB_SSL_MODE=VERIFY_IDENTITY when the database presents a certificate that matches its host name.
+# Never use this profile with real data; the DemoAuth seed command is only allowed in the local and demo profiles.
+spring:
+  datasource:
+    hikari:
+      data-source-properties:
+        sslMode: ${DB_SSL_MODE:REQUIRED}
