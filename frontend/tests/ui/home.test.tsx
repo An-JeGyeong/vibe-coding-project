@@ -76,7 +76,8 @@ describe("public shell", () => {
   test("header has home, episode list and login; the footer has the list and login links; no role-dependent content", () => {
     render(<PublicLayout><p>본문</p></PublicLayout>);
     const nav = screen.getByRole("navigation", { name: "주요 메뉴" });
-    expect(within(nav).getByRole("link", { name: "홈" }).getAttribute("href")).toBe("/");
+    expect(within(nav).queryByRole("link", { name: "홈" })).toBeNull(); // the brand leads home
+    expect(screen.getByRole("link", { name: "망가브릿지" }).getAttribute("href")).toBe("/");
     expect(within(nav).getByRole("link", { name: "회차 목록" }).getAttribute("href")).toBe("/read");
     expect(within(nav).getByRole("link", { name: "작업 공간" }).getAttribute("href")).toBe("/demo"); // a way back to the signed-in screens; shown to everyone
     expect(screen.getAllByRole("link", { name: "로그인" }).map((link) => link.getAttribute("href"))).toEqual(["/login"]); // the footer; the header one is inside the profile popup

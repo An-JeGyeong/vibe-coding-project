@@ -32,7 +32,7 @@ describe("app shell", () => {
     expect(user.getByText(ROLE_INFO[role].label)).toBeTruthy();
     const nav = within(screen.getByRole("navigation", { name: "주 메뉴" }));
     const links = nav.getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")]);
-    expect(links).toEqual([["홈", "/demo"], ...Object.entries(ROLE_MENU_LINKS[role]), ["작품", "/works"], ["랭킹", "/ranking"], ["공개 회차", "/read"]]);
+    expect(links).toEqual([...Object.entries(ROLE_MENU_LINKS[role]), ["작품", "/works"], ["랭킹", "/ranking"], ["공개 회차", "/read"]]);
     expect(within(screen.getByRole("region", { name: "프로필 메뉴" })).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual(["/demo", "/my", "/payments", "/settings"]);
     expect(screen.getByText("본문")).toBeTruthy();
   });
@@ -44,7 +44,7 @@ describe("app shell", () => {
     const link = await screen.findByRole("link", { name: "회차·원문 관리" });
     expect(link.className).toContain("active");
     expect(screen.getByRole("link", { name: "작업 이력 조회" }).className).not.toContain("active");
-    expect(screen.getByRole("link", { name: "홈" }).className).not.toContain("active");
+    expect(screen.queryByRole("link", { name: "홈" })).toBeNull(); // the brand is the way home
   });
 
   test("logout calls the server and clears the stored token", async () => {

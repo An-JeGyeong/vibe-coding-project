@@ -24,7 +24,6 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="container d-flex flex-wrap align-items-center gap-2 py-2">
         <Link href={user ? "/demo" : "/login"} className="app-brand text-white text-decoration-none fw-bold me-2">망가브릿지</Link>
         <nav aria-label="주 메뉴" className="d-flex flex-wrap gap-1 flex-grow-1">
-          {user && <Link href="/demo" className={`app-nav-link${pathname === "/demo" ? " active" : ""}`}>홈</Link>}
           {menu.map(([label, href]) => <Link key={href} href={href} className={`app-nav-link${current(href) ? " active" : ""}`}>{label}</Link>)}
           <Link href="/works" className={`app-nav-link${current("/works") ? " active" : ""}`}>작품</Link>
           <Link href="/ranking" className={`app-nav-link${current("/ranking") ? " active" : ""}`}>랭킹</Link>

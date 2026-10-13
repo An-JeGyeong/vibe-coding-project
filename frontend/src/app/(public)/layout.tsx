@@ -12,7 +12,6 @@ export default function PublicLayout({ children }: Readonly<{ children: React.Re
       <div className="container d-flex flex-wrap align-items-center justify-content-between py-2 gap-2 gap-md-3">
         <Link href="/" className="app-brand text-white text-decoration-none fw-bold">망가브릿지</Link>
         <nav aria-label="주요 메뉴" className="d-flex align-items-center gap-1 flex-grow-1">
-          <Link href="/" className="app-nav-link">홈</Link>
           <Link href="/works" className="app-nav-link">작품</Link>
           <Link href="/ranking" className="app-nav-link">랭킹</Link>
           <Link href="/read" className="app-nav-link">회차 목록</Link>

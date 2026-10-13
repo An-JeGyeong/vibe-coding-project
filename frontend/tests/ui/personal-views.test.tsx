@@ -271,7 +271,7 @@ describe("theme toggle in the header (30.2)", () => {
     expect(screen.getByRole("button", { name: "라이트 모드" })).toBeTruthy();
     const nav = within(screen.getByRole("navigation", { name: "주요 메뉴" }));
     expect(nav.getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
-      ["홈", "/"], ["작품", "/works"], ["랭킹", "/ranking"], ["회차 목록", "/read"], ["작업 공간", "/demo"],
+      ["작품", "/works"], ["랭킹", "/ranking"], ["회차 목록", "/read"], ["작업 공간", "/demo"],
     ]);
   });
 });
