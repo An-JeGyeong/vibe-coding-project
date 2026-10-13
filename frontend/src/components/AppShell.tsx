@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { ROLE_INFO, ROLE_MENU_LINKS } from "@/lib/auth/roles";
+import { ThemeToggle } from "./PersonalParts";
 
 // The common header of the signed-in app (CONTRACTS-independent, display only). It shows who is signed in (as confirmed by the
 // server through /api/auth/me) and the links of that role's implemented menus. Access is still enforced by the server.
@@ -23,9 +24,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         <nav aria-label="주 메뉴" className="d-flex flex-wrap gap-1 flex-grow-1">
           {user && <Link href="/demo" className={`app-nav-link${pathname === "/demo" ? " active" : ""}`}>홈</Link>}
           {menu.map(([label, href]) => <Link key={href} href={href} className={`app-nav-link${current(href) ? " active" : ""}`}>{label}</Link>)}
+          <Link href="/works" className={`app-nav-link${current("/works") ? " active" : ""}`}>작품</Link>
           <Link href="/read" className={`app-nav-link${current("/read") ? " active" : ""}`}>공개 회차</Link>
+          <Link href="/library" className={`app-nav-link${current("/library") ? " active" : ""}`}>내 서재</Link>
+          <Link href="/my" className={`app-nav-link${current("/my") ? " active" : ""}`}>마이페이지</Link>
         </nav>
         <div className="d-flex align-items-center gap-2">
+          <ThemeToggle />
           {user
             ? <>
               <span className="small" aria-label="현재 사용자">{user.displayName} <span className="badge text-bg-secondary">{ROLE_INFO[user.role].label}</span></span>

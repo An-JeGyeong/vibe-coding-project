@@ -7,6 +7,7 @@ import { GENRES, type HomeData, type LatestEpisode, type WorkSummary } from "@/l
 import type { EpisodeFailure } from "@/lib/episodes/types";
 import { publicFailureMessage } from "@/lib/publication/messages";
 import type { PublicEpisode } from "@/lib/publication/types";
+import { useRecent } from "@/lib/personal/hooks";
 import { loadLatestPublicEpisodes } from "@/lib/reader/episodes";
 import { hasPosition } from "@/lib/reader/position";
 import { Cover, WorkGrid } from "./CatalogParts";
@@ -39,6 +40,25 @@ function EpisodeCards({ cards }: { cards: Card[] }) {
       </Link>
     </li>)}
   </ul>;
+}
+
+/** The last episodes opened in this browser (CONTRACTS 30.2); the section is absent when there are none. */
+function ContinueReading() {
+  const recent = useRecent().slice(0, 4);
+  if (recent.length === 0) return null;
+  return <section aria-label="이어 읽기" className="mb-4">
+    <h2 className="h4">이어 읽기</h2>
+    <ul className="list-unstyled row g-3">
+      {recent.map((item) => <li key={item.episodeId} className="col-12 col-md-6 col-lg-3">
+        <Link href={`/read/${encodeURIComponent(item.episodeId)}`} className="card h-100 text-decoration-none shadow-sm">
+          <div className="card-body">
+            <h3 className="h6 card-title mb-1">{item.title}</h3>
+            {item.workTitle && <p className="small text-secondary mb-0">{item.workTitle}{item.episodeNo !== null ? ` · ${item.episodeNo}화` : ""}</p>}
+          </div>
+        </Link>
+      </li>)}
+    </ul>
+  </section>;
 }
 
 /** Latest public episodes from the plain public list: the whole page when the catalog is unavailable (CONTRACTS 28.7 step a). */
@@ -159,8 +179,14 @@ export function HomeView() {
   return <main id="main-content" className="container py-5">
     <section aria-label="소개" className="home-hero mb-4">
       <h1 className="h2 mb-2">번역된 만화를 <em>읽어 보세요</em></h1>
-      <p className="text-secondary mb-0">망가브릿지에서 번역·감수를 마치고 공개된 회차를 바로 읽을 수 있습니다.</p>
+      <p className="text-secondary mb-3">망가브릿지에서 번역·감수를 마치고 공개된 회차를 바로 읽을 수 있습니다.</p>
+      <form role="search" className="d-flex gap-2" action="/works" method="get">
+        <label className="visually-hidden" htmlFor="home-query">작품 제목·작가 검색</label>
+        <input id="home-query" name="q" type="search" className="form-control" style={{ maxWidth: "26rem" }} placeholder="작품 제목이나 작가로 검색" />
+        <button type="submit" className="btn btn-primary">검색</button>
+      </form>
     </section>
+    <ContinueReading />
     {loading && home === null && failure === null && <p role="status">불러오는 중…</p>}
     {failure !== null && <>
       <div className="alert alert-warning d-flex flex-wrap align-items-center gap-2" role="alert">

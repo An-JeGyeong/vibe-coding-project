@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { THEME_BOOT_SCRIPT } from "@/lib/personal/theme";
 import "./globals.css";
 
 export const metadata: Metadata = { title: { default: "망가브릿지", template: "%s · 망가브릿지" } };
@@ -9,8 +10,9 @@ const PRETENDARD_SRI = "sha384-2nNKoOPayicGa+aRguOQuiZP+RqQ4G3jalfDeOgftkKD7zBM2
 const BOOTSTRAP_SRI = "sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB";
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="ko">
+  return <html lang="ko" suppressHydrationWarning>
     <head>
+      <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
       <link rel="stylesheet" href={BOOTSTRAP_CSS} integrity={BOOTSTRAP_SRI} crossOrigin="anonymous" />
       <link rel="stylesheet" href={PRETENDARD_CSS} integrity={PRETENDARD_SRI} crossOrigin="anonymous" />
     </head>

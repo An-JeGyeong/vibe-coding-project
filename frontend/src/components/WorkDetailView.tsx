@@ -8,6 +8,7 @@ import type { EpisodeFailure } from "@/lib/episodes/types";
 import { publicFailureMessage } from "@/lib/publication/messages";
 import { loadViewerPosition } from "@/lib/viewer/storage";
 import { Cover, GenreBadges } from "./CatalogParts";
+import { BookmarkButton } from "./PersonalParts";
 
 /** Work page (CONTRACTS 28.6): cover, facts, description and the public episodes. No login, no token, nothing role dependent. */
 export function WorkDetailView({ workId }: { workId: string }) {
@@ -58,7 +59,7 @@ export function WorkDetailView({ workId }: { workId: string }) {
     <div className="work-hero row g-4 mb-4">
       <div className="col-12 col-md-4 col-lg-3"><Cover workId={work.workId} title={work.title} hasCover={work.hasCover} className="work-detail-cover" /></div>
       <div className="col-12 col-md-8 col-lg-9">
-        <h1 className="h2 mb-1">{work.title}</h1>
+        <h1 className="h2 mb-1 d-flex align-items-center gap-2">{work.title} <BookmarkButton workId={work.workId} title={work.title} /></h1>
         <p className="mb-2">{work.author}</p>
         <p className="mb-2"><GenreBadges genres={work.genres} /></p>
         <p className="small text-secondary mb-3">

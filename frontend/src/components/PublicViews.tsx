@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { EpisodeFailure } from "@/lib/episodes/types";
 import { getPublicEpisode, listPublicEpisodes } from "@/lib/publication/client";
+import { recordRecent } from "@/lib/personal/recent";
 import { publicFailureMessage } from "@/lib/publication/messages";
 import type { PublicEpisode, PublicEpisodeList, PublicEpisodeView } from "@/lib/publication/types";
 import { filterByTitle, loadAllPublicEpisodes, neighbours, type AllPublicEpisodes } from "@/lib/reader/episodes";
@@ -186,6 +187,16 @@ export function PublicEpisodeReader({ episodeId }: { episodeId: string }) {
     // one view per episode and browser session; the answer is never shown
     if (shown && shouldCountView(episodeId)) void recordView(episodeId);
   }, [shown, episodeId]);
+
+  const recentTitle = view?.title;
+  useEffect(() => {
+    // "recently read" (CONTRACTS 30.1): written once the episode and its work are known; this browser only
+    if (!shown || recentTitle === undefined || workInfo === "pending") return;
+    recordRecent({
+      episodeId, title: recentTitle,
+      workId: workInfo?.work.workId ?? null, workTitle: workInfo?.work.title ?? null, episodeNo: workInfo?.work.episodeNo ?? null,
+    });
+  }, [shown, recentTitle, workInfo, episodeId]);
 
   function jumpTo(seq: number) {
     const element = document.getElementById(`block-${seq}`);

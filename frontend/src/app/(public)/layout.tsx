@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ThemeToggle } from "@/components/PersonalParts";
 
 export const metadata: Metadata = { title: "만화 읽기" };
 
@@ -12,10 +13,14 @@ export default function PublicLayout({ children }: Readonly<{ children: React.Re
         <Link href="/" className="app-brand text-white text-decoration-none fw-bold">망가브릿지</Link>
         <nav aria-label="주요 메뉴" className="d-flex align-items-center gap-1 flex-grow-1">
           <Link href="/" className="app-nav-link">홈</Link>
+          <Link href="/works" className="app-nav-link">작품</Link>
           <Link href="/read" className="app-nav-link">회차 목록</Link>
+          <Link href="/library" className="app-nav-link">내 서재</Link>
+          <Link href="/my" className="app-nav-link">마이페이지</Link>
           {/* the same for everyone: it does not depend on who is signed in; /demo sends a visitor without a login to the login page */}
           <Link href="/demo" className="app-nav-link">작업 공간</Link>
         </nav>
+        <ThemeToggle />
         <Link href="/login" className="btn btn-outline-light btn-sm">로그인</Link>
       </div>
     </header>

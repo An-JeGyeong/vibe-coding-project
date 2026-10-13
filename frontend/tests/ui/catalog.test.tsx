@@ -5,6 +5,7 @@ import WorkPage from "@/app/(public)/works/[id]/page";
 import ReadEpisodePage from "@/app/(public)/read/[id]/page";
 import { getEpisodeWork, getHome, getWork, listWorks, recordView } from "@/lib/catalog/client";
 import { GENRES } from "@/lib/catalog/types";
+import { loadRecent } from "@/lib/personal/recent";
 import { saveViewerPosition, SETTINGS_KEY, loadSettings } from "@/lib/viewer/storage";
 import { COUNTED_KEY, shouldCountView } from "@/lib/viewer/views";
 import { errorBody, json, mockFetch, type FetchCall } from "./helpers";
@@ -279,6 +280,23 @@ describe("viewer inside a work (28.6)", () => {
     await ready();
     fireEvent.click(screen.getByTestId("zone-left"));
     expect(shown()).toEqual(["페이지 2"]);
+  });
+
+  test("opening an episode records it as recently read, with its work (30.1)", async () => {
+    open("RTL");
+    render(<ReadEpisodePage />);
+    await ready();
+    await waitFor(() => expect(loadRecent()).toHaveLength(1));
+    expect(loadRecent()[0]).toMatchObject({ episodeId: "12", title: "둘째", workId: "1", workTitle: "작품1", episodeNo: 2 });
+  });
+
+  test("an episode that fails to load is not recorded as recently read (30.1)", async () => {
+    nav.params = { id: "12" };
+    mockFetch(() => json(404, errorBody("NOT_FOUND")));
+    render(<ReadEpisodePage />);
+    await screen.findByRole("alert");
+    await act(async () => {});
+    expect(loadRecent()).toEqual([]);
   });
 
   test("the first and last episode of the work have no previous or next link", async () => {

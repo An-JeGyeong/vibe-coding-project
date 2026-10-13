@@ -162,6 +162,7 @@ body .btn-outline-secondary {
 /* ===== Design pass: white base, charcoal chrome and lime accents (after the JOB:IN prototype) ===== */
 html:root {
   --page-bg: #f7f7f5;
+  --surface: #ffffff;
   --line: #e8e8e4;
   --ink: #222222;
   --radius: 1rem;
@@ -185,7 +186,7 @@ body header .app-brand { color: var(--lime) !important; font-size: 1.2rem; lette
 .app-nav-link.active { color: var(--lime); background: rgba(200, 245, 154, 0.2); }
 
 /* surfaces: white cards on a very light page, large radii, soft shadows */
-.card, .card.shadow-sm { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); }
+.card, .card.shadow-sm { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
 .card.shadow-sm { box-shadow: var(--shadow-1) !important; }
 .btn { border-radius: 0.75rem; font-weight: 700; }
 .badge { font-weight: 700; letter-spacing: 0; border-radius: 999px; padding: 0.4em 0.75em; }
@@ -218,7 +219,7 @@ body .home-hero .text-secondary { color: #d4d4d0 !important; position: relative;
 .rank-badge.top { background: var(--lime); color: var(--lime-ink); }
 
 /* work page */
-.work-hero { background: #fff; border: 1px solid var(--line); border-radius: 1.5rem; padding: 1.25rem 0.5rem 1.25rem 0.25rem; margin-left: 0; margin-right: 0; box-shadow: var(--shadow-1); }
+.work-hero { background: var(--surface); border: 1px solid var(--line); border-radius: 1.5rem; padding: 1.25rem 0.5rem 1.25rem 0.25rem; margin-left: 0; margin-right: 0; box-shadow: var(--shadow-1); }
 .work-detail-cover { box-shadow: var(--shadow-2); }
 
 /* viewer: stays dark (the usual reading setting), with lime accents */
@@ -232,8 +233,71 @@ body .home-hero .text-secondary { color: #d4d4d0 !important; position: relative;
 @media (prefers-reduced-motion: reduce) { .viewer-progress > span { transition: none; } }
 
 /* footer */
-.public-footer { background: #fff; border-top: 1px solid var(--line) !important; }
+.public-footer { background: var(--surface); border-top: 1px solid var(--line) !important; }
 
 /* narrow screens: the menu moves under the brand and never wraps inside a link */
 .app-nav-link { white-space: nowrap; }
 @media (max-width: 575.98px) { header.app-header nav { order: 3; width: 100%; } header.app-header .app-brand { margin-right: auto; } }
+
+/* ===== Personal features (CONTRACTS 30): heart button ===== */
+.bookmark-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 2.25rem; height: 2.25rem; padding: 0; border: 1px solid #5a5a5a; border-radius: 999px; background: #272727; color: #fff; font-size: 1.15rem; line-height: 1; cursor: pointer; }
+.bookmark-btn:hover { border-color: var(--lime-3); }
+.bookmark-btn.on { color: var(--lime); border-color: var(--lime-3); }
+.bookmark-corner { position: absolute; top: 0.5rem; right: calc(0.5rem + var(--bs-gutter-x) * 0.5); z-index: 3; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35); }
+.theme-toggle { white-space: nowrap; }
+
+/* ===== Dark mode (CONTRACTS 30.3): colours change through variables; the viewer is dark in both themes ===== */
+html:root[data-bs-theme="dark"] {
+  --page-bg: #161616;
+  --surface: #1f1f1f;
+  --line: #333333;
+  --ink: #f1f1ef;
+  --brand: #a8e66a;
+  --brand-soft: #26331a;
+  --bs-primary-rgb: 168, 230, 106;
+  --bs-link-color: #a8e66a;
+  --bs-link-color-rgb: 168, 230, 106;
+  --bs-link-hover-color: #c8f59a;
+  --bs-link-hover-color-rgb: 200, 245, 154;
+  --bs-body-bg: #161616;
+  --bs-body-color: var(--ink);
+  --bs-border-color: var(--line);
+  --bs-secondary-color: #b5b9bd;
+  --bs-emphasis-color: #ffffff;
+}
+[data-bs-theme="dark"] body.bg-body-tertiary { background-color: var(--page-bg) !important; }
+[data-bs-theme="dark"] body .text-secondary { color: #b5b9bd !important; }
+[data-bs-theme="dark"] body .text-danger { color: #ff8b94 !important; }
+[data-bs-theme="dark"] body .text-success { color: #6fd9a0 !important; }
+[data-bs-theme="dark"] body .btn-outline-primary {
+  --bs-btn-color: var(--brand); --bs-btn-border-color: var(--brand);
+  --bs-btn-hover-color: var(--lime-ink); --bs-btn-hover-bg: var(--brand); --bs-btn-hover-border-color: var(--brand);
+  --bs-btn-active-color: var(--lime-ink); --bs-btn-active-bg: var(--lime); --bs-btn-active-border-color: var(--lime);
+  --bs-btn-disabled-color: var(--brand); --bs-btn-disabled-border-color: var(--brand);
+}
+[data-bs-theme="dark"] body .btn-outline-secondary {
+  --bs-btn-color: #b5b9bd; --bs-btn-border-color: #6b7075; --bs-btn-hover-color: #161616; --bs-btn-hover-bg: #b5b9bd; --bs-btn-hover-border-color: #b5b9bd;
+  --bs-btn-active-color: #161616; --bs-btn-active-bg: #d4d7da; --bs-btn-active-border-color: #d4d7da; --bs-btn-disabled-color: #b5b9bd; --bs-btn-disabled-border-color: #6b7075;
+}
+[data-bs-theme="dark"] body .btn-outline-danger {
+  --bs-btn-color: #ff8b94; --bs-btn-border-color: #ff8b94; --bs-btn-hover-color: #161616; --bs-btn-hover-bg: #ff8b94; --bs-btn-hover-border-color: #ff8b94;
+  --bs-btn-active-color: #161616; --bs-btn-active-bg: #ffb0b6; --bs-btn-active-border-color: #ffb0b6; --bs-btn-disabled-color: #ff8b94; --bs-btn-disabled-border-color: #ff8b94;
+}
+[data-bs-theme="dark"] body .btn-outline-success {
+  --bs-btn-color: #6fd9a0; --bs-btn-border-color: #6fd9a0; --bs-btn-hover-color: #161616; --bs-btn-hover-bg: #6fd9a0; --bs-btn-hover-border-color: #6fd9a0;
+  --bs-btn-active-color: #161616; --bs-btn-active-bg: #9be8bd; --bs-btn-active-border-color: #9be8bd; --bs-btn-disabled-color: #6fd9a0; --bs-btn-disabled-border-color: #6fd9a0;
+}
+[data-bs-theme="dark"] body .btn-outline-warning {
+  --bs-btn-color: #ffda6a; --bs-btn-border-color: #ffda6a; --bs-btn-hover-color: #000; --bs-btn-hover-bg: #ffc107; --bs-btn-hover-border-color: #ffc107;
+  --bs-btn-disabled-color: #ffda6a; --bs-btn-disabled-border-color: #ffda6a;
+}
+[data-bs-theme="dark"] .text-bg-primary { background-color: var(--lime) !important; color: var(--lime-ink) !important; }
+[data-bs-theme="dark"] .section-nav a { color: var(--ink); }
+[data-bs-theme="dark"] .section-nav a:hover { background: var(--brand); color: var(--lime-ink); }
+[data-bs-theme="dark"] .form-control, [data-bs-theme="dark"] .form-select { border-color: #4a4a4a; }
+[data-bs-theme="dark"] .cover-img { background: #2a2a2a; }
+[data-bs-theme="dark"] .skip-link { background: var(--surface); color: var(--ink); }
+[data-bs-theme="dark"] :focus-visible { outline-color: rgba(168, 230, 106, 0.85); }
+[data-bs-theme="dark"] .home-card:hover, [data-bs-theme="dark"] .work-card:hover { box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.6) !important; }
+[data-bs-theme="dark"] .card.shadow-sm { box-shadow: none !important; }
+[data-bs-theme="dark"] .table-hover > tbody > tr:hover > * { color: var(--ink); }

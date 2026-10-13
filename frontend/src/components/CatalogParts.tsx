@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { coverUrl } from "@/lib/catalog/client";
 import type { WorkSummary } from "@/lib/catalog/types";
+import { BookmarkButton } from "./PersonalParts";
 
 /** A cover from the public API, or a lettered placeholder when the work has none or the image fails. */
 export function Cover({ workId, title, hasCover, className = "" }: { workId: string; title: string; hasCover: boolean; className?: string }) {
@@ -36,6 +37,7 @@ export function WorkGrid({ works, label, ranked = false }: { works: WorkSummary[
     {works.map((work, index) => <li key={work.workId} className="col-6 col-md-4 col-lg-3 col-xl-2 position-relative">
       {ranked && <span className={`rank-badge${index < 3 ? " top" : ""}`} aria-hidden="true">{index + 1}</span>}
       <WorkCard work={work} />
+      <BookmarkButton workId={work.workId} title={work.title} className="bookmark-corner" />
     </li>)}
   </ul>;
 }
