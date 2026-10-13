@@ -1302,3 +1302,12 @@ Flyway 이력은 V35/35행→V36/36행, V36 success=1이며 V1~V35 전체 이력
 증빙은 ignored `backend/build/verification/rank31`의 full-10.log·full-11.log, reports-10·reports-11, main-before.txt·main-after-1.txt·main-after-2.txt 및 worktree-evidence에 보존했습니다. 비밀번호·토큰·AI 키를 코드·README·보고에 추가하지 않았으며 시드 비밀번호는 일회용 프로세스 안에서만 생성했습니다.
 
 정리: 소유 컨테이너 b8e482d5e64a…의 전체 ID를 대조해 stop --timeout 10(종료 코드 0), --rm 자동 정리·3337 리스너 0을 확인했습니다. 기존 개발 컨테이너 49c9b14620e0…는 running/healthy로 유지했으며 3306 데이터·기존 8080/8081/3000·frontend/.next·next-env.d.ts는 변경하지 않았습니다. 통합된 worktree는 증빙을 복사한 뒤 아카이브 완료 상태를 확인했습니다. 상대 프런트 미커밋 변경과 PROJECT_CONTEXT.md의 i/lf w/crlf M은 보존했습니다. 계약과 다른 구현은 없습니다. 개발 DB V37 적용과 실제 브라우저 검증은 **미실행**이며 별도 승인·검증 단계로 남습니다.
+
+### 개발 DB V37 적용 (2026-10-13, CONTRACTS 31절)
+
+수행: Claude Code(사용자 요청으로 Codex 대신 수행). 개발 DB 컨테이너 vibe-coding-project-mysql-1(healthy)을 바꾸지 않고, 구버전 백엔드(8080)를 종료한 뒤 최신 코드로 다시 기동해 Flyway가 V37을 적용했습니다.
+
+- 적용 전 백업: mysqldump(--single-transaction), 22개 테이블, "Dump completed" 확인, SHA-256 fac7cef26e40509e2065b51811a7cf97f7b1b9065f97199d5dc90883f8e61bd7. 전체 테이블의 행 수·CHECKSUM TABLE 스냅샷(before.txt)을 함께 저장.
+- 적용 후: flyway_schema_history 37행(V37 success=1), V1~V36 행(버전·성공 여부·체크섬) 동일. 기존 21개 테이블의 행 수·체크섬이 전부 동일. 새 테이블 episode_view_daily(PK episode_id+view_date, FK RESTRICT, CHECK view_count>=1)와 work_recommend(PK work_id+voter_key, FK RESTRICT, CHECK voter_key 형식)는 31.1과 일치하고 0행.
+- 스모크: GET /api/public/rankings week·month·year 200(빈 배열), GET /api/public/works 응답의 작품에 recommendCount, POST recommend 200(1) → 같은 키 반복 200(1, 멱등) → unrecommend 200(0), 잘못된 키 400, GET recommend 405, 없는 작품 404. 화면 확인(추천 +1·주간 랭킹 1위 10점)과 취소 후 두 테이블 0행, 데이터 테이블이 적용 직후와 동일함을 다시 확인.
+- 증빙: ignored backend/build/v37-apply(백업 .sql, before.txt, after.txt, final.txt, spring.log). 백엔드는 8080에 신버전으로 켜 둠, 프런트(3000)와 컨테이너는 그대로.
