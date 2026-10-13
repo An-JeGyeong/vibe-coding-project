@@ -1318,6 +1318,7 @@ NOT NULL 규칙은 **모든 도메인·인증 테이블**에 적용한다. NULL 
 ### 31.7 파일 소유권·구현 순서·완료 조건
 - Codex 변경: `backend/src/main/resources/db/migration/V37__…`, backend/src/main, backend/src/test, README 기록.
   - **기존 통합 테스트는 수정 없이 통과해야 한다. 단, V37 적용에 따른 기계적 변경만 허용(28.7과 같은 처리)**: 최신 마이그레이션 버전 36→37, 허용 테이블 목록에 `episode_view_daily`·`work_recommend` 추가, 전체 적용·이력 수 +1, V9 업그레이드 적용 수 +1, 작품 요약 필드 목록 단언에 `recommendCount` 추가. 변경한 단언 목록을 보고하고, 이 범위 밖의 기존 테스트가 깨지면 멈춰 보고한다.
+  - **정정 2026-10-13 (사용자 승인)**: 기존 통합 테스트의 `@AfterEach` 정리 코드에서, 그 테스트가 만든 episode id에 한해 `episode_view_daily` 행(그리고 같은 이유로 RESTRICT FK에 걸리는 V37 신규 테이블 행)을 회차·작품 삭제 전에 먼저 지우는 변경을 허용한다. 근거: 31.2의 일별 기록과 V37의 RESTRICT FK 때문에 조회 API를 호출한 뒤 회차를 지우는 기존 테스트(`WorkIntegrationTest` 등)의 정리가 거부된다. `WorkIntegrationTest.cleanup()`을 포함해 같은 패턴의 다른 기존 통합 테스트에도 정리 코드 추가만 허용하며, 기존 단언·동작 검증은 바꾸지 않는다. 변경한 정리 코드 위치를 완료 보고에 목록으로 포함한다.
   - **구현 순서(사용량이 부족하면 앞 단계까지 커밋하고 멈춰도 된다)**: ① V37 + recordView 일별 기록 ② 추천·취소 API와 `recommendCount` ③ 랭킹 API. 단계마다 테스트를 통과시키고 커밋한다.
   - 개발 DB(3306)에는 백업과 사용자 확인 후에만 V37을 적용한다.
 - Claude Code 변경: frontend/src, frontend/tests/ui, DEMO_SCRIPT.md, STATUS.md. 변경 금지: V1~V36, 기존 API의 기존 필드·동작, PROJECT_CONTEXT.md, 서로의 영역.
