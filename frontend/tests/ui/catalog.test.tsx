@@ -116,7 +116,7 @@ describe("main page with the catalog (28.6)", () => {
     expect(within(screen.getByRole("region", { name: "운영자 추천" })).getByRole("link", { name: /작품4/ })).toBeTruthy();
     expect(GENRES.every((genre) => screen.getByRole("button", { name: genre }))).toBe(true);
     expect(screen.getByRole("button", { name: "전체" })).toBeTruthy();
-    expect(calls.map((call) => call.path)).toEqual(["/api/public/home"]);
+    expect(calls.map((call) => call.path).sort()).toEqual(["/api/public/home", "/api/public/rankings"]); // the ranking is asked for with the home bundle (31.6); no genre list yet
   });
 
   test("a cover is a public image URL with the work title as alt text; a failing cover falls back to a lettered placeholder", async () => {

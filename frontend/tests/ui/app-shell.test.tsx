@@ -31,7 +31,7 @@ describe("app shell", () => {
     expect(user.getByText(ROLE_INFO[role].label)).toBeTruthy();
     const nav = within(screen.getByRole("navigation", { name: "주 메뉴" }));
     const links = nav.getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")]);
-    expect(links).toEqual([["홈", "/demo"], ...Object.entries(ROLE_MENU_LINKS[role]), ["작품", "/works"], ["공개 회차", "/read"], ["내 서재", "/library"], ["마이페이지", "/my"]]);
+    expect(links).toEqual([["홈", "/demo"], ...Object.entries(ROLE_MENU_LINKS[role]), ["작품", "/works"], ["랭킹", "/ranking"], ["공개 회차", "/read"], ["내 서재", "/library"], ["마이페이지", "/my"]]);
     expect(screen.getByText("본문")).toBeTruthy();
   });
 
@@ -58,7 +58,7 @@ describe("app shell", () => {
     nav.pathname = "/episodes";
     const first = renderWithAuth(<AppShell>x</AppShell>);
     expect(await screen.findByRole("link", { name: "로그인" })).toBeTruthy();
-    expect(screen.getAllByRole("navigation", { name: "주 메뉴" })[0].textContent).toBe("작품공개 회차내 서재마이페이지");
+    expect(screen.getAllByRole("navigation", { name: "주 메뉴" })[0].textContent).toBe("작품랭킹공개 회차내 서재마이페이지");
     expect(screen.queryByRole("button", { name: "로그아웃" })).toBeNull();
     first.unmount();
     nav.pathname = "/login";

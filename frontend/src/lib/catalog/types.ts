@@ -8,7 +8,7 @@ export type ReadingDirection = "RTL" | "LTR";
 
 export type WorkSummary = {
   workId: string; title: string; author: string; genres: string[]; hasCover: boolean;
-  episodeCount: number; latestPublishedAt: string; views: number;
+  episodeCount: number; latestPublishedAt: string; views: number; recommendCount: number;
 };
 export type LatestEpisode = {
   episodeId: string; title: string; publishedAt: string; workId: string | null; workTitle: string | null; episodeNo: number | null;

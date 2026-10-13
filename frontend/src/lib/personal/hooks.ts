@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { addToLibrary, loadLibrary, removeFromLibrary, type LibraryEntry } from "./library";
 import { loadRecent, type RecentEpisode } from "./recent";
 import { PERSONAL_EVENT } from "./storage";
+import { loadRecommended } from "./voter";
 import { loadTheme, saveTheme, type Theme } from "./theme";
 
 /** Re-reads whenever any screen of this tab (or another tab) changes the browser data. Starts empty so the server-rendered page matches. */
@@ -37,4 +38,11 @@ export function useRecent() {
 export function useTheme(): [Theme, (theme: Theme) => void] {
   const theme = useStored(loadTheme, "light" as Theme);
   return [theme, saveTheme];
+}
+
+const EMPTY_IDS: string[] = [];
+/** The works this browser recommended (CONTRACTS 31.6). */
+export function useRecommended() {
+  const ids = useStored(loadRecommended, EMPTY_IDS);
+  return { has: (workId: string) => ids.includes(workId) };
 }

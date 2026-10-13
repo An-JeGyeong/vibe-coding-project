@@ -8,7 +8,7 @@ import type { EpisodeFailure } from "@/lib/episodes/types";
 import { publicFailureMessage } from "@/lib/publication/messages";
 import { loadViewerPosition } from "@/lib/viewer/storage";
 import { Cover, GenreBadges } from "./CatalogParts";
-import { BookmarkButton } from "./PersonalParts";
+import { BookmarkButton, RecommendButton } from "./PersonalParts";
 
 /** Work page (CONTRACTS 28.6): cover, facts, description and the public episodes. No login, no token, nothing role dependent. */
 export function WorkDetailView({ workId }: { workId: string }) {
@@ -62,6 +62,7 @@ export function WorkDetailView({ workId }: { workId: string }) {
         <h1 className="h2 mb-1 d-flex align-items-center gap-2">{work.title} <BookmarkButton workId={work.workId} title={work.title} /></h1>
         <p className="mb-2">{work.author}</p>
         <p className="mb-2"><GenreBadges genres={work.genres} /></p>
+        <p className="mb-2"><RecommendButton workId={work.workId} title={work.title} initialCount={work.recommendCount} /></p>
         <p className="small text-secondary mb-3">
           {work.episodeCount}개 회차 · 조회 {work.views.toLocaleString("ko-KR")} · 읽기 방향 {work.readingDirection === "RTL" ? "오른쪽→왼쪽" : "왼쪽→오른쪽"}
         </p>

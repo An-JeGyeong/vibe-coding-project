@@ -25,6 +25,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           {user && <Link href="/demo" className={`app-nav-link${pathname === "/demo" ? " active" : ""}`}>홈</Link>}
           {menu.map(([label, href]) => <Link key={href} href={href} className={`app-nav-link${current(href) ? " active" : ""}`}>{label}</Link>)}
           <Link href="/works" className={`app-nav-link${current("/works") ? " active" : ""}`}>작품</Link>
+          <Link href="/ranking" className={`app-nav-link${current("/ranking") ? " active" : ""}`}>랭킹</Link>
           <Link href="/read" className={`app-nav-link${current("/read") ? " active" : ""}`}>공개 회차</Link>
           <Link href="/library" className={`app-nav-link${current("/library") ? " active" : ""}`}>내 서재</Link>
           <Link href="/my" className={`app-nav-link${current("/my") ? " active" : ""}`}>마이페이지</Link>

@@ -14,6 +14,7 @@ export default function PublicLayout({ children }: Readonly<{ children: React.Re
         <nav aria-label="주요 메뉴" className="d-flex align-items-center gap-1 flex-grow-1">
           <Link href="/" className="app-nav-link">홈</Link>
           <Link href="/works" className="app-nav-link">작품</Link>
+          <Link href="/ranking" className="app-nav-link">랭킹</Link>
           <Link href="/read" className="app-nav-link">회차 목록</Link>
           <Link href="/library" className="app-nav-link">내 서재</Link>
           <Link href="/my" className="app-nav-link">마이페이지</Link>

@@ -27,7 +27,7 @@ export function WorkCard({ work }: { work: WorkSummary }) {
       <h3 className="h6 card-title mb-1">{work.title}</h3>
       <p className="small text-secondary mb-1">{work.author}</p>
       <p className="mb-1"><GenreBadges genres={work.genres} /></p>
-      <p className="small text-secondary mb-0">{work.episodeCount}개 회차 · 조회 {work.views.toLocaleString("ko-KR")}</p>
+      <p className="small text-secondary mb-0">{work.episodeCount}개 회차 · 조회 {work.views.toLocaleString("ko-KR")} · 추천 {work.recommendCount.toLocaleString("ko-KR")}</p>
     </div>
   </Link>;
 }

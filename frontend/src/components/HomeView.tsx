@@ -11,6 +11,7 @@ import { useRecent } from "@/lib/personal/hooks";
 import { loadLatestPublicEpisodes } from "@/lib/reader/episodes";
 import { hasPosition } from "@/lib/reader/position";
 import { Cover, WorkGrid } from "./CatalogParts";
+import { HomeRanking } from "./RankingViews";
 
 const LATEST_COUNT = 12;
 const NEW_WITHIN_MS = 3 * 24 * 60 * 60 * 1000; // an episode counts as new for three days
@@ -203,10 +204,7 @@ export function HomeView() {
       </div>
       <EpisodeCards cards={home.latest.map(fromLatest)} />
     </section>}
-    {home !== null && home.popular.length > 0 && <section aria-label="인기 작품" className="mb-4">
-      <h2 className="h4">인기 작품</h2>
-      <WorkGrid works={home.popular} label="인기 작품 목록" ranked />
-    </section>}
+    {home !== null && <HomeRanking popular={home.popular} />}
     {home !== null && home.featured.length > 0 && <section aria-label="운영자 추천" className="mb-4">
       <h2 className="h4">운영자 추천</h2>
       <WorkGrid works={home.featured} label="운영자 추천 작품 목록" />

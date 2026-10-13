@@ -7,11 +7,14 @@ import type { EpisodeWork, HomeData, LatestEpisode, ReadingDirection, WorkDetail
 const id = (value: string) => encodeURIComponent(value);
 const direction = (value: unknown): value is ReadingDirection => value === "RTL" || value === "LTR";
 
-function summary(value: unknown): WorkSummary | null {
+/** recommendCount is optional on the wire so a server without CONTRACTS 31 still works (it then reads as 0); when present it must be a non-negative integer. */
+export function summary(value: unknown): WorkSummary | null {
   if (!isRecord(value) || !isStr(value.workId) || !isStr(value.title) || !isStr(value.author) || !Array.isArray(value.genres)
     || !value.genres.every(isStr) || typeof value.hasCover !== "boolean" || !isInt(value.episodeCount) || !isTime(value.latestPublishedAt) || !isInt(value.views)) return null;
+  const recommendCount = value.recommendCount ?? 0;
+  if (!isInt(recommendCount) || recommendCount < 0) return null;
   return { workId: value.workId, title: value.title, author: value.author, genres: value.genres as string[], hasCover: value.hasCover,
-    episodeCount: value.episodeCount, latestPublishedAt: value.latestPublishedAt, views: value.views };
+    episodeCount: value.episodeCount, latestPublishedAt: value.latestPublishedAt, views: value.views, recommendCount };
 }
 function summaries(value: unknown): WorkSummary[] | null {
   if (!Array.isArray(value)) return null;
