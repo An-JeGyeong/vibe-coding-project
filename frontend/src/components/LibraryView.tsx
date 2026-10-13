@@ -16,29 +16,39 @@ export function LibraryView({ nested = false }: { nested?: boolean }) {
   const library = useLibrary();
   const [slots, setSlots] = useState<Record<string, Slot>>({});
   const requested = useRef(new Set<string>());
+  const lifetime = useRef<AbortController | null>(null);
+  // in-flight lookups end with the screen, not when the list changes (a work asked for once is not asked for again)
+  useEffect(() => { const controller = new AbortController(); lifetime.current = controller; return () => controller.abort(); }, []);
+
+  const queue = useRef<string[]>([]);
+  const active = useRef(0);
+
+  // at most four lookups run at the same time, however the list grows (it can arrive in several steps)
+  function pump(signal: AbortSignal) {
+    while (active.current < CONCURRENCY && queue.current.length > 0 && !signal.aborted) {
+      const id = queue.current.shift() as string;
+      active.current++;
+      void (async () => {
+        const result = await getWork(id, signal);
+        if (signal.aborted || (!result.ok && result.failure.kind === "aborted")) return;
+        const slot: Slot = result.ok ? { state: "ready", work: result.value }
+          : result.failure.kind === "not_found" ? { state: "gone" } : { state: "failed" };
+        if (slot.state === "failed") requested.current.delete(id); // a retry happens on the next visit
+        setSlots((previous) => ({ ...previous, [id]: slot }));
+      })().finally(() => { active.current--; pump(signal); });
+    }
+  }
 
   useEffect(() => {
-    const request = new AbortController();
+    const controller = lifetime.current;
+    if (controller === null) return;
     const wanted = library.entries.map((entry) => entry.workId).filter((id) => !requested.current.has(id));
     for (const id of wanted) requested.current.add(id);
     if (wanted.length === 0) return;
     setSlots((previous) => ({ ...previous, ...Object.fromEntries(wanted.map((id) => [id, { state: "loading" } as Slot])) }));
-    let next = 0;
-    async function worker() {
-      while (next < wanted.length && !request.signal.aborted) {
-        const id = wanted[next++];
-        const result = await getWork(id, request.signal);
-        if (request.signal.aborted) return;
-        const slot: Slot = result.ok ? { state: "ready", work: result.value }
-          : result.failure.kind === "not_found" ? { state: "gone" } : { state: "failed" };
-        if (!result.ok && result.failure.kind === "aborted") return;
-        if (slot.state === "failed") requested.current.delete(id); // a retry happens on the next visit
-        setSlots((previous) => ({ ...previous, [id]: slot }));
-      }
-    }
-    void Promise.all(Array.from({ length: Math.min(CONCURRENCY, wanted.length) }, () => worker()));
-    return () => request.abort();
-  }, [library.entries]);
+    queue.current.push(...wanted);
+    pump(controller.signal);
+  }, [library.entries]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (library.entries.length === 0) {
     return <p className="text-secondary empty-note">아직 담은 작품이 없습니다. <Link href="/works">작품 찾기</Link>에서 하트를 눌러 담아 보세요.</p>;

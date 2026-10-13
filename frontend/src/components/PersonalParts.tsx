@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useLibrary, useRecommended, useTheme } from "@/lib/personal/hooks";
 import { getVoterKey, setRecommended } from "@/lib/personal/voter";
+import { setAccountRecommendation } from "@/lib/account/client";
+import { currentToken, dropToken, notifyPersonalChange } from "@/lib/personal/stores";
 import { setRecommendation } from "@/lib/ranking/client";
 
 /** Heart button: puts a work into "my library" or takes it out (CONTRACTS 30.2). Never inside a link. */
@@ -36,9 +38,16 @@ export function RecommendButton({ workId, title, initialCount }: { workId: strin
     if (busy) return;
     setBusy(true);
     setFailed(null);
-    const result = await setRecommendation(workId, getVoterKey(), !on);
+    const token = currentToken();
+    // signed in: the account's own vote on the server (one per work on any device); otherwise the anonymous key of this browser
+    const result = token !== null ? await setAccountRecommendation(token, workId, !on) : await setRecommendation(workId, getVoterKey(), !on);
     setBusy(false);
-    if (result.ok) { setRecommended(workId, result.value.recommended); setCount(result.value.recommendCount); return; }
+    if (result.ok) {
+      if (token === null) setRecommended(workId, result.value.recommended); else notifyPersonalChange();
+      setCount(result.value.recommendCount);
+      return;
+    }
+    if (token !== null && result.failure.kind === "unauthorized") { dropToken(); setFailed("로그인이 만료되었습니다. 다시 시도하세요."); return; }
     setFailed(result.failure.kind === "not_found" ? "공개되지 않은 작품입니다." : "추천을 처리하지 못했습니다. 잠시 뒤 다시 시도하세요.");
   }
 

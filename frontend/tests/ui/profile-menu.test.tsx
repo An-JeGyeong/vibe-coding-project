@@ -41,7 +41,7 @@ describe("profile popup of the public header (30.2, D-063)", () => {
     const popup = within(await screen.findByRole("region", { name: "프로필 메뉴" }));
     expect(popup.getByText("로그인하지 않았습니다.")).toBeTruthy();
     expect(popup.getByRole("link", { name: "로그인" }).getAttribute("href")).toBe("/login");
-    expect(popup.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/login", "/my", "/payments", "/settings"]);
+    expect(popup.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/login", "/signup", "/my", "/payments", "/settings"]);
     expect(popup.getByRole("button", { name: "다크 모드" })).toBeTruthy();
     expect(calls).toHaveLength(0);
   });
@@ -118,7 +118,7 @@ describe("profile storage and settings page (D-063)", () => {
     mockFetch((call) => (call.path === "/api/auth/me" ? json(200, meBody("REVIEWER")) : noContent()));
     render(<SettingsPage />);
     expect(await screen.findByText("데모 감수자")).toBeTruthy();
-    expect(screen.getByText(/서버 정보라 여기서 바꿀 수 없습니다/)).toBeTruthy();
+    expect(screen.getByText(/업무용 데모 계정의 역할은 바꿀 수 없습니다/)).toBeTruthy();
   });
 });
 

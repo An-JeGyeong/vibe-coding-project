@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { syncAfterSignIn } from "@/lib/personal/sync";
 import { requestLogout, requestMe } from "./client";
+import { AUTH_EVENT } from "./events";
 import { clearToken, readToken } from "./storage";
 import type { AuthUser } from "./types";
 
-export const AUTH_EVENT = "mangabridge:auth";
+export { AUTH_EVENT };
 export type Account = { state: "checking" } | { state: "none" } | { state: "user"; user: AuthUser } | { state: "unreachable" };
 
 /**
@@ -21,12 +23,17 @@ export function useAccount() {
     const check = () => {
       request?.abort();
       const stored = readToken();
-      if (!stored.ok || stored.token === null) { setAccount({ state: "none" }); return; }
+      const token = stored.ok ? stored.token : null;
+      if (token === null) { setAccount({ state: "none" }); return; }
       const mine = new AbortController();
       request = mine;
-      void requestMe(stored.token, mine.signal).then((result) => {
+      void requestMe(token, mine.signal).then((result) => {
         if (mine.signal.aborted) return;
-        if (result.ok) { setAccount({ state: "user", user: result.value.user }); return; }
+        if (result.ok) {
+          setAccount({ state: "user", user: result.value.user });
+          void syncAfterSignIn(token, result.value.user.id);   // the browser's own data joins the account once
+          return;
+        }
         if (result.failure.kind === "unauthorized") { clearToken(); setAccount({ state: "none" }); return; }
         setAccount({ state: "unreachable" });
       });

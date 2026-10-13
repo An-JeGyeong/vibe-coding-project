@@ -5,9 +5,7 @@ import { useEffect, useState } from "react";
 import { LibraryView } from "./LibraryView";
 import { ROLE_INFO } from "@/lib/auth/roles";
 import { useAccount } from "@/lib/auth/useAccount";
-import { useRecent, useTheme } from "@/lib/personal/hooks";
-import { clearLibrary } from "@/lib/personal/library";
-import { clearRecent } from "@/lib/personal/recent";
+import { clearLibraryEntries, clearRecentEpisodes, useRecent, useTheme } from "@/lib/personal/hooks";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, type ViewerSettings } from "@/lib/viewer/storage";
 
 /** The only area of the page that looks at the sign-in state (CONTRACTS 30.2 area 1). The server is asked only when a token exists. */
@@ -42,7 +40,7 @@ function RecentArea() {
   return <section aria-labelledby="my-recent" className="card card-body mb-3">
     <div className="d-flex justify-content-between align-items-center mb-2">
       <h2 id="my-recent" className="h5 mb-0">최근 본 회차</h2>
-      {recent.length > 0 && <button type="button" className="btn btn-outline-secondary btn-sm" onClick={clearRecent}>기록 지우기</button>}
+      {recent.length > 0 && <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => void clearRecentEpisodes()}>기록 지우기</button>}
     </div>
     {recent.length === 0 ? <p className="mb-0">최근 본 회차가 없습니다.</p> : <ul className="list-unstyled mb-0">
       {recent.map((item) => <li key={item.episodeId} className="py-1">
@@ -90,7 +88,7 @@ function ThemeArea() {
 function ClearArea() {
   const [confirming, setConfirming] = useState(false);
   const [done, setDone] = useState(false);
-  function wipe() { clearLibrary(); clearRecent(); setConfirming(false); setDone(true); }
+  function wipe() { setConfirming(false); void Promise.all([clearLibraryEntries(), clearRecentEpisodes()]).then(() => setDone(true)); }
   return <section aria-labelledby="my-clear" className="card card-body mb-3">
     <h2 id="my-clear" className="h5">내 기록 지우기</h2>
     <p className="small text-secondary">이 브라우저에 저장된 내 서재와 최근 본 회차를 지웁니다. 읽기 설정과 테마는 그대로입니다.</p>

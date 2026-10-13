@@ -30,7 +30,8 @@ describe("reader main page when the catalog is unavailable: the simple latest li
     const titles = cards.filter((link) => link.getAttribute("href")?.startsWith("/read/")).map((link) => within(link).getByRole("heading").textContent);
     expect(titles).toEqual(["30화", "29화", "28화", "27화", "26화", "25화", "24화", "23화", "22화", "21화", "20화", "19화"]);
     expect(calls.filter((call) => call.path === "/api/public/episodes").map((call) => new URL(call.url).search)).toEqual(["?limit=12&offset=0", "?limit=12&offset=18"]);
-    for (const call of calls) expect(call.headers.Authorization ?? call.headers.authorization).toBeUndefined();
+    // the public calls never carry the token; only the account's own data (/api/me) does (CONTRACTS 32.7)
+    for (const call of calls.filter((item) => item.path.startsWith("/api/public"))) expect(call.headers.Authorization ?? call.headers.authorization).toBeUndefined();
     expect(screen.getByRole("link", { name: "30화 공개 2026-10-08" }).getAttribute("href")).toBe("/read/30");
     expect(screen.getByRole("heading", { name: "번역된 만화를 읽어 보세요" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "전체 회차 보기" }).getAttribute("href")).toBe("/read");

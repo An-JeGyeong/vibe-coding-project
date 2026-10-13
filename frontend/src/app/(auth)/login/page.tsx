@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { LoginForm } from "@/components/LoginForm";
@@ -26,6 +27,7 @@ export default function LoginPage() {
         <button type="button" className="btn btn-primary" onClick={auth.retry}>다시 확인</button>
       </div>}
       <section className="card card-body shadow-sm"><LoginForm /></section>
+      <p className="small mt-3">아직 계정이 없나요? <Link href="/signup">회원가입</Link></p>
     </>}
   </main>;
 }

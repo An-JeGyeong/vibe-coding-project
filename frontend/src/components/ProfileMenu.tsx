@@ -39,7 +39,7 @@ export function ProfileMenu({ account, onLogout, leaving = false, hideLogin = fa
         {account.state === "unreachable" && <p role="alert" className="mb-0 small text-danger">로그인 상태를 확인하지 못했습니다.</p>}
         {account.state === "none" && <>
           <p className="mb-2 small">로그인하지 않았습니다.</p>
-          {!hideLogin && <Link href="/login" className="btn btn-primary btn-sm w-100" onClick={() => setOpen(false)}>로그인</Link>}
+          {!hideLogin && <div className="d-flex gap-2"><Link href="/login" className="btn btn-primary btn-sm flex-fill" onClick={() => setOpen(false)}>로그인</Link><Link href="/signup" className="btn btn-outline-secondary btn-sm flex-fill" onClick={() => setOpen(false)}>회원가입</Link></div>}
         </>}
         {account.state === "user" && <>
           <p className="mb-2" aria-label="현재 사용자">{account.user.displayName} <span className="badge text-bg-secondary">{ROLE_INFO[account.user.role].label}</span></p>
