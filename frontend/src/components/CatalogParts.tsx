@@ -20,14 +20,16 @@ export function GenreBadges({ genres }: { genres: string[] }) {
   return <>{genres.map((genre) => <span key={genre} className="badge text-bg-light border me-1">{genre}</span>)}</>;
 }
 
-export function WorkCard({ work }: { work: WorkSummary }) {
+/** `cumulative` names the totals as such: on a ranking card they sit next to the period figures (D-064). */
+export function WorkCard({ work, cumulative = false }: { work: WorkSummary; cumulative?: boolean }) {
+  const prefix = cumulative ? "누적 " : "";
   return <Link href={`/works/${encodeURIComponent(work.workId)}`} className="work-card card h-100 text-decoration-none shadow-sm">
     <Cover workId={work.workId} title={work.title} hasCover={work.hasCover} className="work-card-cover" />
     <div className="card-body">
       <h3 className="h6 card-title mb-1">{work.title}</h3>
       <p className="small text-secondary mb-1">{work.author}</p>
       <p className="mb-1"><GenreBadges genres={work.genres} /></p>
-      <p className="small text-secondary mb-0">{work.episodeCount}개 회차 · 조회 {work.views.toLocaleString("ko-KR")} · 추천 {work.recommendCount.toLocaleString("ko-KR")}</p>
+      <p className="small text-secondary mb-0">{work.episodeCount}개 회차 · {prefix}조회 {work.views.toLocaleString("ko-KR")} · {prefix}추천 {work.recommendCount.toLocaleString("ko-KR")}</p>
     </div>
   </Link>;
 }

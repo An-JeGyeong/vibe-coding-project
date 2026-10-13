@@ -180,7 +180,9 @@ describe("ranking page /ranking (31.6)", () => {
     expect(screen.getByText("지난 7일 · 조회 1점, 추천 10점")).toBeTruthy();
     expect(screen.getByRole("button", { name: "주간" }).getAttribute("aria-pressed")).toBe("true");
     expect(new URL(calls.find((call) => call.path === "/api/public/rankings")!.url).search).toBe("?period=week&limit=50");
-    expect(screen.getByText(/1위 · 499점 \(조회 400 · 추천 9\)/)).toBeTruthy();
+    expect(screen.getByText(/1위 · 499점 \(기간 조회 400 · 기간 추천 9\)/)).toBeTruthy();
+    // the card above it names its own figures as totals, so the two kinds of numbers cannot be mixed up
+    expect(screen.getAllByText(/2개 회차 · 누적 조회 100 · 누적 추천 3/).length).toBeGreaterThan(0);
   });
 
   test("switching the tab asks only for that period and updates the address", async () => {

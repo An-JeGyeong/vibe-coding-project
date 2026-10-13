@@ -24,9 +24,9 @@ export function RankedGrid({ items, label }: { items: RankedWork[]; label: strin
   return <ul className="list-unstyled row g-3" aria-label={label}>
     {items.map((work) => <li key={work.workId} className="col-6 col-md-4 col-lg-3 col-xl-2 position-relative">
       <span className={`rank-badge${work.rank <= 3 ? " top" : ""}`} aria-hidden="true">{work.rank}</span>
-      <WorkCard work={work} />
+      <WorkCard work={work} cumulative />
       <BookmarkButton workId={work.workId} title={work.title} className="bookmark-corner" />
-      <p className="small text-secondary mt-1 mb-0">{work.rank}위 · {work.score.toLocaleString("ko-KR")}점 (조회 {work.periodViews.toLocaleString("ko-KR")} · 추천 {work.periodRecommends.toLocaleString("ko-KR")})</p>
+      <p className="small text-secondary mt-1 mb-0">{work.rank}위 · {work.score.toLocaleString("ko-KR")}점 (기간 조회 {work.periodViews.toLocaleString("ko-KR")} · 기간 추천 {work.periodRecommends.toLocaleString("ko-KR")})</p>
     </li>)}
   </ul>;
 }
