@@ -42,7 +42,7 @@ Vercel 주소는 https이므로 백엔드 주소도 **https**여야 한다(http 
 ## 4. 배포 방법
 
 ### 방법 1: Git 연동 (자동 배포)
-1. 원격 저장소(GitHub 등)를 만들고 push한다. **지금까지 이 저장소는 push한 적이 없고, push는 사용자가 직접 결정한다.** push 전에 `STATUS.md` 7절 체크리스트(비밀 정보 점검)를 확인한다. 현재 브랜치 이름은 `master`이다.
+1. 저장소는 이미 GitHub(`https://github.com/An-JeGyeong/vibe-coding-project`)의 `main` 브랜치에 push되어 있다(2026-10-13, 로컬 `master`를 `main`으로 올림). 이후 변경은 `git push`로 올린다. push 전에 `STATUS.md` 7절 체크리스트(비밀 정보 점검)를 확인한다.
 2. Vercel에서 그 저장소를 가져오고 3절대로 설정한다. 이후 push마다 배포된다.
 
 ### 방법 2: CLI (원격 저장소 없이)
