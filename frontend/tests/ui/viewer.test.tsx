@@ -60,12 +60,14 @@ describe("page-turning rules (27.4)", () => {
     expect(stepForSwipe(30, 0, "rtl")).toBeNull();
     expect(stepForSwipe(100, 90, "rtl")).toBeNull();
   });
-  test("a spread keeps the first page alone and pairs the rest", () => {
-    expect(buildUnits([1, 2, 3, 4, 5], true)).toEqual([[1], [2, 3], [4, 5]]);
-    expect(buildUnits([1, 2, 3, 4], true)).toEqual([[1], [2, 3], [4]]);
+  test("a spread pairs the pages from the first one and shows an odd last page alone (D-062)", () => {
+    expect(buildUnits([1, 2, 3, 4, 5], true)).toEqual([[1, 2], [3, 4], [5]]);
+    expect(buildUnits([1, 2, 3, 4], true)).toEqual([[1, 2], [3, 4]]);
+    expect(buildUnits([1, 2], true)).toEqual([[1, 2]]);
+    expect(buildUnits([1], true)).toEqual([[1]]);
     expect(buildUnits([1, 2, 3], false)).toEqual([[1], [2], [3]]);
-    expect(unitIndexOf([[1], [2, 3]], 3)).toBe(1);
-    expect(unitIndexOf([[1], [2, 3]], 99)).toBe(0);
+    expect(unitIndexOf([[1, 2], [3, 4]], 3)).toBe(1);
+    expect(unitIndexOf([[1, 2], [3, 4]], 99)).toBe(0);
   });
 });
 
@@ -155,36 +157,36 @@ describe("manga viewer (27.4)", () => {
     expect(shownPages()).toEqual(["페이지 1"]);
   });
 
-  test("two-page spread on a wide screen: the first page alone, then pairs, the first page of a pair on the right in rtl", async () => {
+  test("two-page spread on a wide screen: pairs from the first page, the first page of a pair on the right in rtl, an odd last page alone", async () => {
     open(pages(1, 2, 3, 4, 5));
     render(<ReadEpisodePage />);
     await ready();
     click("설정");
     fireEvent.click(screen.getByLabelText("두 쪽 펼침"));
     click("닫기");
-    expect(shownPages()).toEqual(["페이지 1"]);
-    fireEvent.click(screen.getByTestId("zone-left"));
-    expect(shownPages()).toEqual(["페이지 2", "페이지 3"]);
-    expect(screen.getByText("2–3 / 5")).toBeTruthy();
+    expect(shownPages()).toEqual(["페이지 1", "페이지 2"]);
+    expect(screen.getByText("1–2 / 5")).toBeTruthy();
     expect(screen.getAllByRole("img")[0].parentElement!.className).toContain("rtl");
     fireEvent.click(screen.getByTestId("zone-left"));
-    expect(shownPages()).toEqual(["페이지 4", "페이지 5"]);
+    expect(shownPages()).toEqual(["페이지 3", "페이지 4"]);
+    fireEvent.click(screen.getByTestId("zone-left"));
+    expect(shownPages()).toEqual(["페이지 5"]);
     expect(screen.getByRole("status", { name: "" }).textContent).toContain("마지막 쪽입니다");
   });
 
-  test("by default a wide screen shows two pages together (first alone, then pairs); the reader can switch to one page", async () => {
+  test("by default a wide screen shows pages 1 and 2 together, then pairs; the reader can switch to one page", async () => {
     window.localStorage.removeItem(SETTINGS_KEY);
     open(pages(1, 2, 3, 4, 5));
     render(<ReadEpisodePage />);
     await ready();
-    expect(shownPages()).toEqual(["페이지 1"]);
+    expect(shownPages()).toEqual(["페이지 1", "페이지 2"]);
     fireEvent.click(screen.getByTestId("zone-left"));
-    expect(shownPages()).toEqual(["페이지 2", "페이지 3"]);
+    expect(shownPages()).toEqual(["페이지 3", "페이지 4"]);
     click("설정");
     expect((screen.getByLabelText("두 쪽 펼침") as HTMLInputElement).checked).toBe(true);
     fireEvent.click(screen.getByLabelText("한 쪽"));
     click("닫기");
-    expect(shownPages()).toEqual(["페이지 2"]);
+    expect(shownPages()).toEqual(["페이지 3"]);
   });
 
   test("on a narrow screen the spread is not offered and one page is shown", async () => {
@@ -194,10 +196,13 @@ describe("manga viewer (27.4)", () => {
     click("설정");
     fireEvent.click(screen.getByLabelText("두 쪽 펼침"));
     click("닫기");
+    expect(shownPages()).toEqual(["페이지 1", "페이지 2"]);
     fireEvent.click(screen.getByTestId("zone-left"));
-    expect(shownPages()).toEqual(["페이지 2", "페이지 3"]);
+    expect(shownPages()).toEqual(["페이지 3"]);
     setWidth(600);
-    await waitFor(() => expect(shownPages()).toEqual(["페이지 2"])); // the spread is dropped, the current page stays
+    await waitFor(() => expect(shownPages()).toEqual(["페이지 3"])); // the spread is dropped, the current page stays
+    fireEvent.click(screen.getByTestId("zone-right"));
+    expect(shownPages()).toEqual(["페이지 2"]); // one page at a time again
     click("설정");
     expect((screen.getByLabelText("두 쪽 펼침") as HTMLInputElement).matches(":disabled")).toBe(true);
     expect(screen.getByText(/넓은 화면에서만/)).toBeTruthy();
@@ -303,7 +308,7 @@ describe("manga viewer (27.4)", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(opener);
     fireEvent.click(screen.getByTestId("zone-left")); // still works without storage, with the default two-page spread
-    expect(shownPages()).toEqual(["페이지 2", "페이지 3"]);
+    expect(shownPages()).toEqual(["페이지 3"]);
   });
 
   test("keys do not turn pages while the settings panel is open", async () => {

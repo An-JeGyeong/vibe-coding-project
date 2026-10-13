@@ -263,6 +263,7 @@ describe("viewer inside a work (28.6)", () => {
   const shown = () => screen.getAllByRole("img").map((image) => image.getAttribute("alt"));
 
   test("the work supplies the reading direction, the list link and its own previous and next episodes", async () => {
+    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({ spread: false })); // one page at a time; the direction is still not chosen, so the work's applies
     open("LTR");
     render(<ReadEpisodePage />);
     await ready();

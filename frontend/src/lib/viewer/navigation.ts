@@ -3,14 +3,13 @@ export type Direction = "rtl" | "ltr"; // rtl: right-to-left (Japanese manga, th
 export type ViewMode = "scroll" | "page";
 export type Step = 1 | -1; // 1: toward the end of the episode
 
-/** Page numbers grouped into what is shown at once. A spread keeps the first page alone (the cover) and then pairs. */
+/** Page numbers grouped into what is shown at once. A spread pairs the pages from the first one (1–2, 3–4, …); an odd last page is shown alone (D-062). */
 export function buildUnits(pages: number[], spread: boolean): number[][] {
   if (!spread) return pages.map((page) => [page]);
   const units: number[][] = [];
   for (let index = 0; index < pages.length;) {
-    const size = index === 0 ? 1 : 2;
-    units.push(pages.slice(index, index + size));
-    index += size;
+    units.push(pages.slice(index, index + 2));
+    index += 2;
   }
   return units;
 }
