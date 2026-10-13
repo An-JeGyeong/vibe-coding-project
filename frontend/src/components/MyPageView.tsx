@@ -2,44 +2,17 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { requestLogout, requestMe } from "@/lib/auth/client";
+import { LibraryView } from "./LibraryView";
 import { ROLE_INFO } from "@/lib/auth/roles";
-import { clearToken, readToken } from "@/lib/auth/storage";
-import type { AuthUser } from "@/lib/auth/types";
-import { useLibrary, useRecent, useTheme } from "@/lib/personal/hooks";
+import { useAccount } from "@/lib/auth/useAccount";
+import { useRecent, useTheme } from "@/lib/personal/hooks";
 import { clearLibrary } from "@/lib/personal/library";
 import { clearRecent } from "@/lib/personal/recent";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, type ViewerSettings } from "@/lib/viewer/storage";
 
-type Account = { state: "checking" } | { state: "none" } | { state: "user"; user: AuthUser } | { state: "unreachable" };
-
-/** The only area that looks at the sign-in state (CONTRACTS 30.2 area 1). The server is asked only when a token exists. */
+/** The only area of the page that looks at the sign-in state (CONTRACTS 30.2 area 1). The server is asked only when a token exists. */
 function AccountArea() {
-  const [account, setAccount] = useState<Account>({ state: "checking" });
-  const [leaving, setLeaving] = useState(false);
-
-  useEffect(() => {
-    const stored = readToken();
-    if (!stored.ok || stored.token === null) { setAccount({ state: "none" }); return; }
-    const request = new AbortController();
-    void requestMe(stored.token, request.signal).then((result) => {
-      if (request.signal.aborted) return;
-      if (result.ok) { setAccount({ state: "user", user: result.value.user }); return; }
-      if (result.failure.kind === "unauthorized") { clearToken(); setAccount({ state: "none" }); return; }
-      setAccount({ state: "unreachable" });
-    });
-    return () => request.abort();
-  }, []);
-
-  async function logout() {
-    const stored = readToken();
-    setLeaving(true);
-    if (stored.ok && stored.token !== null) await requestLogout(stored.token);
-    clearToken();
-    setLeaving(false);
-    setAccount({ state: "none" });
-  }
-
+  const { account, leaving, logout } = useAccount();
   return <section aria-labelledby="my-account" className="card card-body mb-3">
     <h2 id="my-account" className="h5">계정</h2>
     {account.state === "checking" && <p role="status" className="mb-0">확인하는 중…</p>}
@@ -54,11 +27,13 @@ function AccountArea() {
 }
 
 function LibraryArea() {
-  const library = useLibrary();
   return <section aria-labelledby="my-library" className="card card-body mb-3">
-    <h2 id="my-library" className="h5">내 서재</h2>
-    <p className="mb-2">{library.entries.length === 0 ? "담은 작품이 없습니다." : `${library.entries.length}개의 작품을 담았습니다.`}</p>
-    <div><Link href="/library" className="btn btn-outline-secondary btn-sm me-2">내 서재 보기</Link><Link href="/works" className="btn btn-outline-secondary btn-sm">작품 찾기</Link></div>
+    <div className="d-flex justify-content-between align-items-center mb-2">
+      <h2 id="my-library" className="h5 mb-0">내 서재</h2>
+      <Link href="/works" className="btn btn-outline-secondary btn-sm">작품 찾기</Link>
+    </div>
+    <p className="small text-secondary">이 브라우저에만 저장됩니다. 계정과는 연결되지 않습니다.</p>
+    <LibraryView nested />
   </section>;
 }
 

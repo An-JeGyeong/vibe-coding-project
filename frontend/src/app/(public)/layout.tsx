@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ThemeToggle } from "@/components/PersonalParts";
+import { PublicProfileMenu } from "@/components/ProfileMenu";
 
 export const metadata: Metadata = { title: "만화 읽기" };
 
@@ -16,8 +16,6 @@ export default function PublicLayout({ children }: Readonly<{ children: React.Re
           <Link href="/works" className="app-nav-link">작품</Link>
           <Link href="/ranking" className="app-nav-link">랭킹</Link>
           <Link href="/read" className="app-nav-link">회차 목록</Link>
-          <Link href="/library" className="app-nav-link">내 서재</Link>
-          <Link href="/my" className="app-nav-link">마이페이지</Link>
           {/* the same for everyone: it does not depend on who is signed in; /demo sends a visitor without a login to the login page */}
           <Link href="/demo" className="app-nav-link">작업 공간</Link>
         </nav>
@@ -26,8 +24,7 @@ export default function PublicLayout({ children }: Readonly<{ children: React.Re
           <input id="header-query" name="q" type="search" className="form-control form-control-sm" placeholder="작품 검색" />
           <button type="submit" className="btn btn-primary btn-sm">검색</button>
         </form>
-        <ThemeToggle />
-        <Link href="/login" className="btn btn-outline-light btn-sm">로그인</Link>
+        <PublicProfileMenu />
       </div>
     </header>
     {children}

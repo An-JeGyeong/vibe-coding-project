@@ -16,10 +16,10 @@ export function BookmarkButton({ workId, title, className = "" }: { workId: stri
 }
 
 /** Light / dark switch of the header (CONTRACTS 30.2). The label names the mode it switches to. */
-export function ThemeToggle() {
+export function ThemeToggle({ className = "btn btn-outline-light btn-sm" }: { className?: string }) {
   const [theme, setTheme] = useTheme();
   const dark = theme === "dark";
-  return <button type="button" className="btn btn-outline-light btn-sm theme-toggle" aria-pressed={dark} onClick={() => setTheme(dark ? "light" : "dark")}>
+  return <button type="button" className={`${className} theme-toggle`} aria-pressed={dark} onClick={() => setTheme(dark ? "light" : "dark")}>
     {dark ? "라이트 모드" : "다크 모드"}
   </button>;
 }

@@ -79,7 +79,8 @@ describe("public shell", () => {
     expect(within(nav).getByRole("link", { name: "홈" }).getAttribute("href")).toBe("/");
     expect(within(nav).getByRole("link", { name: "회차 목록" }).getAttribute("href")).toBe("/read");
     expect(within(nav).getByRole("link", { name: "작업 공간" }).getAttribute("href")).toBe("/demo"); // a way back to the signed-in screens; shown to everyone
-    expect(screen.getAllByRole("link", { name: "로그인" }).map((link) => link.getAttribute("href"))).toEqual(["/login", "/login"]);
+    expect(screen.getAllByRole("link", { name: "로그인" }).map((link) => link.getAttribute("href"))).toEqual(["/login"]); // the footer; the header one is inside the profile popup
+    expect(within(nav).queryByRole("link", { name: /내 서재|마이페이지/ })).toBeNull();
     expect(screen.getByRole("contentinfo").textContent).toContain("번역된 만화를 읽는 곳");
     expect(screen.getByText("본문")).toBeTruthy();
   });

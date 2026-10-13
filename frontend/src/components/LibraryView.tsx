@@ -11,7 +11,8 @@ const CONCURRENCY = 4;
 type Slot = { state: "loading" } | { state: "ready"; work: WorkSummary } | { state: "gone" } | { state: "failed" };
 
 /** The bookmarked works (CONTRACTS 30.2): each one is looked up in the public catalog; a work that is no longer public can be taken out. */
-export function LibraryView() {
+export function LibraryView({ nested = false }: { nested?: boolean }) {
+  const Heading = nested ? "h3" : "h2";
   const library = useLibrary();
   const [slots, setSlots] = useState<Record<string, Slot>>({});
   const requested = useRef(new Set<string>());
@@ -52,7 +53,7 @@ export function LibraryView() {
     {failed > 0 && <p className="text-danger small" role="alert">{failed}개의 작품을 불러오지 못했습니다. 새로고침한 뒤 다시 시도하세요.</p>}
     {ready.length > 0 && <WorkGrid works={ready} label="내 서재 작품" />}
     {gone.length > 0 && <section aria-label="공개되지 않은 작품" className="mt-4">
-      <h2 className="h5">공개되지 않은 작품</h2>
+      <Heading className="h5">공개되지 않은 작품</Heading>
       <p className="small text-secondary">보류되었거나 비공개로 바뀐 작품입니다. 다시 공개되면 여기서 다시 볼 수 있습니다.</p>
       <ul className="list-group">
         {gone.map((entry) => <li key={entry.workId} className="list-group-item d-flex justify-content-between align-items-center">

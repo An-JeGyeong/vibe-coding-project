@@ -325,3 +325,12 @@ html:root[data-bs-theme="dark"] {
 .hero-dot::after { content: ""; position: absolute; left: 50%; top: 50%; width: 0.6rem; height: 0.6rem; border-radius: 50%; transform: translate(-50%, -50%); background: rgba(255, 255, 255, 0.45); }
 .hero-dot.on::after { background: var(--lime); width: 0.8rem; height: 0.8rem; }
 @media (max-width: 575.98px) { .hero-banner { flex-direction: column; text-align: center; } .hero-slide { padding: 1.5rem 1rem 4rem; } }
+
+/* Profile button and popup of the header (CONTRACTS 30.2, D-063) */
+.profile-menu { position: relative; }
+.profile-panel { position: absolute; right: 0; top: calc(100% + 0.4rem); z-index: 30; width: 17rem; max-width: calc(100vw - 2rem); background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 0.9rem; box-shadow: var(--shadow-2); padding: 0.4rem 0.9rem; }
+.profile-section { padding: 0.7rem 0; }
+.profile-section + .profile-section { border-top: 1px solid var(--line); }
+.profile-link { display: block; text-decoration: none; font-weight: 600; }
+.profile-link:hover { text-decoration: underline; }
+.profile-links li + li { margin-top: 0.5rem; }

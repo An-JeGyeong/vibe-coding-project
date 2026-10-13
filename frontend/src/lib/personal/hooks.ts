@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { addToLibrary, loadLibrary, removeFromLibrary, type LibraryEntry } from "./library";
 import { loadRecent, type RecentEpisode } from "./recent";
 import { PERSONAL_EVENT } from "./storage";
+import { EMPTY_PROFILE, loadProfile } from "./profile";
 import { loadRecommended } from "./voter";
 import { loadTheme, saveTheme, type Theme } from "./theme";
 
@@ -45,4 +46,9 @@ const EMPTY_IDS: string[] = [];
 export function useRecommended() {
   const ids = useStored(loadRecommended, EMPTY_IDS);
   return { has: (workId: string) => ids.includes(workId) };
+}
+
+/** The browser-only profile (D-063). */
+export function useProfile() {
+  return useStored(loadProfile, EMPTY_PROFILE);
 }
