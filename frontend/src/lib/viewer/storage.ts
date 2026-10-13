@@ -5,7 +5,7 @@ export const SETTINGS_KEY = "mangabridge.viewer.settings.v1";
 export const POSITION_KEY = "mangabridge.viewer.position.v1";
 
 export type ViewerSettings = { mode: ViewMode; spread: boolean; direction: Direction };
-export const DEFAULT_SETTINGS: ViewerSettings = { mode: "page", spread: false, direction: "rtl" };
+export const DEFAULT_SETTINGS: ViewerSettings = { mode: "page", spread: true, direction: "rtl" }; // two pages together on wide screens; the reader can switch to one
 
 /** `fallbackDirection` is the work's reading direction: it only applies while the reader has not chosen one (CONTRACTS 28.6). */
 export function loadSettings(fallbackDirection: Direction = DEFAULT_SETTINGS.direction): ViewerSettings {

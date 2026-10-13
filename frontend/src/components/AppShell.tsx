@@ -30,6 +30,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Link href="/library" className={`app-nav-link${current("/library") ? " active" : ""}`}>내 서재</Link>
           <Link href="/my" className={`app-nav-link${current("/my") ? " active" : ""}`}>마이페이지</Link>
         </nav>
+        <form role="search" className="header-search" action="/works" method="get">
+          <label className="visually-hidden" htmlFor="header-query">작품 제목·작가 검색</label>
+          <input id="header-query" name="q" type="search" className="form-control form-control-sm" placeholder="작품 검색" />
+          <button type="submit" className="btn btn-primary btn-sm">검색</button>
+        </form>
         <div className="d-flex align-items-center gap-2">
           <ThemeToggle />
           {user

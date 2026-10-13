@@ -151,12 +151,20 @@ describe("hearts and the library (30.2)", () => {
 });
 
 describe("main page additions (30.2)", () => {
-  test("the search box goes to /works?q= and the continue-reading section appears only with recent episodes", async () => {
+  test("the header search box goes to /works?q=", () => {
+    render(<PublicLayout>x</PublicLayout>);
+    const form = screen.getByRole("search") as HTMLFormElement;
+    expect(form.getAttribute("action")).toBe("/works");
+    expect(form.getAttribute("method")).toBe("get");
+    expect((within(form).getByLabelText("작품 제목·작가 검색") as HTMLInputElement).name).toBe("q");
+    expect(within(form).getByRole("button", { name: "검색" })).toBeTruthy();
+  });
+
+  test("the main page has no search box of its own; the continue-reading section appears only with recent episodes", async () => {
     mockFetch(() => json(503, errorBody("SERVICE_UNAVAILABLE")));
     const first = render(<HomePage />);
-    const form = (await screen.findByRole("search")) as HTMLFormElement;
-    expect(form.getAttribute("action")).toBe("/works");
-    expect((within(form).getByLabelText("작품 제목·작가 검색") as HTMLInputElement).name).toBe("q");
+    await screen.findByRole("region", { name: "소개와 추천 작품" });
+    expect(screen.queryByRole("search")).toBeNull();
     expect(screen.queryByRole("region", { name: "이어 읽기" })).toBeNull();
     first.unmount();
     for (let n = 1; n <= 6; n++) recordRecent({ episodeId: String(n), title: `${n}화`, workId: "1", workTitle: "낯선 항구", episodeNo: n });

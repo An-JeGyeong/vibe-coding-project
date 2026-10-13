@@ -21,6 +21,11 @@ export default function PublicLayout({ children }: Readonly<{ children: React.Re
           {/* the same for everyone: it does not depend on who is signed in; /demo sends a visitor without a login to the login page */}
           <Link href="/demo" className="app-nav-link">작업 공간</Link>
         </nav>
+        <form role="search" className="header-search" action="/works" method="get">
+          <label className="visually-hidden" htmlFor="header-query">작품 제목·작가 검색</label>
+          <input id="header-query" name="q" type="search" className="form-control form-control-sm" placeholder="작품 검색" />
+          <button type="submit" className="btn btn-primary btn-sm">검색</button>
+        </form>
         <ThemeToggle />
         <Link href="/login" className="btn btn-outline-light btn-sm">로그인</Link>
       </div>

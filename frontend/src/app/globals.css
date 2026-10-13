@@ -301,3 +301,27 @@ html:root[data-bs-theme="dark"] {
 [data-bs-theme="dark"] .home-card:hover, [data-bs-theme="dark"] .work-card:hover { box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.6) !important; }
 [data-bs-theme="dark"] .card.shadow-sm { box-shadow: none !important; }
 [data-bs-theme="dark"] .table-hover > tbody > tr:hover > * { color: var(--ink); }
+
+/* Header search (CONTRACTS 30.2, revised D-061) */
+.header-search { display: flex; gap: 0.35rem; align-items: center; }
+.header-search input { width: 11rem; }
+@media (max-width: 575.98px) { .header-search { order: 4; width: 100%; } .header-search input { width: auto; flex: 1; } }
+
+/* Hero carousel (CONTRACTS 28.6, D-061) */
+.home-hero { padding: 0; text-align: left; }
+.hero-slide { position: relative; min-height: 15rem; display: flex; align-items: center; padding: 2.5rem 2rem 3.5rem; }
+.hero-intro { width: 100%; text-align: center; position: relative; }
+.hero-banner { display: flex; gap: 1.75rem; align-items: center; width: 100%; position: relative; }
+.hero-banner-cover { flex: none; width: 9.5rem; }
+.hero-cover-img { border-radius: 0.75rem; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); }
+.hero-banner-text h2 { color: #fff; font-weight: 800; }
+.hero-banner-text p { color: #e4e4e0; }
+.hero-kicker { color: var(--lime); font-weight: 800; font-size: 0.8rem; letter-spacing: 0.08em; }
+.hero-controls { position: absolute; left: 0; right: 0; bottom: 0.75rem; display: flex; justify-content: center; align-items: center; gap: 0.6rem; z-index: 2; }
+.hero-btn { background: rgba(255, 255, 255, 0.14); color: #fff; border: 1px solid rgba(255, 255, 255, 0.35); border-radius: 999px; min-width: 2rem; height: 2rem; padding: 0 0.7rem; font-size: 0.85rem; line-height: 1; cursor: pointer; }
+.hero-btn:hover { background: rgba(200, 245, 154, 0.25); }
+.hero-dots { display: flex; gap: 0.35rem; align-items: center; }
+.hero-dot { width: 1.5rem; height: 1.5rem; border: 0; padding: 0; background: transparent; position: relative; cursor: pointer; }
+.hero-dot::after { content: ""; position: absolute; left: 50%; top: 50%; width: 0.6rem; height: 0.6rem; border-radius: 50%; transform: translate(-50%, -50%); background: rgba(255, 255, 255, 0.45); }
+.hero-dot.on::after { background: var(--lime); width: 0.8rem; height: 0.8rem; }
+@media (max-width: 575.98px) { .hero-banner { flex-direction: column; text-align: center; } .hero-slide { padding: 1.5rem 1rem 4rem; } }

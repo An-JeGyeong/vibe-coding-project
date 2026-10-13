@@ -35,7 +35,9 @@ function setWidth(width: number) {
   fireEvent(window, new Event("resize"));
 }
 
-beforeEach(() => { nav.params = { id: "2" }; setWidth(1280); });
+// the default is two pages together on a wide screen; these tests exercise single-page turning unless they switch the spread on
+const SINGLE = { mode: "page", spread: false, direction: "rtl" };
+beforeEach(() => { nav.params = { id: "2" }; setWidth(1280); window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(SINGLE)); });
 afterEach(() => { vi.unstubAllGlobals(); setWidth(1024); });
 
 describe("page-turning rules (27.4)", () => {
@@ -170,6 +172,21 @@ describe("manga viewer (27.4)", () => {
     expect(screen.getByRole("status", { name: "" }).textContent).toContain("마지막 쪽입니다");
   });
 
+  test("by default a wide screen shows two pages together (first alone, then pairs); the reader can switch to one page", async () => {
+    window.localStorage.removeItem(SETTINGS_KEY);
+    open(pages(1, 2, 3, 4, 5));
+    render(<ReadEpisodePage />);
+    await ready();
+    expect(shownPages()).toEqual(["페이지 1"]);
+    fireEvent.click(screen.getByTestId("zone-left"));
+    expect(shownPages()).toEqual(["페이지 2", "페이지 3"]);
+    click("설정");
+    expect((screen.getByLabelText("두 쪽 펼침") as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByLabelText("한 쪽"));
+    click("닫기");
+    expect(shownPages()).toEqual(["페이지 2"]);
+  });
+
   test("on a narrow screen the spread is not offered and one page is shown", async () => {
     open(pages(1, 2, 3));
     render(<ReadEpisodePage />);
@@ -285,8 +302,8 @@ describe("manga viewer (27.4)", () => {
     fireEvent.keyDown(dialog, { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(opener);
-    fireEvent.click(screen.getByTestId("zone-left")); // still works without storage
-    expect(shownPages()).toEqual(["페이지 2"]);
+    fireEvent.click(screen.getByTestId("zone-left")); // still works without storage, with the default two-page spread
+    expect(shownPages()).toEqual(["페이지 2", "페이지 3"]);
   });
 
   test("keys do not turn pages while the settings panel is open", async () => {

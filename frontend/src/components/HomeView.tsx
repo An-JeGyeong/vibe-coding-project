@@ -11,6 +11,7 @@ import { useRecent } from "@/lib/personal/hooks";
 import { loadLatestPublicEpisodes } from "@/lib/reader/episodes";
 import { hasPosition } from "@/lib/reader/position";
 import { Cover, WorkGrid } from "./CatalogParts";
+import { HeroCarousel } from "./HeroCarousel";
 import { HomeRanking } from "./RankingViews";
 
 const LATEST_COUNT = 12;
@@ -178,15 +179,7 @@ export function HomeView() {
 
   const empty = home !== null && home.latest.length === 0 && home.popular.length === 0 && home.featured.length === 0;
   return <main id="main-content" className="container py-5">
-    <section aria-label="소개" className="home-hero mb-4">
-      <h1 className="h2 mb-2">번역된 만화를 <em>읽어 보세요</em></h1>
-      <p className="text-secondary mb-3">망가브릿지에서 번역·감수를 마치고 공개된 회차를 바로 읽을 수 있습니다.</p>
-      <form role="search" className="d-flex gap-2" action="/works" method="get">
-        <label className="visually-hidden" htmlFor="home-query">작품 제목·작가 검색</label>
-        <input id="home-query" name="q" type="search" className="form-control" style={{ maxWidth: "26rem" }} placeholder="작품 제목이나 작가로 검색" />
-        <button type="submit" className="btn btn-primary">검색</button>
-      </form>
-    </section>
+    <HeroCarousel banners={home?.banners ?? []} />
     <ContinueReading />
     {loading && home === null && failure === null && <p role="status">불러오는 중…</p>}
     {failure !== null && <>
