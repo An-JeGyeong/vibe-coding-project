@@ -1257,3 +1257,48 @@ Flyway 이력은 V35/35행→V36/36행, V36 success=1이며 V1~V35 전체 이력
 적용 후 CHECK: chk_demo_role은 OPERATOR/TRANSLATOR/REVIEWER/READER/TYPESETTER, ck_assignment_role은 TRANSLATOR/REVIEWER/TYPESETTER를 허용합니다. 다만 엄격한 SHOW CREATE TABLE 문자열 대조가 실패해 요청대로 중단했습니다. 재생성된 두 CHECK의 문자열 리터럴 introducer가 기존 `_ascii`에서 `_utf8mb4`로 표현됐습니다. 저장된 스냅샷을 읽기 전용으로 분석한 결과, 두 리터럴 introducer 차이와 TYPESETTER 추가를 제외한 DDL은 동일합니다(컬럼 타입·collation 변경이 아님). 이를 자동으로 동등 처리해 검증 통과로 바꾸지 않았으며 DB 재시도·수정·복구도 하지 않았습니다. 이 차이의 승인/검토는 남은 항목입니다.
 
 최종 정리: 개발 DB healthy 유지, 3306 리스너 1(PID 23224), 8080 리스너 0, 3000 리스너 1(기존 PID 29368) 유지. 증빙 before.json·after.json·spring.log는 ignored backend/build/verification/db36에 있습니다. 소스·계약·마이그레이션·PROJECT_CONTEXT.md는 변경하지 않았습니다.
+
+### 추천·기간별 랭킹 백엔드 검증 (2026-10-13, CONTRACTS 31절)
+
+검증자: Codex 직접 실행. 승인 계약 b2d8044 및 정리 코드 정정 c42774d 기준입니다. 별도 worktree에서 구현한 ① 19ce8e4, ② a24491c, ③ 6aa1564를 master에 순서대로 cherry-pick했습니다. 메인 커밋은 각각 **90c6a37 / f7b05c8 / 8ca4e6d**입니다. 프런트·계약의 상대 작업은 보존했고, 테스트 중 추가된 6eaad76에서도 backend가 8ca4e6d와 동일함을 확인했습니다.
+
+변경 파일: V37__recommendations_and_daily_views.sql; work 패키지의 ViewDao/ViewService, CatalogDao/CatalogService, 신규 RecommendController/Dao/Service 및 RankingController/Dao/Service; AuthSecurity/AuthErrors; 신규 DailyViewIntegrationTest·RecommendIntegrationTest·RankingIntegrationTest; 아래 허용된 기존 테스트 3개; README 검증 기록. V37은 승인된 예외대로 CREATE TABLE 2개이며 모든 컬럼 NOT NULL, PK·CHECK·RESTRICT FK를 포함합니다. V1~V36·기존 API의 필드와 동작은 유지했습니다(작품 요약 recommendCount 추가 제외). 환경변수·의존성·인덱스 추가와 개발 DB V37 적용은 하지 않았습니다.
+
+환경: 실제 MySQL 8.4.11, 일회용 `--rm`·`/var/lib/mysql` tmpfs, localhost:3337/rank31_verify. 공유 테스트 DB의 연결 상한은 300이며 개발 DB와 애플리케이션 설정은 바꾸지 않았습니다. PowerShell 5.1.26100.9444에서 프로세스 환경을 주입했습니다. Compose 검증 프로젝트는 rank31_verify, COMPOSE_FILE은 ignored 검증 YAML이며 기존 컨테이너 설정을 변경하지 않았습니다. 최종 두 번은 모두 메인 체크아웃의 **backend 폴더**에서 다음 명령을 그대로 실행했습니다.
+
+```powershell
+.\gradlew.bat build integrationTest --no-daemon --rerun-tasks
+```
+
+| 실행 | Test Files / Tests | 실패 / 오류 / 건너뛰기 | 결과 |
+|---|---:|---:|---|
+| ① worktree 전체 회귀 | 31 / 209 | 0 / 0 / 0 | 통과 |
+| ② worktree 전체 회귀 | 32 / 213 | 0 / 0 / 0 | 통과 |
+| ③ worktree 랭킹 선택 실행 + 단위 테스트 | 10 / 43 | 0 / 0 / 0 | 통과 |
+| 최종 메인 1차(20:46~20:52 KST, 4분 57초) | 33 / 218 | 0 / 0 / 0 | 통과, 종료 코드 0 |
+| 최종 메인 2차(20:52~20:57 KST, 4분 54초) | 33 / 218 | 0 / 0 / 0 | 통과, 종료 코드 0 |
+
+최종 합계는 단위 9파일/38개 + 실제 MySQL 통합 24파일/180개입니다. ① 최초 선택 실행에서는 기존 `MySqlIntegrationTest.dockerProbeRunsSelectAndRejectsWrongPasswordWithoutLeakingIt` 1건이 실패했습니다. 진단 결과 COMPOSE_FILE이 존재하지 않는 검증 YAML을 가리켰습니다. Compose v5의 `ps -q mysql`은 종료 코드 0인데 `exec -T mysql sh -s`는 종료 코드 1과 `GetFileAttributesEx … missing-diagnostic.yaml: The system cannot find the file specified`를 반환하는 것을 직접 재현했습니다. 유효한 ignored 검증 YAML 경로를 주입한 뒤 같은 테스트가 통과했습니다. 메인·worktree에서 기존 개발 컨테이너의 SELECT 1 probe도 종료 코드 0, stdout 0, stderr 없음으로 직접 확인했습니다. **계약 위반이 아닌 환경 이슈**이며 테스트·단언·컨테이너 계정이나 설정을 수정하지 않았습니다. 해결 방법은 실행 프로세스의 COMPOSE_FILE을 실제 존재하는 올바른 파일로 지정하는 것입니다.
+
+② 신규 테스트의 초기 비JSON 요청은 415로 실패했으며, 새 RecommendController의 consumes 제한을 제거해 기존 공통 400 INVALID_REQUEST 처리로 연결했습니다. 기대 단언을 약화하지 않았고 이후 전체 회귀를 재실행했습니다. 신규 테스트 초기 컴파일 오류도 신규 픽스처의 누락된 보조 함수를 추가해 해결했습니다. 위 표는 수정 후 실제 성공한 실행만 표시합니다.
+
+기존 테스트 변경 목록(기존 동작 검증의 삭제·약화 없음):
+
+- MySqlIntegrationTest.mysqlHealthAndBaseline: 최신 버전 36→37. mysqlCharsetCollationUtcDedicatedAccountAndInnoDb: 허용 테이블 목록에 episode_view_daily·work_recommend만 추가. dockerProbe 테스트는 변경 없음.
+- DomainSchemaMigrationIntegrationTest.emptyDatabaseMigratesAllThirtyTwoAndValidatesTwice: 전체 적용·이력 수 36→37. populatedV9UpgradePreservesEveryOldColumnAndChecksum: 신규 적용 수 27→28. 나머지 단언 불변.
+- WorkIntegrationTest.catalogVisibilityHoldResumeAndPrivateInformationNeverLeaks, catalogFilteringSortPaginationAndStrictQueries: 정확 필드 목록에 recommendCount만 추가.
+- WorkIntegrationTest.cleanup(): 승인 c42774d에 따라 테스트가 만든 episode id의 episode_view_daily, work id의 work_recommend를 FK 대상 삭제 전에 정리. 공유 데이터는 삭제하지 않음.
+
+| CONTRACTS 31.5 항목 | 실제 결과·증빙 테스트 |
+|---|---|
+| recordView | 통과: 오늘 증가·UTC 날짜 변경·미공개/보류/없는 회차·두 쓰기 장애의 동시 롤백(DailyViewIntegrationTest) |
+| recommend/unrecommend | 통과: 멱등·취소·재추천 시각·다른 표·공개 조건·입력/비JSON 400·다른 메서드 405·인증 무관·동시 요청(RecommendIntegrationTest) |
+| 랭킹 | 통과: 7/30/365일 경계·미래 날짜 제외·점수 공식·세 단계 정렬·순위·기본 10/최대 50·보류/재개·취소·비공개/0점 제외·과거 누적 제외·쿼리 400·인증 무관(RankingIntegrationTest) |
+| 작품 요약 | 통과: home·works·work·rankings의 recommendCount가 실제 전체 행 수와 일치 |
+| 스키마 | 통과: 정상 INSERT·NOT NULL/CHECK/PK/FK 거부, RESTRICT FK 2개, 기존 NOT NULL lint·V1~V36 불변·Flyway validate |
+
+전·1차 후·2차 후 읽기 전용 스냅샷은 동일: demo_account 4행, 전체 내용 SHA-256 `5e4bea752a09f83cef08ca1f6c9f58e10a3b8426535bf281b8945504fc75b6ff` 불변. auth_login_limit·auth_token·auth_audit·모든 업무 테이블(episode_view_daily·work_recommend 포함)은 각각 0행, Flyway 성공 이력 37행입니다. 테스트 생성 행만 정리했습니다. Max_used_connections는 211/300, 전체 종료 후 Threads_connected는 확인용 연결을 포함해 2였습니다. 연결 오류는 없었습니다.
+
+증빙은 ignored `backend/build/verification/rank31`의 full-10.log·full-11.log, reports-10·reports-11, main-before.txt·main-after-1.txt·main-after-2.txt 및 worktree-evidence에 보존했습니다. 비밀번호·토큰·AI 키를 코드·README·보고에 추가하지 않았으며 시드 비밀번호는 일회용 프로세스 안에서만 생성했습니다.
+
+정리: 소유 컨테이너 b8e482d5e64a…의 전체 ID를 대조해 stop --timeout 10(종료 코드 0), --rm 자동 정리·3337 리스너 0을 확인했습니다. 기존 개발 컨테이너 49c9b14620e0…는 running/healthy로 유지했으며 3306 데이터·기존 8080/8081/3000·frontend/.next·next-env.d.ts는 변경하지 않았습니다. 통합된 worktree는 증빙을 복사한 뒤 아카이브 완료 상태를 확인했습니다. 상대 프런트 미커밋 변경과 PROJECT_CONTEXT.md의 i/lf w/crlf M은 보존했습니다. 계약과 다른 구현은 없습니다. 개발 DB V37 적용과 실제 브라우저 검증은 **미실행**이며 별도 승인·검증 단계로 남습니다.
